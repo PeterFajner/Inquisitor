@@ -36,7 +36,11 @@ export interface Archetype {
 }
 
 export interface ArchetypeCompendium {
-    [key: string]: Archetype
+    archetypes: {[key: string]: Archetype}
+}
+
+export const EmptyCompendium = {
+    archetypes: {}
 }
 
 /**

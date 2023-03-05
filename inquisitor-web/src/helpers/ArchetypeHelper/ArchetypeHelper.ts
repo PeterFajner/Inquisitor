@@ -5,16 +5,16 @@ import { ArchetypeCompendium, DieCode } from './Archetype';
 export const compileArchetypes = async (): Promise<ArchetypeCompendium> => {
     const { sheets } = config;
     const rawStats = await sheetUrlToCsv(sheets.stats);
-    const compendium: ArchetypeCompendium = {};
+    const compendium: ArchetypeCompendium = { archetypes: {} };
     rawStats.forEach(item => {
         const archetype = item.Archetype;
         const subtype = item.Subtype;
-        compendium[archetype] = compendium[archetype] ?? {
+        compendium.archetypes[archetype] = compendium.archetypes[archetype] ?? {
             name: archetype,
             roles: {},
             subtypes: {},
         };
-        compendium[archetype].subtypes[subtype] = {
+        compendium.archetypes[archetype].subtypes[subtype] = {
             name: subtype,
             stats: {
                 BS: new DieCode(item.BS),

@@ -12,5 +12,13 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
         setData({ ...data, name });
     };
 
-    return { data, setName };
+    const setArchetype = (archetype: Archetype) => {
+        setData({ ...data, archetype });
+    }
+
+    const setSubtype = (subtype: Subtype) => {
+        setData({ ...data, subtype });
+    }
+
+    return { data, setName, setArchetype, setSubtype };
 }

@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import { CharacterBuilder } from 'components/CharacterBuilder/CharacterBuilder';
-import { ArchetypeCompendium } from 'helpers/ArchetypeHelper/Archetype';
+import { ArchetypeCompendium, EmptyCompendium } from 'helpers/ArchetypeHelper/Archetype';
 import { compileArchetypes } from 'helpers/ArchetypeHelper/ArchetypeHelper';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
     const [characterIDs, setCharacterIDs] = useState<string[]>([]);
-    const [compendium, setCompendium] = useState<ArchetypeCompendium>({});
+    const [compendium, setCompendium] = useState<ArchetypeCompendium>(EmptyCompendium);
 
     useEffect(() => {
         const compile = async () => {
