@@ -1,21 +1,7 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
+@import "./variables.css";
 
 .App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+  text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -24,15 +10,60 @@
   color: white;
 }
 
-.App-link {
-  color: #61dafb;
+.buttons-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.all-characters {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+
+.character-builder:nth-child(even) {
+  background-color: var(--even-bg-color);
+  color: var(--even-fg-color);
+  border-color: var(--even-border-color);
+}
+
+.character-builder:nth-child(even) input {
+  background-color: var(--even-fg-color);
+  color: var(--even-bg-color);
+}
+
+.character-builder:nth-child(even) section:not(:last-child) {
+  padding-bottom: 20px;
+  border-bottom-color: var(--even-fg-color);
+}
+
+.character-builder:nth-child(odd) {
+  background-color: var(--odd-bg-color);
+  color: var(--odd-fg-color);
+  border-color: var(--odd-border-color);
+}
+
+.character-builder:nth-child(odd) input {
+  background-color: var(--odd-fg-color);
+  color: var(--odd-bg-color);
+}
+
+.character-builder:nth-child(even) section:not(:last-child) {
+  padding-bottom: 20px;
+  border-bottom-color: var(--even-fg-color);
+}
+
+.character-builder {
+  margin: 20px;
+  padding: 20px;
+  border: solid 5px;
+  border-radius: 5px;
+}
+
+.character-builder section:not(:last-child) {
+  padding-bottom: 20px;
+  border-bottom: 1px dashed;
 }

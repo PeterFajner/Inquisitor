@@ -25,13 +25,17 @@ function App() {
         <div className="App">
             <header className="App-header">
                 <h1>Inquisitor Character Generator</h1>
-                <ul>
-                    {characterIDs.map(id => (
-                        <li key={id}><CharacterBuilder id={id} compendium={compendium} /></li>
-                    ))}
-                </ul>
-                <button onClick={addCharacter}>Add character</button>
             </header>
+            <main>
+                <div className='all-characters'>
+                    {characterIDs.map(id => (
+                        <section className='character-builder' key={id}><CharacterBuilder id={id} compendium={compendium} /></section>
+                    ))}
+                </div>
+                <div className='buttons-wrapper'>
+                    <button onClick={addCharacter}>Add character</button>
+                </div>
+            </main>
         </div>
     );
 }

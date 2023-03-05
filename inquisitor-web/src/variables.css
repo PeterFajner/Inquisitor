@@ -1,0 +1,11 @@
+/* palette: https://coolors.co/0b0600-502410-e18d66-062105-75ea71 */
+
+:root {
+    --app-bg-color: #0B0600;
+    --even-border-color: #441F0D;
+    --even-bg-color: #502410;
+    --even-fg-color: #E18D66;
+    --odd-border-color: #031203;
+    --odd-bg-color: #062105;
+    --odd-fg-color: #75EA71;
+}

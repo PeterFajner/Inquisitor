@@ -14,10 +14,11 @@ export const CharacterBuilder: FunctionComponent<Props> = ({ id = '', compendium
     <section>
         <h2>{ data.name || 'Unnamed Character' }</h2>
         <section>
-        <div>
-            <label htmlFor='nameInput'>Character name:</label>
+            <label htmlFor='nameInput'>Character name: </label>
             <input id='nameInput' value={data.name} onChange={e => setName((e.target as HTMLInputElement).value)}/>
-            </div>
+        </section>
+        <section>
+            <h3>Archetype</h3>
         </section>
     </section>)
 }
