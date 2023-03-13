@@ -1,11 +1,11 @@
 import config from 'config';
 import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
-import { ArchetypeCompendium, DieCode } from './Archetype';
+import { Compendium, DieCode } from './Archetype';
 
-export const compileArchetypes = async (): Promise<ArchetypeCompendium> => {
+export const compileArchetypes = async (): Promise<Compendium> => {
     const { sheets } = config;
     const rawStats = await sheetUrlToCsv(sheets.stats);
-    const compendium: ArchetypeCompendium = { archetypes: {} };
+    const compendium: Compendium = { archetypes: {} };
     rawStats.forEach(item => {
         const archetype = item.Archetype;
         const subtype = item.Subtype;

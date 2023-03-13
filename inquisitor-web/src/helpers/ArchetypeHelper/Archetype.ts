@@ -35,7 +35,7 @@ export interface Archetype {
     subtypes: {[key: string]: Subtype};
 }
 
-export interface ArchetypeCompendium {
+export interface Compendium {
     archetypes: {[key: string]: Archetype}
 }
 

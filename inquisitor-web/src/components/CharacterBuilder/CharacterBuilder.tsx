@@ -1,4 +1,4 @@
-import { ArchetypeCompendium } from 'helpers/ArchetypeHelper/Archetype';
+import { Compendium } from 'helpers/ArchetypeHelper/Archetype';
 import { EmptyArchetype } from 'helpers/ArchetypeHelper/Placeholders';
 import { Character } from 'helpers/CharacterHelper/Character';
 import { useCharacter } from 'hooks/CharacterHooks/CharacterHooks';
@@ -6,7 +6,7 @@ import { FunctionComponent } from 'react';
 
 interface Props {
     id: string;
-    compendium: ArchetypeCompendium;
+    compendium: Compendium;
 }
 
 const buildTitle = (data: Character) => {
