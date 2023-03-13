@@ -1,4 +1,5 @@
 import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import { Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 export interface Stats {
     BS: number,
@@ -19,18 +20,6 @@ export interface Character {
     role: Role;
     subtype: Subtype;
     stats: Stats;
-
-    /*constructor(id: string | null = null) {
-        this.id = id || uuidv4();
-        this.name = '';
-        this.archetype = EmptyArchetype;
-        this.role = EmptyRole;
-        this.subtype = EmptySubtype;
-        this.stats = EmptyStats;
-    }
-
-    setName(name: string): Character {
-        this.name = name;
-        return this;
-    }*/
+    // chosen = whether the talent was chosen by the player (as opposed to automatic)
+    talents: Set<{talent: Talent, chosen: boolean}>;
 }

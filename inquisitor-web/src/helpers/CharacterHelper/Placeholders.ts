@@ -20,4 +20,5 @@ export const EmptyCharacter: Character = {
     role: EmptyRole,
     subtype: EmptySubtype,
     stats: EmptyStats,
+    talents: new Set(),
 }

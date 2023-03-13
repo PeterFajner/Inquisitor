@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import { CharacterBuilder } from 'components/CharacterBuilder/CharacterBuilder';
-import { Compendium, EmptyCompendium } from 'helpers/ArchetypeHelper/Archetype';
-import { compileArchetypes } from 'helpers/ArchetypeHelper/ArchetypeHelper';
+import { EmptyCompendium } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { Compendium } from "helpers/CompendiumHelper/CompendiumTypes";
+import { buildCompendium } from 'helpers/CompendiumHelper/CompendiumHelper';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
@@ -11,7 +12,7 @@ function App() {
 
     useEffect(() => {
         const compile = async () => {
-            const compendium = await compileArchetypes();
+            const compendium = await buildCompendium();
             setCompendium(compendium);
         };
         compile();
