@@ -1,15 +1,15 @@
-import { Archetype } from '../ArchetypeHelper/Archetype';
+import { Archetype } from "../ArchetypeHelper/Archetype";
 
 export interface Compendium {
     // compendium keys should always be lowercase, as there's some inconsistency in capitalization throughout the spreadsheet
-    archetypes: { [key: string]: Archetype; };
+    archetypes: { [key: string]: Archetype };
     talents: { [key: string]: Talent };
 }
 
 export const EmptyCompendium: Compendium = {
     archetypes: {},
     talents: {},
-}
+};
 
 export interface Talent {
     name: string;
@@ -50,13 +50,13 @@ export class DieCode {
 }
 
 export const STAT_NAMES = {
-    BS: 'Ballistics Skill',
-    I: '???',
-    Ld: 'Leadership',
-    Nv: 'Nerve',
-    S: 'Speed',
-    Sg: 'Sagacity',
-    T: '???',
-    WS: 'Weapons Skill',
-    Wp: 'Willpower',
+    BS: "Ballistics Skill",
+    I: "???",
+    Ld: "Leadership",
+    Nv: "Nerve",
+    S: "Speed",
+    Sg: "Sagacity",
+    T: "???",
+    WS: "Weapons Skill",
+    Wp: "Willpower",
 };

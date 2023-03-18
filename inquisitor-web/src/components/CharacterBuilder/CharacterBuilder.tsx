@@ -45,7 +45,9 @@ const characterHasTalent = (character: Character, talent: Talent) =>
         .map((item) => item.talent)
         .includes(talent);
 
-const characterHasBaseTalent = (character: Character, talent: Talent) => Array.from(character.talents).filter(item => ({ talent, chosen: false })).length > 0;
+const characterHasBaseTalent = (character: Character, talent: Talent) =>
+    Array.from(character.talents).filter((item) => ({ talent, chosen: false }))
+        .length > 0;
 
 const TalentSelectorList: FunctionComponent<{
     data: Character;
@@ -59,7 +61,10 @@ const TalentSelectorList: FunctionComponent<{
                     type="checkbox"
                     name={`${data.id}-talents`}
                     value={key}
-                    disabled={ numRemaining <= 0 || characterHasBaseTalent(data, talent) }
+                    disabled={
+                        numRemaining <= 0 ||
+                        characterHasBaseTalent(data, talent)
+                    }
                     checked={characterHasTalent(data, talent)}
                     onChange={(e) => {
                         console.debug({ e });

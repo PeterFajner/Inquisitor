@@ -1,5 +1,9 @@
-import { EmptyArchetype, EmptyRole, EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
-import { Character } from 'helpers/CharacterHelper/Character'
+import {
+    EmptyArchetype,
+    EmptyRole,
+    EmptySubtype,
+} from "helpers/ArchetypeHelper/Placeholders";
+import { Character } from "helpers/CharacterHelper/Character";
 
 export const EmptyStats = {
     BS: 0,
@@ -11,14 +15,14 @@ export const EmptyStats = {
     T: 0,
     WS: 0,
     Wp: 0,
-}
+};
 
 export const EmptyCharacter: Character = {
-    id: '',
-    name: '',
+    id: "",
+    name: "",
     archetype: EmptyArchetype,
     role: EmptyRole,
     subtype: EmptySubtype,
     stats: EmptyStats,
     talents: new Set(),
-}
+};

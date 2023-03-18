@@ -13,10 +13,15 @@ export const getBaseTalents = (character: Character): Set<Talent> =>
                     (!item.subtype || item.subtype === character.subtype) &&
                     (!item.role || item.role === character.role)
             )
-            .map(item => item.talent)
+            .map((item) => item.talent)
     );
 
-const getChosenTalents = (character: Character): Set<Talent> => new Set(Array.from(character.talents).filter(item => item.chosen).map(item => item.talent));
+const getChosenTalents = (character: Character): Set<Talent> =>
+    new Set(
+        Array.from(character.talents)
+            .filter((item) => item.chosen)
+            .map((item) => item.talent)
+    );
 
 export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     const [data, setData] = useState<Character>(
@@ -37,7 +42,8 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         .reduce((sum, current) => sum + current, 0);
 
     // number of talents left to choose
-    const numTalentsAvailableForChoosing = numTalentsToSelect - getChosenTalents(data).size;
+    const numTalentsAvailableForChoosing =
+        numTalentsToSelect - getChosenTalents(data).size;
 
     const canChooseTalents = numTalentsToSelect > 0;
 
@@ -55,7 +61,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
 
     const setRole = (role: Role) => {
         setData({ ...data, role });
-    }
+    };
 
     const setChosenTalents = (chosenTalents: Set<Talent>) => {
         const baseTalents = getBaseTalents(data);
@@ -79,5 +85,14 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.archetype, data.subtype, data.role]);
 
-    return { data, canChooseTalents, numTalentsAvailableForChoosing, setName, setArchetype, setSubtype, setRole, setChosenTalents };
+    return {
+        data,
+        canChooseTalents,
+        numTalentsAvailableForChoosing,
+        setName,
+        setArchetype,
+        setSubtype,
+        setRole,
+        setChosenTalents,
+    };
 };
