@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { EmptyCharacter } from "helpers/CharacterHelper/Placeholders";
-import { Archetype, Subtype } from "helpers/ArchetypeHelper/Archetype";
+import { Archetype, Role, Subtype } from "helpers/ArchetypeHelper/Archetype";
 import { useState } from "react";
 import { Character } from "helpers/CharacterHelper/Character";
 import { Talent } from "helpers/CompendiumHelper/CompendiumTypes";
@@ -20,7 +20,7 @@ const getChosenTalents = (character: Character): Set<Talent> => new Set(Array.fr
 
 export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     const [data, setData] = useState<Character>(
-        Object.assign(defaultData, { id })
+        Object.assign({}, defaultData, { id })
     );
 
     // total number of talents the player can select
@@ -53,6 +53,10 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         setData({ ...data, subtype });
     };
 
+    const setRole = (role: Role) => {
+        setData({ ...data, role });
+    }
+
     const setChosenTalents = (chosenTalents: Set<Talent>) => {
         const baseTalents = getBaseTalents(data);
         console.debug("setChosenTalents", { chosenTalents, baseTalents });
@@ -75,5 +79,5 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.archetype, data.subtype, data.role]);
 
-    return { data, canChooseTalents, numTalentsAvailableForChoosing, setName, setArchetype, setSubtype, setChosenTalents };
+    return { data, canChooseTalents, numTalentsAvailableForChoosing, setName, setArchetype, setSubtype, setRole, setChosenTalents };
 };
