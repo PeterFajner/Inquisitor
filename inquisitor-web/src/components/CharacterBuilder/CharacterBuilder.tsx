@@ -1,9 +1,12 @@
 import { Compendium, Talent } from "helpers/CompendiumHelper/CompendiumTypes";
 import { Character } from "helpers/CharacterHelper/Character";
-import { DynamicCharacter, useCharacter } from "hooks/CharacterHooks/CharacterHooks";
+import {
+    DynamicCharacter,
+    useCharacter,
+} from "hooks/CharacterHooks/CharacterHooks";
 import { FunctionComponent } from "react";
 
-const sortTalents = (a: Talent, b: Talent) => a.key < b.key ? -1 : 1;
+const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
 
 const buildTitle = (data: Character) => {
     const additionalInfo = data.archetype
@@ -17,30 +20,25 @@ const buildTitle = (data: Character) => {
     return `${data.name || "Unnamed Character"}${additionalInfoString}`;
 };
 
-const TalentEntry = ({key, name, description}: Talent) => (
+const TalentEntry = ({ key, name, description }: Talent) => (
     <span className="columns" key={key}>
         <span>
             {name}: {description}
         </span>
     </span>
-)
+);
 
 const TalentList: FunctionComponent<{
-    data: DynamicCharacter,
-    compendium: Compendium,
-}> = ({
-    data,
-    compendium,
-}) => (
-    <div>
-        {Array.from(data.talents).sort(sortTalents).map(TalentEntry)}
-    </div>
+    data: DynamicCharacter;
+    compendium: Compendium;
+}> = ({ data, compendium }) => (
+    <div>{Array.from(data.talents).sort(sortTalents).map(TalentEntry)}</div>
 );
 
 const selectorStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'flex-start',
-    marginBottom: '10px',
+    display: "flex",
+    alignItems: "flex-start",
+    marginBottom: "10px",
 };
 
 const TalentSelectorList: FunctionComponent<{
@@ -49,24 +47,24 @@ const TalentSelectorList: FunctionComponent<{
     numRemaining: number;
     toggleTalent: (t: Talent) => boolean;
 }> = ({ data, compendium, numRemaining, toggleTalent }) => (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: "flex", flexDirection: "column" }}>
         {Object.entries(compendium.talents).map(([key, talent]) => (
             <span style={selectorStyle} key={key}>
                 <input
                     type="checkbox"
                     name={`${data.id}-talents`}
                     value={key}
-                    disabled={
-                        numRemaining <= 0 ||
-                        data.baseTalents.has(talent)
-                    }
+                    disabled={numRemaining <= 0 || data.baseTalents.has(talent)}
                     checked={data.talents.has(talent)}
                     onChange={(e) => {
                         toggleTalent(compendium.talents[e.currentTarget.value]);
                     }}
                 />
                 <label htmlFor={key}>
-                    <span style={{ fontWeight: 'bold' }}>{talent.name}:</span> {talent.description} :: NR:{numRemaining}, base:{data.baseTalents.has(talent)}, has:{data.talents.has(talent)}
+                    <span style={{ fontWeight: "bold" }}>{talent.name}:</span>{" "}
+                    {talent.description} :: NR:{numRemaining}, base:
+                    {data.baseTalents.has(talent)}, has:
+                    {data.talents.has(talent)}
                 </label>
             </span>
         ))}
@@ -76,10 +74,7 @@ const TalentSelectorList: FunctionComponent<{
 export const CharacterBuilder: FunctionComponent<{
     id: string;
     compendium: Compendium;
-}> = ({
-    id = "",
-    compendium,
-}) => {
+}> = ({ id = "", compendium }) => {
     const {
         data,
         canChooseTalents,
@@ -164,9 +159,7 @@ export const CharacterBuilder: FunctionComponent<{
                     </span>
                 ))}
                 {Object.values(roles).length === 0 && (
-                    <span>
-                        Archetype '{data.archetype.name}' has no roles
-                    </span>
+                    <span>Archetype '{data.archetype.name}' has no roles</span>
                 )}
             </section>
             <section>

@@ -61,15 +61,16 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     /**
      * Add a talent to a character if they don't have it, and remove it if they do
      * Errors if you try to toggle a base talent
-     * 
+     *
      * @param talent talent to add/remove from the character
      * @returns true if talent was added, false if talent was removed
      */
     const toggleTalent = (talent: Talent) => {
         if (data.baseTalents.has(talent)) {
-            throw new Error(`Tried to add Talent '${talent.name}' but it is a base talent`);
-        }
-        else if (data.chosenTalents.has(talent)) {
+            throw new Error(
+                `Tried to add Talent '${talent.name}' but it is a base talent`
+            );
+        } else if (data.chosenTalents.has(talent)) {
             data.chosenTalents.delete(talent);
             return false;
         } else {
@@ -78,20 +79,28 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         }
     };
 
-    const talents = useMemo(() => new Set([ ...data.baseTalents, ...data.chosenTalents ]), [data.baseTalents, data.chosenTalents]);
+    const talents = useMemo(
+        () => new Set([...data.baseTalents, ...data.chosenTalents]),
+        [data.baseTalents, data.chosenTalents]
+    );
 
     // recalculate talents when archetype, subtype, or role changes
     useEffect(() => {
         // set new base talents
-        data.baseTalents = new Set(archetype.talents
-            .filter(({ subtype: s, role: r }) => (!s || s === subtype) && (!r || r === role))
-            .map(({ talent }) => talent));
+        data.baseTalents = new Set(
+            archetype.talents
+                .filter(
+                    ({ subtype: s, role: r }) =>
+                        (!s || s === subtype) && (!r || r === role)
+                )
+                .map(({ talent }) => talent)
+        );
         // delete chosen talents that are now base talents
         Array.from(data.chosenTalents)
-            .filter(t => data.baseTalents.has(t))
-            .forEach(t => data.chosenTalents.delete(t));
-    // we shouldn't add 'data' as a dependency because we're not reading from baseTalents
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+            .filter((t) => data.baseTalents.has(t))
+            .forEach((t) => data.chosenTalents.delete(t));
+        // we shouldn't add 'data' as a dependency because we're not reading from baseTalents
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [archetype, subtype, role]);
 
     const dynamicData: DynamicCharacter = {
