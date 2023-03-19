@@ -2,7 +2,6 @@ import { Archetype, Subtype } from "helpers/ArchetypeHelper/Archetype";
 import config from "config";
 import { sheetUrlToCsv } from "helpers/SheetsHelper/SheetsHelper";
 import { Compendium, DieCode } from "helpers/CompendiumHelper/CompendiumTypes";
-import { EmptyStats } from "helpers/CharacterHelper/Placeholders";
 
 const assertDefined = (
     property: any,
@@ -70,7 +69,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         const name = talent.Talent;
         const key = name.toLowerCase();
         const description = talent.Description;
-        compendium.talents[key] = { name, description };
+        compendium.talents[key] = { name, description, key };
     });
     // add talents to archetypes, subtypes, and roles
     const archetypeTalents = await sheetUrlToCsv(sheets.talents);

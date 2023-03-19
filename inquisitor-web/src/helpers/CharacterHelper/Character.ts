@@ -20,6 +20,6 @@ export interface Character {
     role: Role;
     subtype: Subtype;
     stats: Stats;
-    // chosen = whether the talent was chosen by the player (as opposed to automatic)
-    talents: Set<{ talent: Talent; chosen: boolean }>;
+    baseTalents: Set<Talent>;
+    chosenTalents: Set<Talent>;
 }

@@ -1,17 +1,9 @@
 import { Compendium, Talent } from "helpers/CompendiumHelper/CompendiumTypes";
 import { Character } from "helpers/CharacterHelper/Character";
-import { useCharacter } from "hooks/CharacterHooks/CharacterHooks";
+import { DynamicCharacter, useCharacter } from "hooks/CharacterHooks/CharacterHooks";
 import { FunctionComponent } from "react";
 
-interface Props {
-    id: string;
-    compendium: Compendium;
-}
-
-interface HelperComponentProps {
-    data: Character;
-    compendium: Compendium;
-}
+const sortTalents = (a: Talent, b: Talent) => a.key < b.key ? -1 : 1;
 
 const buildTitle = (data: Character) => {
     const additionalInfo = data.archetype
@@ -25,60 +17,66 @@ const buildTitle = (data: Character) => {
     return `${data.name || "Unnamed Character"}${additionalInfoString}`;
 };
 
-const TalentList: FunctionComponent<HelperComponentProps> = ({
+const TalentEntry = ({key, name, description}: Talent) => (
+    <span className="columns" key={key}>
+        <span>
+            {name}: {description}
+        </span>
+    </span>
+)
+
+const TalentList: FunctionComponent<{
+    data: DynamicCharacter,
+    compendium: Compendium,
+}> = ({
     data,
     compendium,
 }) => (
     <div>
-        {Array.from(data.talents).map((item) => (
-            <span className="columns" key={item.talent.name}>
-                <span>
-                    {item.talent.name}: {item.talent.description}
-                </span>
-            </span>
-        ))}
+        {Array.from(data.talents).sort(sortTalents).map(TalentEntry)}
     </div>
 );
 
-const characterHasTalent = (character: Character, talent: Talent) =>
-    Array.from(character.talents)
-        .map((item) => item.talent)
-        .includes(talent);
-
-const characterHasBaseTalent = (character: Character, talent: Talent) =>
-    Array.from(character.talents).filter((item) => ({ talent, chosen: false }))
-        .length > 0;
+const selectorStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    marginBottom: '10px',
+};
 
 const TalentSelectorList: FunctionComponent<{
-    data: Character;
+    data: DynamicCharacter;
     compendium: Compendium;
     numRemaining: number;
-}> = ({ data, compendium, numRemaining }) => (
-    <div>
+    toggleTalent: (t: Talent) => boolean;
+}> = ({ data, compendium, numRemaining, toggleTalent }) => (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
         {Object.entries(compendium.talents).map(([key, talent]) => (
-            <span className="columns" key={key}>
+            <span style={selectorStyle} key={key}>
                 <input
                     type="checkbox"
                     name={`${data.id}-talents`}
                     value={key}
                     disabled={
                         numRemaining <= 0 ||
-                        characterHasBaseTalent(data, talent)
+                        data.baseTalents.has(talent)
                     }
-                    checked={characterHasTalent(data, talent)}
+                    checked={data.talents.has(talent)}
                     onChange={(e) => {
-                        console.debug({ e });
+                        toggleTalent(compendium.talents[e.currentTarget.value]);
                     }}
                 />
                 <label htmlFor={key}>
-                    {talent.name}: {talent.description}
+                    <span style={{ fontWeight: 'bold' }}>{talent.name}:</span> {talent.description} :: NR:{numRemaining}, base:{data.baseTalents.has(talent)}, has:{data.talents.has(talent)}
                 </label>
             </span>
         ))}
     </div>
 );
 
-export const CharacterBuilder: FunctionComponent<Props> = ({
+export const CharacterBuilder: FunctionComponent<{
+    id: string;
+    compendium: Compendium;
+}> = ({
     id = "",
     compendium,
 }) => {
@@ -90,6 +88,7 @@ export const CharacterBuilder: FunctionComponent<Props> = ({
         setRole,
         setArchetype,
         setSubtype,
+        toggleTalent,
     } = useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
@@ -177,6 +176,7 @@ export const CharacterBuilder: FunctionComponent<Props> = ({
                         data={data}
                         compendium={compendium}
                         numRemaining={numTalentsAvailableForChoosing}
+                        toggleTalent={toggleTalent}
                     />
                 ) : (
                     <TalentList data={data} compendium={compendium} />

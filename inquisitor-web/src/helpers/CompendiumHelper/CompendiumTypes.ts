@@ -12,6 +12,7 @@ export const EmptyCompendium: Compendium = {
 };
 
 export interface Talent {
+    key: string;
     name: string;
     description: string;
 }
