@@ -87,12 +87,14 @@ export const CharacterBuilder: FunctionComponent<Props> = ({
         canChooseTalents,
         numTalentsAvailableForChoosing,
         setName,
+        setRole,
         setArchetype,
         setSubtype,
     } = useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
     const { subtypes } = data.archetype;
+    const { roles } = data.archetype;
 
     return (
         <section>
@@ -143,6 +145,28 @@ export const CharacterBuilder: FunctionComponent<Props> = ({
                 {Object.values(subtypes).length === 0 && (
                     <span>
                         Archetype '{data.archetype.name}' has no subtypes
+                    </span>
+                )}
+            </section>
+            <section>
+                <h3>Role</h3>
+                {Object.values(roles).map((role) => (
+                    <span className="columns" key={role.key}>
+                        <input
+                            type="radio"
+                            name={`${id}-role`}
+                            value={role.key}
+                            checked={data.role.key === role.key}
+                            onChange={(e) => {
+                                setRole(roles[e.currentTarget.value]);
+                            }}
+                        />
+                        <label htmlFor={role.key}>{role.name}</label>
+                    </span>
+                ))}
+                {Object.values(roles).length === 0 && (
+                    <span>
+                        Archetype '{data.archetype.name}' has no roles
                     </span>
                 )}
             </section>
