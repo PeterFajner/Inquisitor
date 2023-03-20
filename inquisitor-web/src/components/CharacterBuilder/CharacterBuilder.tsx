@@ -21,10 +21,8 @@ const buildTitle = (data: Character) => {
 };
 
 const TalentEntry = ({ key, name, description }: Talent) => (
-    <span className="columns" key={key}>
-        <span>
-            {name}: {description}
-        </span>
+    <span className="columns" style={{ marginBottom: '10px' }} key={key}>
+        <span style={{ fontWeight: "bold" }}>{name}:</span> {description}
     </span>
 );
 
@@ -38,7 +36,6 @@ const TalentList: FunctionComponent<{
 const selectorStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "flex-start",
-    marginBottom: "10px",
 };
 
 const TalentSelectorList: FunctionComponent<{
@@ -73,10 +70,7 @@ const TalentSelectorList: FunctionComponent<{
                             }}
                         />
                         <label htmlFor={talent.key}>
-                            <span style={{ fontWeight: "bold" }}>
-                                {talent.name}:
-                            </span>{" "}
-                            {talent.description}
+                            {TalentEntry(talent)}
                         </label>
                     </span>
                 ))}
