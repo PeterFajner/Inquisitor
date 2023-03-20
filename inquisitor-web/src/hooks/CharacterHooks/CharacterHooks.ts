@@ -10,6 +10,8 @@ import { Talent } from "helpers/CompendiumHelper/CompendiumTypes";
  */
 export interface DynamicCharacter extends Character {
     talents: Set<Talent>;
+    numTalentChoices: number;
+    numTalentChoicesRemaining: number;
 }
 
 export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
@@ -19,24 +21,23 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
 
     const { archetype, subtype, role } = data;
 
-    // total number of talents the player can select
-    const numTalentsToSelect = data.archetype.talentChoices
-        // select talents for this class's role/subtype or for unrestricted roles & subtypes
-        .filter(
-            (item) =>
-                (!item.subtype || item.subtype === data.subtype) &&
-                (!item.role || item.role === data.role)
-        )
-        // get the number of talent choices for each entry
-        .map((item) => item.numTalents)
-        // sum them
-        .reduce((sum, current) => sum + current, 0);
+    const numTalentChoices = useMemo(() => 
+        data.archetype.talentChoices
+            // select talents for this class's role/subtype or for unrestricted roles & subtypes
+            .filter(
+                (item) =>
+                    (!item.subtype || item.subtype === data.subtype) &&
+                    (!item.role || item.role === data.role)
+            )
+            // get the number of talent choices for each entry
+            .map((item) => item.numTalents)
+            // sum them
+            .reduce((sum, current) => sum + current, 0)
+    , [data.archetype.talentChoices, data.role, data.subtype]);
 
     // number of talents left to choose
-    const numTalentsAvailableForChoosing =
-        numTalentsToSelect - data.chosenTalents.size;
-
-    const canChooseTalents = numTalentsToSelect > 0;
+    const numTalentChoicesRemaining =
+        numTalentChoices - data.chosenTalents.size;
 
     const setName = (name: string) => {
         setData({ ...data, name });
@@ -54,10 +55,6 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         setData({ ...data, role });
     };
 
-    const setChosenTalents = (chosenTalents: Set<Talent>) => {
-        setData({ ...data, chosenTalents });
-    };
-
     /**
      * Add a talent to a character if they don't have it, and remove it if they do
      * Errors if you try to toggle a base talent
@@ -71,10 +68,18 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
                 `Tried to add Talent '${talent.name}' but it is a base talent`
             );
         } else if (data.chosenTalents.has(talent)) {
-            data.chosenTalents.delete(talent);
+            const newChosenTalents = new Set(data.chosenTalents)
+            newChosenTalents.delete(talent);
+            setData({
+                ...data,
+                chosenTalents: newChosenTalents,
+            });
             return false;
         } else {
-            data.chosenTalents.add(talent);
+            setData({
+                ...data,
+                chosenTalents: new Set([...data.chosenTalents, talent]),
+            })
             return true;
         }
     };
@@ -87,7 +92,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     // recalculate talents when archetype, subtype, or role changes
     useEffect(() => {
         // set new base talents
-        data.baseTalents = new Set(
+        const newBaseTalents = new Set(
             archetype.talents
                 .filter(
                     ({ subtype: s, role: r }) =>
@@ -96,9 +101,15 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
                 .map(({ talent }) => talent)
         );
         // delete chosen talents that are now base talents
+        const newChosenTalents = new Set([...data.chosenTalents]);
         Array.from(data.chosenTalents)
-            .filter((t) => data.baseTalents.has(t))
-            .forEach((t) => data.chosenTalents.delete(t));
+            .filter((t) => newBaseTalents.has(t))
+            .forEach((t) => newChosenTalents.delete(t));
+        setData({
+            ...data,
+            baseTalents: newBaseTalents,
+            chosenTalents: newChosenTalents,
+        });
         // we shouldn't add 'data' as a dependency because we're not reading from baseTalents
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [archetype, subtype, role]);
@@ -106,17 +117,16 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     const dynamicData: DynamicCharacter = {
         ...data,
         talents,
+        numTalentChoices,
+        numTalentChoicesRemaining,
     };
 
     return {
         data: dynamicData,
-        canChooseTalents,
-        numTalentsAvailableForChoosing,
         setName,
         setArchetype,
         setSubtype,
         setRole,
-        setChosenTalents,
         toggleTalent,
     };
 };

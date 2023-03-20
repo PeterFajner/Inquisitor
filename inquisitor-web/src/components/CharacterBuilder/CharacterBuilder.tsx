@@ -44,31 +44,33 @@ const selectorStyle: React.CSSProperties = {
 const TalentSelectorList: FunctionComponent<{
     data: DynamicCharacter;
     compendium: Compendium;
-    numRemaining: number;
     toggleTalent: (t: Talent) => boolean;
-}> = ({ data, compendium, numRemaining, toggleTalent }) => (
+}> = ({ data, compendium, toggleTalent }) => (
+    <>
+    <div style={{ marginBottom: '10px' }}>Selected {data.numTalentChoices - data.numTalentChoicesRemaining}/{data.numTalentChoices} talents</div>
     <div style={{ display: "flex", flexDirection: "column" }}>
-        {Object.entries(compendium.talents).map(([key, talent]) => (
-            <span style={selectorStyle} key={key}>
+        {Object.values(compendium.talents).sort(sortTalents).map((talent) => (
+            <span style={selectorStyle} key={talent.key}>
                 <input
                     type="checkbox"
                     name={`${data.id}-talents`}
-                    value={key}
-                    disabled={numRemaining <= 0 || data.baseTalents.has(talent)}
+                    value={talent.key}
+                    disabled={(!data.talents.has(talent) && data.numTalentChoicesRemaining <= 0) || data.baseTalents.has(talent)}
                     checked={data.talents.has(talent)}
                     onChange={(e) => {
                         toggleTalent(compendium.talents[e.currentTarget.value]);
                     }}
                 />
-                <label htmlFor={key}>
+                <label htmlFor={talent.key}>
                     <span style={{ fontWeight: "bold" }}>{talent.name}:</span>{" "}
-                    {talent.description} :: NR:{numRemaining}, base:
+                    {talent.description} :: NR:{data.numTalentChoicesRemaining}, base:
                     {data.baseTalents.has(talent)}, has:
                     {data.talents.has(talent)}
                 </label>
             </span>
         ))}
     </div>
+    </>
 );
 
 export const CharacterBuilder: FunctionComponent<{
@@ -77,8 +79,6 @@ export const CharacterBuilder: FunctionComponent<{
 }> = ({ id = "", compendium }) => {
     const {
         data,
-        canChooseTalents,
-        numTalentsAvailableForChoosing,
         setName,
         setRole,
         setArchetype,
@@ -164,11 +164,10 @@ export const CharacterBuilder: FunctionComponent<{
             </section>
             <section>
                 <h3>Talents</h3>
-                {canChooseTalents ? (
+                {data.numTalentChoices > 0 ? (
                     <TalentSelectorList
                         data={data}
                         compendium={compendium}
-                        numRemaining={numTalentsAvailableForChoosing}
                         toggleTalent={toggleTalent}
                     />
                 ) : (
