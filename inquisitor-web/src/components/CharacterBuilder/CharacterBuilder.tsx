@@ -21,7 +21,7 @@ const buildTitle = (data: Character) => {
 };
 
 const TalentEntry = ({ key, name, description }: Talent) => (
-    <span className="columns" style={{ marginBottom: '10px' }} key={key}>
+    <span className="columns" style={{ marginBottom: "10px" }} key={key}>
         <span style={{ fontWeight: "bold" }}>{name}:</span> {description}
     </span>
 );
