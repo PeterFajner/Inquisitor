@@ -47,29 +47,43 @@ const TalentSelectorList: FunctionComponent<{
     toggleTalent: (t: Talent) => boolean;
 }> = ({ data, compendium, toggleTalent }) => (
     <>
-    <div style={{ marginBottom: '10px' }}>Selected {data.numTalentChoices - data.numTalentChoicesRemaining}/{data.numTalentChoices} talents</div>
-    <div style={{ display: "flex", flexDirection: "column" }}>
-        {Object.values(compendium.talents).sort(sortTalents).map((talent) => (
-            <span style={selectorStyle} key={talent.key}>
-                <input
-                    type="checkbox"
-                    name={`${data.id}-talents`}
-                    value={talent.key}
-                    disabled={(!data.talents.has(talent) && data.numTalentChoicesRemaining <= 0) || data.baseTalents.has(talent)}
-                    checked={data.talents.has(talent)}
-                    onChange={(e) => {
-                        toggleTalent(compendium.talents[e.currentTarget.value]);
-                    }}
-                />
-                <label htmlFor={talent.key}>
-                    <span style={{ fontWeight: "bold" }}>{talent.name}:</span>{" "}
-                    {talent.description} :: NR:{data.numTalentChoicesRemaining}, base:
-                    {data.baseTalents.has(talent)}, has:
-                    {data.talents.has(talent)}
-                </label>
-            </span>
-        ))}
-    </div>
+        <div style={{ marginBottom: "10px" }}>
+            Selected {data.numTalentChoices - data.numTalentChoicesRemaining}/
+            {data.numTalentChoices} talents
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+            {Object.values(compendium.talents)
+                .sort(sortTalents)
+                .map((talent) => (
+                    <span style={selectorStyle} key={talent.key}>
+                        <input
+                            type="checkbox"
+                            name={`${data.id}-talents`}
+                            value={talent.key}
+                            disabled={
+                                (!data.talents.has(talent) &&
+                                    data.numTalentChoicesRemaining <= 0) ||
+                                data.baseTalents.has(talent)
+                            }
+                            checked={data.talents.has(talent)}
+                            onChange={(e) => {
+                                toggleTalent(
+                                    compendium.talents[e.currentTarget.value]
+                                );
+                            }}
+                        />
+                        <label htmlFor={talent.key}>
+                            <span style={{ fontWeight: "bold" }}>
+                                {talent.name}:
+                            </span>{" "}
+                            {talent.description} :: NR:
+                            {data.numTalentChoicesRemaining}, base:
+                            {data.baseTalents.has(talent)}, has:
+                            {data.talents.has(talent)}
+                        </label>
+                    </span>
+                ))}
+        </div>
     </>
 );
 
@@ -77,14 +91,8 @@ export const CharacterBuilder: FunctionComponent<{
     id: string;
     compendium: Compendium;
 }> = ({ id = "", compendium }) => {
-    const {
-        data,
-        setName,
-        setRole,
-        setArchetype,
-        setSubtype,
-        toggleTalent,
-    } = useCharacter({ id });
+    const { data, setName, setRole, setArchetype, setSubtype, toggleTalent } =
+        useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
     const { subtypes } = data.archetype;
