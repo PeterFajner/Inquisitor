@@ -76,10 +76,7 @@ const TalentSelectorList: FunctionComponent<{
                             <span style={{ fontWeight: "bold" }}>
                                 {talent.name}:
                             </span>{" "}
-                            {talent.description} :: NR:
-                            {data.numTalentChoicesRemaining}, base:
-                            {data.baseTalents.has(talent)}, has:
-                            {data.talents.has(talent)}
+                            {talent.description}
                         </label>
                     </span>
                 ))}
