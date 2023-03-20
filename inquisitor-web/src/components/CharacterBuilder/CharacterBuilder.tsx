@@ -88,9 +88,8 @@ export const CharacterBuilder: FunctionComponent<{
     const { archetypes } = compendium;
     const { subtypes } = data.archetype;
     const { roles } = data.archetype;
-
     return (
-        <section>
+        <>
             <h2>{buildTitle(data)}</h2>
             <section>
                 <label htmlFor="nameInput">Character name: </label>
@@ -102,8 +101,8 @@ export const CharacterBuilder: FunctionComponent<{
                     }
                 />
             </section>
+            <h3>Archetype</h3>
             <section>
-                <h3>Archetype</h3>
                 {Object.values(archetypes).map((archetype) => (
                     <span className="columns" key={archetype.key}>
                         <input
@@ -119,8 +118,8 @@ export const CharacterBuilder: FunctionComponent<{
                     </span>
                 ))}
             </section>
+            <h3>Subtype</h3>
             <section>
-                <h3>Subtype</h3>
                 {Object.values(subtypes).map((subtype) => (
                     <span className="columns" key={subtype.key}>
                         <input
@@ -141,8 +140,8 @@ export const CharacterBuilder: FunctionComponent<{
                     </span>
                 )}
             </section>
+            <h3>Role</h3>
             <section>
-                <h3>Role</h3>
                 {Object.values(roles).map((role) => (
                     <span className="columns" key={role.key}>
                         <input
@@ -161,8 +160,8 @@ export const CharacterBuilder: FunctionComponent<{
                     <span>Archetype '{data.archetype.name}' has no roles</span>
                 )}
             </section>
-            <section>
-                <h3>Talents</h3>
+            <h3>Talents</h3>
+            <section style={{ maxWidth: '500px' }}>
                 {data.numTalentChoices > 0 ? (
                     <TalentSelectorList
                         data={data}
@@ -173,6 +172,6 @@ export const CharacterBuilder: FunctionComponent<{
                     <TalentList data={data} compendium={compendium} />
                 )}
             </section>
-        </section>
+        </>
     );
 };
