@@ -1,8 +1,9 @@
+import { STAT_NAMES } from './../../helpers/CompendiumHelper/CompendiumTypes';
 import { useEffect, useMemo } from "react";
 import { EmptyCharacter } from "helpers/CharacterHelper/Placeholders";
 import { Archetype, Role, Subtype } from "helpers/ArchetypeHelper/Archetype";
 import { useState } from "react";
-import { Character } from "helpers/CharacterHelper/Character";
+import { Character, Stats, STATS_ORDER } from "helpers/CharacterHelper/Character";
 import { Talent } from "helpers/CompendiumHelper/CompendiumTypes";
 
 /**
@@ -91,6 +92,34 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         [data.baseTalents, data.chosenTalents]
     );
 
+    const rollStats = () => {
+        const stats: Stats = {
+            BS: data.subtype.stats.BS.roll(),
+            I: data.subtype.stats.I.roll(),
+            Ld: data.subtype.stats.Ld.roll(),
+            Nv: data.subtype.stats.Nv.roll(),
+            S: data.subtype.stats.S.roll(),
+            Sg: data.subtype.stats.Sg.roll(),
+            T: data.subtype.stats.T.roll(),
+            WS: data.subtype.stats.WS.roll(),
+            Wp: data.subtype.stats.Wp.roll(),
+        };
+        setData({
+            ...data,
+            stats,
+        })
+    };
+
+    const setStat = (key: string, value: number) => {
+        setData({
+            ...data,
+            stats: {
+                ...data.stats,
+                [key]: value,
+            }
+        })
+    }
+
     // recalculate talents when archetype, subtype, or role changes
     useEffect(() => {
         // set new base talents
@@ -130,5 +159,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         setSubtype,
         setRole,
         toggleTalent,
+        rollStats,
+        setStat
     };
 };

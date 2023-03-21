@@ -13,6 +13,8 @@ export interface Stats {
     Wp: number;
 }
 
+export const STATS_ORDER = ['WS', 'BS', 'S', 'T', 'I', 'Wp', 'Sg', 'Nv', 'Ld'];
+
 export interface Character {
     id: string;
     name: string;

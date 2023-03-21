@@ -1,5 +1,5 @@
 import { Compendium, Talent } from "helpers/CompendiumHelper/CompendiumTypes";
-import { Character } from "helpers/CharacterHelper/Character";
+import { Character, STATS_ORDER } from "helpers/CharacterHelper/Character";
 import {
     DynamicCharacter,
     useCharacter,
@@ -82,7 +82,7 @@ export const CharacterBuilder: FunctionComponent<{
     id: string;
     compendium: Compendium;
 }> = ({ id = "", compendium }) => {
-    const { data, setName, setRole, setArchetype, setSubtype, toggleTalent } =
+    const { data, setName, setRole, setArchetype, setSubtype, toggleTalent, rollStats, setStat } =
         useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
@@ -92,9 +92,9 @@ export const CharacterBuilder: FunctionComponent<{
         <>
             <h2>{buildTitle(data)}</h2>
             <section>
-                <label htmlFor="nameInput">Character name: </label>
+                <label htmlFor={`${id}-nameInput`}>Character name: </label>
                 <input
-                    id="nameInput"
+                    id={`${id}-nameInput`}
                     value={data.name}
                     onChange={(e) =>
                         setName((e.target as HTMLInputElement).value)
@@ -159,6 +159,17 @@ export const CharacterBuilder: FunctionComponent<{
                 {Object.values(roles).length === 0 && (
                     <span>Archetype '{data.archetype.name}' has no roles</span>
                 )}
+            </section>
+            <h3>Stats</h3>
+            <section>
+                <button onClick={rollStats}>Reroll stats</button>
+                {STATS_ORDER.map(stat => (
+                    <><label htmlFor={`${id}-stat-${stat}`}>{stat} </label><input
+                    type='number'
+                        id={`${id}-stat-${stat}`}
+                        value={(data.stats as any)[stat]}
+                        onChange={(e) => setStat(stat, parseInt((e.target as HTMLInputElement).value))} /></>
+                ))}
             </section>
             <h3>Talents</h3>
             <section style={{ maxWidth: '500px' }}>

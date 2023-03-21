@@ -48,6 +48,16 @@ export class DieCode {
             throw new TypeError(`Invalid die code string ${dieCodeString}`);
         }
     }
+
+    roll(): number {
+        let sum = this.base;
+        for (let i = 0; i < this.numDice; i++) {
+            const result = 1 + Math.floor(Math.random() * this.dieSize);
+            console.debug(`Rolling ${this.base}+${this.numDice}D${this.dieSize} #${i+1}: ${result}`);
+            sum += result;
+        }
+        return sum;
+    }
 }
 
 export const STAT_NAMES = {
