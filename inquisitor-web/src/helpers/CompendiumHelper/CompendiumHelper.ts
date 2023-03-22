@@ -1,7 +1,7 @@
-import { Archetype, Subtype } from "helpers/ArchetypeHelper/Archetype";
-import config from "config";
-import { sheetUrlToCsv } from "helpers/SheetsHelper/SheetsHelper";
-import { Compendium, DieCode } from "helpers/CompendiumHelper/CompendiumTypes";
+import { Archetype, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import config from 'config';
+import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
+import { Compendium, DieCode } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 const assertDefined = (
     property: any,
@@ -64,7 +64,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         const key = name.toLowerCase();
         const archetypeKey = item.Archetype.toLowerCase();
         const archetype = compendium.archetypes[archetypeKey];
-        assertDefined(archetype, "archetype", "roles", { item, compendium });
+        assertDefined(archetype, 'archetype', 'roles', { item, compendium });
         archetype.roles[key] = { key, name };
     });
     // add talents to compendium
@@ -79,22 +79,22 @@ export const buildCompendium = async (): Promise<Compendium> => {
     const archetypeTalents = await sheetUrlToCsv(sheets.talents);
     archetypeTalents.forEach((item) => {
         const archetype = compendium.archetypes[item.Archetype.toLowerCase()];
-        assertDefined(archetype, "archetype", "archetype talents", {
+        assertDefined(archetype, 'archetype', 'archetype talents', {
             item,
             compendium,
         });
         const role =
-            item.Role === "*" ? null : archetype.roles[item.Role.toLowerCase()];
-        assertDefined(role, "role", "archetype talents", {
+            item.Role === '*' ? null : archetype.roles[item.Role.toLowerCase()];
+        assertDefined(role, 'role', 'archetype talents', {
             item,
             compendium,
             archetype,
         });
         const subtype =
-            item.Subtype === "*"
+            item.Subtype === '*'
                 ? null
                 : archetype.subtypes[item.Subtype.toLowerCase()];
-        assertDefined(subtype, "subtype", "archetype talents", {
+        assertDefined(subtype, 'subtype', 'archetype talents', {
             item,
             compendium,
             archetype,
@@ -112,7 +112,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
             });
         } else {
             const talent = compendium.talents[item.Talent.toLowerCase()];
-            assertDefined(talent, "talent", "archetype talents", {
+            assertDefined(talent, 'talent', 'archetype talents', {
                 item,
                 compendium,
                 talent,

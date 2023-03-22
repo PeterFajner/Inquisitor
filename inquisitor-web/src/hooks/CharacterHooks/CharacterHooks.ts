@@ -1,12 +1,11 @@
-import { EmptyStats } from './../../helpers/CharacterHelper/Placeholders';
-import { EmptyRole, EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
-import { STAT_NAMES } from './../../helpers/CompendiumHelper/CompendiumTypes';
-import { useEffect, useMemo } from "react";
-import { EmptyCharacter } from "helpers/CharacterHelper/Placeholders";
-import { Archetype, Role, Subtype } from "helpers/ArchetypeHelper/Archetype";
-import { useState } from "react";
-import { Character, Stats, STATS_ORDER } from "helpers/CharacterHelper/Character";
-import { Talent } from "helpers/CompendiumHelper/CompendiumTypes";
+import { EmptyStats } from 'helpers/CharacterHelper/Placeholders';
+import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
+import { useEffect, useMemo } from 'react';
+import { EmptyCharacter } from 'helpers/CharacterHelper/Placeholders';
+import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import { useState } from 'react';
+import { Character, Stats } from 'helpers/CharacterHelper/Character';
+import { Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 /**
  * Includes dynamic readonly properties like talents (baseTalents + chosenTalents)
@@ -17,7 +16,7 @@ export interface DynamicCharacter extends Character {
     numTalentChoicesRemaining: number;
 }
 
-export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
+export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
     const [data, setData] = useState<Character>(
         Object.assign({}, defaultData, { id })
     );
@@ -65,7 +64,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
                 subtype,
                 stats: newStats,
             });
-        }        
+        }
     };
 
     const setRole = (role: Role) => {
@@ -126,7 +125,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
             ...data,
             stats: rollStats(),
         });
-    }
+    };
 
     const setStat = (key: string, value: number) => {
         setData({
@@ -134,17 +133,22 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
             stats: {
                 ...data.stats,
                 [key]: value,
-            }
-        })
-    }
+            },
+        });
+    };
 
     // roll stats first time a subtype is selected
     useEffect(() => {
-        console.debug('roll stats?', { subtype: data.subtype, stats: data.stats, subtypeeq: data.subtype === EmptySubtype, statseq: data.stats === EmptyStats });
+        console.debug('roll stats?', {
+            subtype: data.subtype,
+            stats: data.stats,
+            subtypeeq: data.subtype === EmptySubtype,
+            statseq: data.stats === EmptyStats,
+        });
         if (data.subtype !== EmptySubtype && data.stats === EmptyStats) {
             rollStats();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.subtype]);
 
     // recalculate talents when archetype, subtype, or role changes

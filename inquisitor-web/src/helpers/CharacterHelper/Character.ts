@@ -1,5 +1,5 @@
-import { Archetype, Role, Subtype } from "helpers/ArchetypeHelper/Archetype";
-import { Talent } from "helpers/CompendiumHelper/CompendiumTypes";
+import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import { Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 export interface Stats {
     BS: number;

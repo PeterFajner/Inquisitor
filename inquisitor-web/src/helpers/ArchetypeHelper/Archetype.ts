@@ -1,4 +1,4 @@
-import { DieCode, Talent } from "helpers/CompendiumHelper/CompendiumTypes";
+import { DieCode, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 export interface Subtype {
     key: string; // lowercase name
