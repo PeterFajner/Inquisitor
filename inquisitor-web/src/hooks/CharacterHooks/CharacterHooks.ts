@@ -1,3 +1,5 @@
+import { EmptyStats } from './../../helpers/CharacterHelper/Placeholders';
+import { EmptyRole, EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import { STAT_NAMES } from './../../helpers/CompendiumHelper/CompendiumTypes';
 import { useEffect, useMemo } from "react";
 import { EmptyCharacter } from "helpers/CharacterHelper/Placeholders";
@@ -47,11 +49,23 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
     };
 
     const setArchetype = (archetype: Archetype) => {
-        setData({ ...data, archetype });
+        setData({
+            ...data,
+            archetype,
+        });
     };
 
     const setSubtype = (subtype: Subtype) => {
-        setData({ ...data, subtype });
+        // if subtype changes, roll new stats
+        if (subtype !== data.subtype) {
+            const newStats = rollStats(subtype);
+            console.debug('setting subtype and stats', { subtype, newStats });
+            setData({
+                ...data,
+                subtype,
+                stats: newStats,
+            });
+        }        
     };
 
     const setRole = (role: Role) => {
@@ -92,23 +106,27 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         [data.baseTalents, data.chosenTalents]
     );
 
-    const rollStats = () => {
+    const rollStats = (subtype: Subtype = data.subtype): Stats => {
         const stats: Stats = {
-            BS: data.subtype.stats.BS.roll(),
-            I: data.subtype.stats.I.roll(),
-            Ld: data.subtype.stats.Ld.roll(),
-            Nv: data.subtype.stats.Nv.roll(),
-            S: data.subtype.stats.S.roll(),
-            Sg: data.subtype.stats.Sg.roll(),
-            T: data.subtype.stats.T.roll(),
-            WS: data.subtype.stats.WS.roll(),
-            Wp: data.subtype.stats.Wp.roll(),
+            BS: subtype.stats.BS.roll(),
+            I: subtype.stats.I.roll(),
+            Ld: subtype.stats.Ld.roll(),
+            Nv: subtype.stats.Nv.roll(),
+            S: subtype.stats.S.roll(),
+            Sg: subtype.stats.Sg.roll(),
+            T: subtype.stats.T.roll(),
+            WS: subtype.stats.WS.roll(),
+            Wp: subtype.stats.Wp.roll(),
         };
+        return stats;
+    };
+
+    const rerollStats = () => {
         setData({
             ...data,
-            stats,
-        })
-    };
+            stats: rollStats(),
+        });
+    }
 
     const setStat = (key: string, value: number) => {
         setData({
@@ -119,6 +137,15 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
             }
         })
     }
+
+    // roll stats first time a subtype is selected
+    useEffect(() => {
+        console.debug('roll stats?', { subtype: data.subtype, stats: data.stats, subtypeeq: data.subtype === EmptySubtype, statseq: data.stats === EmptyStats });
+        if (data.subtype !== EmptySubtype && data.stats === EmptyStats) {
+            rollStats();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data.subtype]);
 
     // recalculate talents when archetype, subtype, or role changes
     useEffect(() => {
@@ -152,6 +179,8 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         numTalentChoicesRemaining,
     };
 
+    console.debug({ dynamicData });
+
     return {
         data: dynamicData,
         setName,
@@ -159,7 +188,7 @@ export const useCharacter = ({ id = "", defaultData = EmptyCharacter }) => {
         setSubtype,
         setRole,
         toggleTalent,
-        rollStats,
-        setStat
+        setStat,
+        rerollStats,
     };
 };

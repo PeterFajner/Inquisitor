@@ -37,21 +37,25 @@ export const buildCompendium = async (): Promise<Compendium> => {
                 talents: [],
                 talentChoices: [],
             } as Archetype);
-        compendium.archetypes[archetypeKey].subtypes[subtypeKey] = {
-            key: subtypeKey,
-            name: subtype,
-            stats: {
-                BS: new DieCode(item.BS),
-                I: new DieCode(item.I),
-                Ld: new DieCode(item.Ld),
-                Nv: new DieCode(item.Nv),
-                S: new DieCode(item.S),
-                Sg: new DieCode(item.Sg),
-                T: new DieCode(item.T),
-                WS: new DieCode(item.WS),
-                Wp: new DieCode(item.Wp),
-            },
-        } as Subtype;
+        try {
+            compendium.archetypes[archetypeKey].subtypes[subtypeKey] = {
+                key: subtypeKey,
+                name: subtype,
+                stats: {
+                    BS: new DieCode(item.BS),
+                    I: new DieCode(item.I),
+                    Ld: new DieCode(item.Ld),
+                    Nv: new DieCode(item.Nv),
+                    S: new DieCode(item.S),
+                    Sg: new DieCode(item.Sg),
+                    T: new DieCode(item.T),
+                    WS: new DieCode(item.WS),
+                    Wp: new DieCode(item.Wp),
+                },
+            } as Subtype;
+        } catch (error) {
+            console.error(error);
+        }
     });
     // add roles to compendium
     const roles = await sheetUrlToCsv(sheets.roles);

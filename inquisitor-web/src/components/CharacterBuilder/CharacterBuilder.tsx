@@ -5,6 +5,7 @@ import {
     useCharacter,
 } from "hooks/CharacterHooks/CharacterHooks";
 import { FunctionComponent } from "react";
+import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 
 const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
 
@@ -82,7 +83,7 @@ export const CharacterBuilder: FunctionComponent<{
     id: string;
     compendium: Compendium;
 }> = ({ id = "", compendium }) => {
-    const { data, setName, setRole, setArchetype, setSubtype, toggleTalent, rollStats, setStat } =
+    const { data, setName, setRole, setArchetype, setSubtype, toggleTalent, setStat, rerollStats } =
         useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
@@ -162,14 +163,15 @@ export const CharacterBuilder: FunctionComponent<{
             </section>
             <h3>Stats</h3>
             <section>
-                <button onClick={rollStats}>Reroll stats</button>
-                {STATS_ORDER.map(stat => (
+                <button onClick={rerollStats}>Reroll stats</button>
+                { data.subtype === EmptySubtype ? <span>Select a subtype to generate stats</span> : STATS_ORDER.map(stat => (
                     <><label htmlFor={`${id}-stat-${stat}`}>{stat} </label><input
                     type='number'
                         id={`${id}-stat-${stat}`}
                         value={(data.stats as any)[stat]}
                         onChange={(e) => setStat(stat, parseInt((e.target as HTMLInputElement).value))} /></>
                 ))}
+                
             </section>
             <h3>Talents</h3>
             <section style={{ maxWidth: '500px' }}>
