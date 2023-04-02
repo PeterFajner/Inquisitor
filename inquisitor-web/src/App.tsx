@@ -30,9 +30,7 @@ function App() {
             <main>
                 <div className="all-characters">
                     {characterIDs.map((id) => (
-                        <section className="character-builder" key={id}>
-                            <CharacterBuilder id={id} compendium={compendium} />
-                        </section>
+                        <CharacterBuilder id={id} compendium={compendium} key={id}/>
                     ))}
                 </div>
                 <div className="buttons-wrapper">

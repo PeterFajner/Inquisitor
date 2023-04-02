@@ -6,6 +6,7 @@ import {
 } from 'hooks/CharacterHooks/CharacterHooks';
 import { FunctionComponent } from 'react';
 import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
+import './CharacterBuilder.css';
 
 const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
 
@@ -98,9 +99,9 @@ export const CharacterBuilder: FunctionComponent<{
     const { subtypes } = data.archetype;
     const { roles } = data.archetype;
     return (
-        <>
-            <h2>{buildTitle(data)}</h2>
-            <section>
+        <div className="character-builder">
+            <section className='wide center'>
+                <h2>{buildTitle(data)}</h2>
                 <label htmlFor={`${id}-nameInput`}>Character name: </label>
                 <input
                     id={`${id}-nameInput`}
@@ -110,8 +111,8 @@ export const CharacterBuilder: FunctionComponent<{
                     }
                 />
             </section>
-            <h3>Archetype</h3>
-            <section>
+            <section className='narrow'>
+                <h3>Archetype</h3>
                 {Object.values(archetypes).map((archetype) => (
                     <span className="columns" key={archetype.key}>
                         <input
@@ -127,8 +128,8 @@ export const CharacterBuilder: FunctionComponent<{
                     </span>
                 ))}
             </section>
-            <h3>Subtype</h3>
-            <section>
+            <section className='narrow'>
+                <h3>Subtype</h3>
                 {Object.values(subtypes).map((subtype) => (
                     <span className="columns" key={subtype.key}>
                         <input
@@ -149,8 +150,8 @@ export const CharacterBuilder: FunctionComponent<{
                     </span>
                 )}
             </section>
-            <h3>Role</h3>
-            <section>
+            <section className='narrow'>
+                <h3>Role</h3>
                 {Object.values(roles).map((role) => (
                     <span className="columns" key={role.key}>
                         <input
@@ -170,7 +171,7 @@ export const CharacterBuilder: FunctionComponent<{
                 )}
             </section>
             <h3>Stats</h3>
-            <section>
+            <section className='wide'>
                 <button onClick={rerollStats}>Reroll stats</button>
                 {data.subtype === EmptySubtype ? (
                     <span>Select a subtype to generate stats</span>
@@ -197,8 +198,8 @@ export const CharacterBuilder: FunctionComponent<{
                     ))
                 )}
             </section>
-            <h3>Talents</h3>
-            <section style={{ maxWidth: '500px' }}>
+            <section className='wide'>
+                <h3>Talents</h3>
                 {data.numTalentChoices > 0 ? (
                     <TalentSelectorList
                         data={data}
@@ -209,6 +210,6 @@ export const CharacterBuilder: FunctionComponent<{
                     <TalentList data={data} compendium={compendium} />
                 )}
             </section>
-        </>
+        </div>
     );
 };
