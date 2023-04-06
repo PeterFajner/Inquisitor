@@ -23,5 +23,5 @@ export interface Character {
     subtype: Subtype;
     stats: Stats;
     baseTalents: Set<Talent>;
-    chosenTalents: Set<Talent>;
+    chosenTalents: Talent[];
 }

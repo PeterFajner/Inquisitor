@@ -25,5 +25,5 @@ export const EmptyCharacter: Character = {
     subtype: EmptySubtype,
     stats: EmptyStats,
     baseTalents: new Set(),
-    chosenTalents: new Set(),
+    chosenTalents: [],
 };

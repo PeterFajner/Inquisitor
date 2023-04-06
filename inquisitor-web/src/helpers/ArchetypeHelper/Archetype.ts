@@ -21,6 +21,13 @@ export interface Role {
     name: string;
 }
 
+export interface TalentChoiceList {
+    numTalents: number;
+    subtype: Subtype | null;
+    role: Role | null;
+    talentList: Talent[] | null; // list to choose the talents from, if null it's all talents
+}
+
 export interface Archetype {
     key: string; // lowercase name
     name: string;
@@ -29,9 +36,6 @@ export interface Archetype {
     // null subtype/role = all subtypes/roles have this talent
     // a talent available to multiple subtypes/roles appears multiple times
     talents: { talent: Talent; subtype: Subtype | null; role: Role | null }[];
-    talentChoices: {
-        numTalents: number;
-        subtype: Subtype | null;
-        role: Role | null;
-    }[]; // free talents the player can select
+    // free talents the player can select
+    talentChoices: TalentChoiceList[];
 }

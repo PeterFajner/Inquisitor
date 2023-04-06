@@ -101,15 +101,43 @@ export const buildCompendium = async (): Promise<Compendium> => {
         });
         // check to see if this is a talent choice (ex: "Any 3")
         const anyMatch = item.Talent.toLowerCase().match(
-            /any (?<numTalents>\d+)/
+            /any (?<numFreeTalents>\d+)/
         );
-        const { numTalents } = anyMatch?.groups || {};
-        if (numTalents) {
+        // check to see if this is a talent choice from a list (ex: "Pick 3")
+        const pickMatch = item.Condition.toLowerCase().match(
+            /pick (?<numPickTalents>\d+)/
+        );
+        const { numFreeTalents } = anyMatch?.groups || {};
+        const { numPickTalents } = pickMatch?.groups || {};
+        //console.debug({ item, numFreeTalents, anyMatch, anyMatchGroups: anyMatch?.groups });
+        if (numFreeTalents) {
             archetype.talentChoices.push({
-                numTalents: parseInt(numTalents),
+                numTalents: parseInt(numFreeTalents),
                 role,
                 subtype,
+                talentList: null, // means choose from all talents
             });
+        } else if (numPickTalents) {
+            const numTalents = parseInt(numPickTalents);
+            const talent = compendium.talents[item.Talent.toLowerCase()];
+            // see if the talent choice list has alrady been registered
+            const talentChoiceEntry = archetype.talentChoices.find(
+                (choice) =>
+                    choice.numTalents === numTalents &&
+                    choice.role === role &&
+                    choice.subtype === subtype &&
+                    choice.talentList instanceof Array
+            );
+            if (talentChoiceEntry) {
+                talentChoiceEntry.talentList?.push(talent);
+            } else {
+                archetype.talentChoices.push({
+                    numTalents,
+                    subtype,
+                    role,
+                    talentList: [talent],
+                });
+            }
         } else {
             const talent = compendium.talents[item.Talent.toLowerCase()];
             assertDefined(talent, 'talent', 'archetype talents', {

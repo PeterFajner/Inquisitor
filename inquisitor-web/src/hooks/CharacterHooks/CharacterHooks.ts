@@ -41,7 +41,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
 
     // number of talents left to choose
     const numTalentChoicesRemaining =
-        numTalentChoices - data.chosenTalents.size;
+        numTalentChoices - data.chosenTalents.length;
 
     const setName = (name: string) => {
         setData({ ...data, name });
@@ -83,21 +83,28 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
             throw new Error(
                 `Tried to add Talent '${talent.name}' but it is a base talent`
             );
-        } else if (data.chosenTalents.has(talent)) {
+        } else if (data.chosenTalents.includes(talent)) {
             const newChosenTalents = new Set(data.chosenTalents);
             newChosenTalents.delete(talent);
             setData({
                 ...data,
-                chosenTalents: newChosenTalents,
+                chosenTalents: Array.from(newChosenTalents),
             });
             return false;
         } else {
             setData({
                 ...data,
-                chosenTalents: new Set([...data.chosenTalents, talent]),
+                chosenTalents: [...data.chosenTalents, talent],
             });
             return true;
         }
+    };
+
+    const setChosenTalents = (chosenTalents: Talent[]) => {
+        setData({
+            ...data,
+            chosenTalents,
+        });
     };
 
     const talents = useMemo(
@@ -170,7 +177,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
         setData({
             ...data,
             baseTalents: newBaseTalents,
-            chosenTalents: newChosenTalents,
+            chosenTalents: Array.from(newChosenTalents),
         });
         // we shouldn't add 'data' as a dependency because we're not reading from baseTalents
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,5 +201,6 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
         toggleTalent,
         setStat,
         rerollStats,
+        setChosenTalents,
     };
 };
