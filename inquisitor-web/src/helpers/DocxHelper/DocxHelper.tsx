@@ -85,6 +85,7 @@ export const triggerDocxDownload = async (
                 Ld: character.stats.Ld,
                 talents,
                 tagLine,
+                name: character.name,
             },
         });
 
