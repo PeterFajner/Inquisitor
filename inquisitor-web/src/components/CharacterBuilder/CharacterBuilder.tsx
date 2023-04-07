@@ -8,6 +8,7 @@ import { FunctionComponent } from 'react';
 import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import './CharacterBuilder.css';
 import { TalentChoiceList } from 'helpers/ArchetypeHelper/Archetype';
+import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
 
 const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
 
@@ -275,6 +276,7 @@ export const CharacterBuilder: FunctionComponent<{
                     ))}
                 </ul>
             </section>
+        <button onClick={() => { triggerDocxDownload([data], compendium)}}>Download Docx</button>
         </div>
     );
 };
