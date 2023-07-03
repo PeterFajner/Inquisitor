@@ -1,7 +1,17 @@
-import { Archetype, Subtype } from 'helpers/ArchetypeHelper/Archetype';
 import config from 'config';
+import { Archetype, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import {
+    AbilityBoon,
+    Boon,
+    BoostBoon,
+    Compendium,
+    DieCode,
+    ExoticBoon,
+    PsychicBoon,
+    RerollBoon,
+} from 'helpers/CompendiumHelper/CompendiumTypes';
 import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
-import { Compendium, DieCode } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { sortByKeyAscending } from 'helpers/Util';
 
 const assertDefined = (
     property: any,
@@ -19,7 +29,12 @@ const assertDefined = (
 
 export const buildCompendium = async (): Promise<Compendium> => {
     const { sheets } = config;
-    const compendium: Compendium = { archetypes: {}, talents: {} };
+    const compendium: Compendium = {
+        archetypes: {},
+        talents: {},
+        abilities: {},
+        boons: {},
+    };
     // add archetypes and subtypes and their stats to compendium
     const rawStats = await sheetUrlToCsv(sheets.stats);
     rawStats.forEach((item) => {
@@ -148,5 +163,71 @@ export const buildCompendium = async (): Promise<Compendium> => {
             archetype.talents.push({ talent, role, subtype });
         }
     });
+    // load boons
+    const rawBoons = await sheetUrlToCsv(sheets.boons);
+    rawBoons.forEach((rawBoon) => {
+        const subtypeKey = rawBoon.Subtype.toLowerCase();
+        const lowRoll = parseInt(rawBoon.Low);
+        const highRoll = parseInt(rawBoon.High);
+        const type = rawBoon.Type;
+        let boon: Boon;
+        switch (type) {
+            case 'Ability':
+                const ability =
+                    compendium.abilities[rawBoon.Name.toLowerCase()];
+                assertDefined(ability, 'ability', 'boons', {
+                    rawBoon,
+                    compendium,
+                });
+                boon = {
+                    lowRoll,
+                    highRoll,
+                    type,
+                    ability,
+                } as AbilityBoon;
+                break;
+            case 'Boost':
+                boon = {
+                    lowRoll,
+                    highRoll,
+                    type,
+                    amount: parseInt(rawBoon.Amount),
+                    stat: rawBoon.Name,
+                } as BoostBoon;
+                break;
+            case 'Exotic':
+                boon = {
+                    lowRoll,
+                    highRoll,
+                    type,
+                } as ExoticBoon;
+                break;
+            case 'Psychic':
+                boon = {
+                    lowRoll,
+                    highRoll,
+                    type,
+                } as PsychicBoon;
+                break;
+            case 'Reroll':
+                boon = {
+                    lowRoll,
+                    highRoll,
+                    type,
+                    subtypeKey: rawBoon.Name.toLowerCase(),
+                } as RerollBoon;
+                break;
+            default:
+                console.error('Invalid Boon type', { rawBoon });
+                throw new Error(`Invalid Boon type ${rawBoon.Type}`);
+        }
+        // add to compendium, by subtype
+        const boonList = compendium.boons[subtypeKey] ?? [];
+        boonList.push(boon);
+        // sort boons by low roll
+        sortByKeyAscending(boonList, (boon) => boon.lowRoll);
+        compendium.boons[subtypeKey] = boonList;
+    });
+    console.debug({ compendium });
     return compendium;
 };

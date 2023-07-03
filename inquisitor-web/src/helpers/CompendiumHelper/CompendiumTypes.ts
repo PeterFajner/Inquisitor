@@ -1,20 +1,60 @@
-import { Archetype } from "../ArchetypeHelper/Archetype";
+import { Archetype } from '../ArchetypeHelper/Archetype';
 
 export interface Compendium {
     // compendium keys should always be lowercase, as there's some inconsistency in capitalization throughout the spreadsheet
     archetypes: { [key: string]: Archetype };
     talents: { [key: string]: Talent };
+    abilities: { [key: string]: Ability };
+    boons: { [key: string]: Boon[] }; // key is subtype key
 }
 
 export const EmptyCompendium: Compendium = {
     archetypes: {},
     talents: {},
+    abilities: {},
+    boons: {},
 };
 
 export interface Talent {
     key: string;
     name: string;
     description: string;
+}
+
+export interface Ability {}
+
+export type Stat = 'BS' | 'I' | 'Ld' | 'Nv' | 'S' | 'Sg' | 'T' | 'WS' | 'Wp';
+
+export type BoonType = 'Ability' | 'Boost' | 'Exotic' | 'Psychic' | 'Reroll';
+
+export interface Boon {
+    lowRoll: number; // 1-100
+    highRoll: number; // 1-100
+    type: BoonType;
+}
+
+export interface AbilityBoon extends Boon {
+    type: 'Ability';
+    ability: Ability;
+}
+
+export interface BoostBoon extends Boon {
+    type: 'Boost';
+    amount: number;
+    stat: Stat;
+}
+
+export interface ExoticBoon extends Boon {
+    type: 'Exotic';
+}
+
+export interface PsychicBoon extends Boon {
+    type: 'Psychic';
+}
+
+export interface RerollBoon extends Boon {
+    type: 'Reroll';
+    subtypeKey: string;
 }
 
 /**
@@ -53,7 +93,11 @@ export class DieCode {
         let sum = this.base;
         for (let i = 0; i < this.numDice; i++) {
             const result = 1 + Math.floor(Math.random() * this.dieSize);
-            console.debug(`Rolling ${this.base}+${this.numDice}D${this.dieSize} #${i+1}: ${result}`);
+            console.debug(
+                `Rolling ${this.base}+${this.numDice}D${this.dieSize} #${
+                    i + 1
+                }: ${result}`
+            );
             sum += result;
         }
         return sum;
@@ -61,13 +105,13 @@ export class DieCode {
 }
 
 export const STAT_NAMES = {
-    BS: "Ballistics Skill",
-    I: "???",
-    Ld: "Leadership",
-    Nv: "Nerve",
-    S: "Speed",
-    Sg: "Sagacity",
-    T: "???",
-    WS: "Weapons Skill",
-    Wp: "Willpower",
+    BS: 'Ballistics Skill',
+    I: '???',
+    Ld: 'Leadership',
+    Nv: 'Nerve',
+    S: 'Speed',
+    Sg: 'Sagacity',
+    T: '???',
+    WS: 'Weapons Skill',
+    Wp: 'Willpower',
 };
