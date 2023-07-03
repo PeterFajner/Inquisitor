@@ -34,6 +34,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         talents: {},
         abilities: {},
         boons: {},
+        randomExoticAbilities: [],
     };
     // add archetypes and subtypes and their stats to compendium
     const rawStats = await sheetUrlToCsv(sheets.stats);
@@ -227,6 +228,17 @@ export const buildCompendium = async (): Promise<Compendium> => {
         // sort boons by low roll
         sortByKeyAscending(boonList, (boon) => boon.lowRoll);
         compendium.boons[subtypeKey] = boonList;
+    });
+    // load random exotic abilities
+    const rawRandomExoticAbilities = await sheetUrlToCsv(
+        sheets.randomExoticAbilities
+    );
+    rawRandomExoticAbilities.forEach((rawAbility) => {
+        compendium.randomExoticAbilities.push({
+            lowRoll: parseInt(rawAbility.Low),
+            highRoll: parseInt(rawAbility.High),
+            name: rawAbility.Ability,
+        });
     });
     console.debug({ compendium });
     return compendium;
