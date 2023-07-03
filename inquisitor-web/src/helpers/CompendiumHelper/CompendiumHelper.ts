@@ -32,7 +32,6 @@ export const buildCompendium = async (): Promise<Compendium> => {
     const compendium: Compendium = {
         archetypes: {},
         talents: {},
-        abilities: {},
         boons: {},
         randomExoticAbilities: [],
     };
@@ -173,9 +172,9 @@ export const buildCompendium = async (): Promise<Compendium> => {
         const type = rawBoon.Type;
         let boon: Boon;
         switch (type) {
+            // 'Ability' boons actually confer talents rather than Exotic Abilities
             case 'Ability':
-                const ability =
-                    compendium.abilities[rawBoon.Name.toLowerCase()];
+                const ability = compendium.talents[rawBoon.Name.toLowerCase()];
                 assertDefined(ability, 'ability', 'boons', {
                     rawBoon,
                     compendium,

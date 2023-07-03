@@ -4,7 +4,6 @@ export interface Compendium {
     // compendium keys should always be lowercase, as there's some inconsistency in capitalization throughout the spreadsheet
     archetypes: { [key: string]: Archetype };
     talents: { [key: string]: Talent };
-    abilities: { [key: string]: Ability };
     boons: { [key: string]: Boon[] }; // key is subtype key
     randomExoticAbilities: RandomExoticAbility[]; // ordered by lowroll
 }
@@ -12,7 +11,6 @@ export interface Compendium {
 export const EmptyCompendium: Compendium = {
     archetypes: {},
     talents: {},
-    abilities: {},
     boons: {},
     randomExoticAbilities: [],
 };
@@ -29,7 +27,7 @@ export interface Talent {
     description: string;
 }
 
-export interface Ability {}
+export interface Talent {}
 
 export type Stat = 'BS' | 'I' | 'Ld' | 'Nv' | 'S' | 'Sg' | 'T' | 'WS' | 'Wp';
 
@@ -43,7 +41,7 @@ export interface Boon {
 
 export interface AbilityBoon extends Boon {
     type: 'Ability';
-    ability: Ability;
+    ability: Talent;
 }
 
 export interface BoostBoon extends Boon {
