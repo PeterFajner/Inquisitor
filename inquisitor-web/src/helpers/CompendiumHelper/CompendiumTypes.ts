@@ -6,6 +6,7 @@ export interface Compendium {
     talents: { [key: string]: Talent };
     abilities: { [key: string]: Ability };
     boons: { [key: string]: Boon[] }; // key is subtype key
+    randomExoticAbilities: RandomExoticAbility[]; // ordered by lowroll
 }
 
 export const EmptyCompendium: Compendium = {
@@ -13,7 +14,14 @@ export const EmptyCompendium: Compendium = {
     talents: {},
     abilities: {},
     boons: {},
+    randomExoticAbilities: [],
 };
+
+export interface RandomExoticAbility {
+    lowRoll: number; // 1-100
+    highRoll: number; // 1-100
+    name: string;
+}
 
 export interface Talent {
     key: string;
