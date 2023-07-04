@@ -15,6 +15,8 @@ const config = {
         boons: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR31iDYvOZXmFttcQ2Nzk31q1TjhUuW4lquWcOTKKiGdXXesRFcsimj77ejO82SORzg8-X4Zaz7B9KN/pub?gid=777063006&single=true&output=csv',
         randomExoticAbilities:
             'https://docs.google.com/spreadsheets/d/e/2PACX-1vR31iDYvOZXmFttcQ2Nzk31q1TjhUuW4lquWcOTKKiGdXXesRFcsimj77ejO82SORzg8-X4Zaz7B9KN/pub?gid=683584137&single=true&output=csv',
+        exoticAbilitiesDescriptions:
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vR31iDYvOZXmFttcQ2Nzk31q1TjhUuW4lquWcOTKKiGdXXesRFcsimj77ejO82SORzg8-X4Zaz7B9KN/pub?gid=2120452401&single=true&output=csv',
     },
 };
 

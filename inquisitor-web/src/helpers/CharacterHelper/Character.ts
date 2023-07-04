@@ -1,5 +1,5 @@
 import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import { Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { DefiniteBoon, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 
 export interface Stats {
     BS: number;
@@ -24,4 +24,5 @@ export interface Character {
     stats: Stats;
     baseTalents: Set<Talent>;
     chosenTalents: Talent[];
+    boons: DefiniteBoon[];
 }

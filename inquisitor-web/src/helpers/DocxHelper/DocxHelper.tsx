@@ -1,8 +1,14 @@
+import { Buffer } from 'buffer';
+import { Boon } from 'components/CharacterBuilder/BoonList';
 import createReport from 'docx-templates';
+import {
+    EmptyArchetype,
+    EmptyRole,
+    EmptySubtype,
+} from 'helpers/ArchetypeHelper/Placeholders';
 import { Compendium } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { DynamicCharacter } from 'hooks/CharacterHooks/CharacterHooks';
-import { Buffer } from 'buffer';
-import { EmptyArchetype, EmptyRole, EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 /*const IncrementCreator = () => {
     const IncrementCreator = function() {
@@ -64,10 +70,20 @@ export const triggerDocxDownload = async (
         </body>
         `;
 
-        const archetype = character.archetype !== EmptyArchetype && character.archetype.name;
-        const subtype = character.subtype !== EmptySubtype && character.subtype.name;
+        const archetype =
+            character.archetype !== EmptyArchetype && character.archetype.name;
+        const subtype =
+            character.subtype !== EmptySubtype && character.subtype.name;
         const role = character.role !== EmptyRole && character.role.name;
-        const tagLine = [archetype, subtype, role].filter(e => e).join(', ');
+        const tagLine = [archetype, subtype, role].filter((e) => e).join(', ');
+        const boons = `
+        <meta charset="UTF-8">
+        <body style="font-size: 10.67; font-family: Helvetica">
+        ${character.boons
+            .map((boon) => renderToStaticMarkup(<Boon boon={boon} />))
+            .join('')}
+        </body>
+        `;
 
         const filledTemplate = await createReport({
             template,
@@ -86,6 +102,7 @@ export const triggerDocxDownload = async (
                 talents,
                 tagLine,
                 name: character.name,
+                boons,
             },
         });
 

@@ -1,11 +1,23 @@
-import { EmptyStats } from 'helpers/CharacterHelper/Placeholders';
-import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
-import { useEffect, useMemo } from 'react';
-import { EmptyCharacter } from 'helpers/CharacterHelper/Placeholders';
 import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import { useState } from 'react';
+import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import { Character, Stats } from 'helpers/CharacterHelper/Character';
-import { Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
+import {
+    EmptyCharacter,
+    EmptyStats,
+} from 'helpers/CharacterHelper/Placeholders';
+import {
+    AbilityBoon,
+    BoostBoon,
+    Compendium,
+    DefiniteBoon,
+    DieCode,
+    RerollBoon,
+    RolledExoticBoon,
+    RolledPsychicBoon,
+    Talent,
+} from 'helpers/CompendiumHelper/CompendiumTypes';
+import { rollD100 } from 'helpers/Util';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * Includes dynamic readonly properties like talents (baseTalents + chosenTalents)
@@ -55,7 +67,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
     };
 
     const setSubtype = (subtype: Subtype) => {
-        // if subtype changes, roll new stats
+        // if subtype changes, roll new stats and clear boons
         if (subtype !== data.subtype) {
             const newStats = rollStats(subtype);
             console.debug('setting subtype and stats', { subtype, newStats });
@@ -63,6 +75,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
                 ...data,
                 subtype,
                 stats: newStats,
+                boons: [],
             });
         }
     };
@@ -144,6 +157,45 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
         });
     };
 
+    const rollBoon = (
+        compendium: Compendium,
+        subtypeKey: string
+    ): DefiniteBoon => {
+        const boon = rollD100(compendium.boons[subtype.key]);
+        switch (boon.type) {
+            case 'Ability':
+                return boon as AbilityBoon;
+            case 'Boost':
+                return boon as BoostBoon;
+            case 'Exotic':
+                return {
+                    ...boon,
+                    exoticAbility: rollD100(compendium.randomExoticAbilities)
+                        .exoticAbility,
+                } as RolledExoticBoon;
+            case 'Psychic':
+                // todo roll a psychic power
+                return boon as RolledPsychicBoon;
+            case 'Reroll':
+                return rollBoon(compendium, (boon as RerollBoon).subtypeKey);
+        }
+    };
+
+    const rollBoons = (compendium: Compendium) => {
+        const availableBoons = compendium.boons[subtype.key];
+        if (!availableBoons) return;
+        const numBoons = new DieCode('1D3+1').roll();
+        const boons: DefiniteBoon[] = [];
+        for (let i = 0; i < numBoons; i++) {
+            boons.push(rollBoon(compendium, subtype.key));
+        }
+        setData((data) => ({
+            ...data,
+            boons,
+        }));
+        console.debug('rollBoons', { boons });
+    };
+
     // roll stats first time a subtype is selected
     useEffect(() => {
         console.debug('roll stats?', {
@@ -202,5 +254,6 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
         setStat,
         rerollStats,
         setChosenTalents,
+        rollBoons,
     };
 };

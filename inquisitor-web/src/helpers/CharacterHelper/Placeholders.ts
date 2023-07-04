@@ -26,4 +26,5 @@ export const EmptyCharacter: Character = {
     stats: EmptyStats,
     baseTalents: new Set(),
     chosenTalents: [],
+    boons: [],
 };

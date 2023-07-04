@@ -5,6 +5,7 @@ export interface Compendium {
     archetypes: { [key: string]: Archetype };
     talents: { [key: string]: Talent };
     boons: { [key: string]: Boon[] }; // key is subtype key
+    exoticAbilities: { [key: string]: ExoticAbility };
     randomExoticAbilities: RandomExoticAbility[]; // ordered by lowroll
 }
 
@@ -12,13 +13,20 @@ export const EmptyCompendium: Compendium = {
     archetypes: {},
     talents: {},
     boons: {},
+    exoticAbilities: {},
     randomExoticAbilities: [],
 };
+
+export interface ExoticAbility {
+    key: string; // lowercase
+    name: string;
+    description: string;
+}
 
 export interface RandomExoticAbility {
     lowRoll: number; // 1-100
     highRoll: number; // 1-100
-    name: string;
+    exoticAbility: ExoticAbility;
 }
 
 export interface Talent {
@@ -63,13 +71,30 @@ export interface RerollBoon extends Boon {
     subtypeKey: string;
 }
 
+export interface RolledExoticBoon extends ExoticBoon {
+    exoticAbility: ExoticAbility;
+}
+
+export interface RolledPsychicBoon extends PsychicBoon {
+    // todo
+}
+
+/**
+ * A specific boon that has been granted to a character, rather than a possible boon that can be rolled
+ */
+export type DefiniteBoon =
+    | AbilityBoon
+    | BoostBoon
+    | RolledExoticBoon
+    | RolledPsychicBoon;
+
 /**
  * Handle turning '55+2D10' into a structured format
  */
 export class DieCode {
     base: number;
     numDice: number;
-    dieSize: 6 | 10;
+    dieSize: 3 | 6 | 10 | 100;
 
     constructor(dieCodeString: string) {
         // the regex first tries to match `1+2D3` then `2D3` then `1`
@@ -81,15 +106,15 @@ export class DieCode {
         if (base1 && numDice1 && dieSize1) {
             this.base = parseInt(base1);
             this.numDice = parseInt(numDice1);
-            this.dieSize = parseInt(dieSize1) as 6 | 10;
+            this.dieSize = parseInt(dieSize1) as 3 | 6 | 10 | 100;
         } else if (numDice2 && dieSize2) {
             this.base = 0;
             this.numDice = parseInt(numDice2);
-            this.dieSize = parseInt(dieSize2) as 6 | 10;
+            this.dieSize = parseInt(dieSize2) as 3 | 6 | 10 | 100;
         } else if (base3) {
             this.base = parseInt(base3);
             this.numDice = 0;
-            this.dieSize = 6;
+            this.dieSize = 3;
         } else {
             throw new TypeError(`Invalid die code string ${dieCodeString}`);
         }

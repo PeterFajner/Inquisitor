@@ -11,7 +11,6 @@ import {
     RerollBoon,
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
-import { sortByKeyAscending } from 'helpers/Util';
 
 const assertDefined = (
     property: any,
@@ -33,6 +32,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         archetypes: {},
         talents: {},
         boons: {},
+        exoticAbilities: {},
         randomExoticAbilities: [],
     };
     // add archetypes and subtypes and their stats to compendium
@@ -224,19 +224,40 @@ export const buildCompendium = async (): Promise<Compendium> => {
         // add to compendium, by subtype
         const boonList = compendium.boons[subtypeKey] ?? [];
         boonList.push(boon);
-        // sort boons by low roll
-        sortByKeyAscending(boonList, (boon) => boon.lowRoll);
         compendium.boons[subtypeKey] = boonList;
+    });
+    // load exotic abilities
+    const rawExoticAbilities = await sheetUrlToCsv(
+        sheets.exoticAbilitiesDescriptions
+    );
+    rawExoticAbilities.forEach((rawAbility) => {
+        const abilityKey = rawAbility.Ability.toLowerCase();
+        compendium.exoticAbilities[abilityKey] = {
+            key: abilityKey,
+            name: rawAbility.Ability,
+            description: rawAbility.Description,
+        };
     });
     // load random exotic abilities
     const rawRandomExoticAbilities = await sheetUrlToCsv(
         sheets.randomExoticAbilities
     );
     rawRandomExoticAbilities.forEach((rawAbility) => {
+        const exoticAbility =
+            compendium.exoticAbilities[rawAbility.Ability.toLowerCase()];
+        assertDefined(
+            exoticAbility,
+            'exotic ability',
+            'random exotic abilities',
+            {
+                rawAbility,
+                compendium,
+            }
+        );
         compendium.randomExoticAbilities.push({
             lowRoll: parseInt(rawAbility.Low),
             highRoll: parseInt(rawAbility.High),
-            name: rawAbility.Ability,
+            exoticAbility,
         });
     });
     console.debug({ compendium });

@@ -1,14 +1,15 @@
-import { Compendium, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { BoonList } from 'components/CharacterBuilder/BoonList';
+import { TalentChoiceList } from 'helpers/ArchetypeHelper/Archetype';
+import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import { Character, STATS_ORDER } from 'helpers/CharacterHelper/Character';
+import { Compendium, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
 import {
     DynamicCharacter,
     useCharacter,
 } from 'hooks/CharacterHooks/CharacterHooks';
 import { FunctionComponent } from 'react';
-import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import './CharacterBuilder.css';
-import { TalentChoiceList } from 'helpers/ArchetypeHelper/Archetype';
-import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
 
 const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
 
@@ -102,11 +103,12 @@ export const CharacterBuilder: FunctionComponent<{
         setStat,
         rerollStats,
         setChosenTalents,
+        rollBoons,
     } = useCharacter({ id });
     console.debug({ data, compendium });
     const { archetypes } = compendium;
-    const { subtypes } = data.archetype;
-    const { roles } = data.archetype;
+    const { boons, subtype, archetype } = data;
+    const { subtypes, roles } = archetype;
     const talentChoices: {
         talentChoiceList: TalentChoiceList;
         talent: Talent;
@@ -127,6 +129,9 @@ export const CharacterBuilder: FunctionComponent<{
                 i++;
             }
         });
+
+    const subtypeGetsBoons = !!compendium.boons[subtype.key];
+
     return (
         <div className="character-builder">
             <section className="wide center">
@@ -276,7 +281,26 @@ export const CharacterBuilder: FunctionComponent<{
                     ))}
                 </ul>
             </section>
-        <button onClick={() => { triggerDocxDownload([data], compendium)}}>Download Docx</button>
+            <section className="wide">
+                <h3>Boons</h3>
+                {subtypeGetsBoons ? (
+                    <>
+                        <button onClick={() => rollBoons(compendium)}>
+                            {boons.length ? 'Reroll Boons' : 'Roll Boons'}
+                        </button>
+                        <BoonList boons={boons}></BoonList>
+                    </>
+                ) : (
+                    <p>Your subtype doesn't get any Boons.</p>
+                )}
+            </section>
+            <button
+                onClick={() => {
+                    triggerDocxDownload([data], compendium);
+                }}
+            >
+                Download Docx
+            </button>
         </div>
     );
 };
