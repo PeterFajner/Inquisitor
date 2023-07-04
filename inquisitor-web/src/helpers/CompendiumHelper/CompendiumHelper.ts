@@ -26,7 +26,10 @@ const assertDefined = (
     }
 };
 
-export const buildCompendium = async (): Promise<Compendium> => {
+export const buildCompendium = async (
+    setMaxProgress: (max: number) => void,
+    setStatus: (progress: number, status: string) => void
+): Promise<Compendium> => {
     const { sheets } = config;
     const compendium: Compendium = {
         archetypes: {},
@@ -35,7 +38,9 @@ export const buildCompendium = async (): Promise<Compendium> => {
         exoticAbilities: {},
         randomExoticAbilities: [],
     };
+    setMaxProgress(8);
     // add archetypes and subtypes and their stats to compendium
+    setStatus(1, 'Loading archetypes, subtypes, and stat ranges...');
     const rawStats = await sheetUrlToCsv(sheets.stats);
     rawStats.forEach((item) => {
         const archetype = item.Archetype;
@@ -73,6 +78,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         }
     });
     // add roles to compendium
+    setStatus(2, 'Loading roles...');
     const roles = await sheetUrlToCsv(sheets.roles);
     roles.forEach((item) => {
         const name = item.Role;
@@ -83,6 +89,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         archetype.roles[key] = { key, name };
     });
     // add talents to compendium
+    setStatus(3, 'Loading talent list...');
     const rawTalentsList = await sheetUrlToCsv(sheets.talentsList);
     rawTalentsList.forEach((talent) => {
         const name = talent.Talent;
@@ -91,6 +98,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         compendium.talents[key] = { name, description, key };
     });
     // add talents to archetypes, subtypes, and roles
+    setStatus(4, 'Loading talent assignments...');
     const archetypeTalents = await sheetUrlToCsv(sheets.talents);
     archetypeTalents.forEach((item) => {
         const archetype = compendium.archetypes[item.Archetype.toLowerCase()];
@@ -164,6 +172,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         }
     });
     // load boons
+    setStatus(5, 'Loading boons...');
     const rawBoons = await sheetUrlToCsv(sheets.boons);
     rawBoons.forEach((rawBoon) => {
         const subtypeKey = rawBoon.Subtype.toLowerCase();
@@ -227,6 +236,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         compendium.boons[subtypeKey] = boonList;
     });
     // load exotic abilities
+    setStatus(6, 'Loading exotic abilities...');
     const rawExoticAbilities = await sheetUrlToCsv(
         sheets.exoticAbilitiesDescriptions
     );
@@ -239,6 +249,7 @@ export const buildCompendium = async (): Promise<Compendium> => {
         };
     });
     // load random exotic abilities
+    setStatus(7, 'Loading random exotic abilities table...');
     const rawRandomExoticAbilities = await sheetUrlToCsv(
         sheets.randomExoticAbilities
     );
