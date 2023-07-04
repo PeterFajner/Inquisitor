@@ -184,7 +184,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
     const rollBoons = (compendium: Compendium) => {
         const availableBoons = compendium.boons[subtype.key];
         if (!availableBoons) return;
-        const numBoons = new DieCode('1D3+1').roll();
+        const numBoons = new DieCode('1+1D3').roll();
         const boons: DefiniteBoon[] = [];
         for (let i = 0; i < numBoons; i++) {
             boons.push(rollBoon(compendium, subtype.key));
