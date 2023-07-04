@@ -7,11 +7,13 @@ export const ProgressBar: FunctionComponent<{
     status: string;
 }> = ({ progress, maxProgress, status }) => (
     <>
-        <div>
-            <progress id="progress" value={progress} max={maxProgress}>
-                {progress}/{maxProgress}
-            </progress>
-            <label htmlFor="progress">{status}</label>
+        <div className="progress">
+            <div>
+                <progress id="progress" value={progress} max={maxProgress}>
+                    {progress}/{maxProgress}
+                </progress>
+                <label htmlFor="progress">{status}</label>
+            </div>
         </div>
     </>
 );
