@@ -18,7 +18,8 @@ export const Boon: FunctionComponent<{
                 <li key={boon.stat + boon.type}>
                     <B>
                         +{boon.amount} {boon.stat}
-                    </B>
+                    </B>{' '}
+                    (not reflected in stat total)
                 </li>
             );
         case 'Exotic':
