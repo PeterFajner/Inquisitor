@@ -1,9 +1,9 @@
 import { Buffer } from 'buffer';
 import { Boon } from 'components/CharacterBuilder/BoonList';
 import createReport from 'docx-templates';
+import { Character } from 'helpers/CharacterHelper/Character';
 import { Compendium } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { buildTagLine } from 'helpers/Util';
-import { DynamicCharacter } from 'components/CharacterBuilder/CharacterBuilder';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 // https://github.com/guigrpa/docx-templates/blob/79119723ff1c009b5bbdd28016558da9b405742f/examples/example-webpack/client/index.js#L91
@@ -28,7 +28,7 @@ const saveDataToFile = (data: any, fileName: any, mimeType: any) => {
 };
 
 export const triggerDocxDownload = async (
-    characters: DynamicCharacter[],
+    characters: Character[],
     compendium: Compendium
 ): Promise<void> => {
     // todo dynamically pick or generate a template for the correct number of characters
@@ -43,7 +43,7 @@ export const triggerDocxDownload = async (
         <meta charset="UTF-8">
         <body>
         <ul>
-        ${Array.from(character.talents)
+        ${[...character.baseTalents, ...character.chosenTalents]
             .map(
                 (talent) => `
             <li style="font-size: 10.67; font-family: Helvetica">
@@ -81,7 +81,7 @@ export const triggerDocxDownload = async (
                 Ld: character.stats.Ld,
                 talents,
                 tagLine,
-                name: character.name,
+                name: character.name || 'Unnamed Character',
                 boons,
             },
         });

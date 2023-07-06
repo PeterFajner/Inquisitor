@@ -24,17 +24,8 @@ import {
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
 import { buildTagLine, rollD100 } from 'helpers/Util';
-import { FunctionComponent, useEffect, useMemo, useState } from 'react';
+import { FunctionComponent, useEffect, useState } from 'react';
 import './CharacterBuilder.css';
-
-/**
- * Includes dynamic readonly properties like talents (baseTalents + chosenTalents)
- */
-export interface DynamicCharacter extends Character {
-    talents: Set<Talent>;
-    numTalentChoices: number;
-    numTalentChoicesRemaining: number;
-}
 
 const buildTitle = (data: Character) => {
     const tagLine = buildTagLine(data);
@@ -61,26 +52,6 @@ export const CharacterBuilder: FunctionComponent<{
     const [data, setData] = useState<Character>(initCharacter(compendium));
 
     const { archetype, subtype, role, boons } = data;
-
-    const numTalentChoices = useMemo(
-        () =>
-            data.archetype.talentChoices
-                // select talents for this class's role/subtype or for unrestricted roles & subtypes
-                .filter(
-                    (item) =>
-                        (!item.subtype || item.subtype === data.subtype) &&
-                        (!item.role || item.role === data.role)
-                )
-                // get the number of talent choices for each entry
-                .map((item) => item.numTalents)
-                // sum them
-                .reduce((sum, current) => sum + current, 0),
-        [data.archetype.talentChoices, data.role, data.subtype]
-    );
-
-    // number of talents left to choose
-    const numTalentChoicesRemaining =
-        numTalentChoices - data.chosenTalents.length;
 
     const setName = (name: string) => {
         setData({ ...data, name });
@@ -117,11 +88,6 @@ export const CharacterBuilder: FunctionComponent<{
             chosenTalents,
         });
     };
-
-    const talents = useMemo(
-        () => new Set([...data.baseTalents, ...data.chosenTalents]),
-        [data.baseTalents, data.chosenTalents]
-    );
 
     const rollStats = (subtype: Subtype = data.subtype): Stats => {
         const stats: Stats = {
@@ -408,17 +374,7 @@ export const CharacterBuilder: FunctionComponent<{
             </section>
             <button
                 onClick={() => {
-                    triggerDocxDownload(
-                        [
-                            {
-                                ...data,
-                                talents,
-                                numTalentChoices,
-                                numTalentChoicesRemaining,
-                            },
-                        ],
-                        compendium
-                    );
+                    triggerDocxDownload([data], compendium);
                 }}
             >
                 Download Docx
