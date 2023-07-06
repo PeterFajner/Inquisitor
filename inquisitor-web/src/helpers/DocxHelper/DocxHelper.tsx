@@ -2,7 +2,11 @@ import { Buffer } from 'buffer';
 import { Boon } from 'components/CharacterBuilder/BoonList';
 import createReport from 'docx-templates';
 import { Character } from 'helpers/CharacterHelper/Character';
-import { Compendium } from 'helpers/CompendiumHelper/CompendiumTypes';
+import {
+    Compendium,
+    DefiniteBoon,
+    Stat,
+} from 'helpers/CompendiumHelper/CompendiumTypes';
 import { buildTagLine } from 'helpers/Util';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -39,11 +43,36 @@ export const triggerDocxDownload = async (
     );
 
     characters.forEach(async (character) => {
+        const tagLine = buildTagLine(character);
+
+        // assign Ability and Boost boons to their respective sections and remove them from the boon list
+        const statsPlusBoostBoons: { [key in Stat]: number } = Object.assign(
+            {},
+            character.stats
+        );
+        const talentsPlusBoons = [
+            ...character.baseTalents,
+            ...character.chosenTalents,
+        ];
+        const remainingBoons: DefiniteBoon[] = [];
+        character.boons.forEach((boon) => {
+            switch (boon.type) {
+                case 'Ability':
+                    talentsPlusBoons.push(boon.ability);
+                    break;
+                case 'Boost':
+                    statsPlusBoostBoons[boon.stat] += boon.amount;
+                    break;
+                default:
+                    remainingBoons.push(boon);
+            }
+        });
+
         const talents = `
         <meta charset="UTF-8">
         <body>
         <ul>
-        ${[...character.baseTalents, ...character.chosenTalents]
+        ${talentsPlusBoons
             .map(
                 (talent) => `
             <li style="font-size: 10.67; font-family: Helvetica">
@@ -55,11 +84,10 @@ export const triggerDocxDownload = async (
         </body>
         `;
 
-        const tagLine = buildTagLine(character);
         const boons = `
         <meta charset="UTF-8">
         <body style="font-size: 10.67; font-family: Helvetica">
-        ${character.boons
+        ${remainingBoons
             .map((boon) => renderToStaticMarkup(<Boon boon={boon} />))
             .join('')}
         </body>
@@ -70,15 +98,7 @@ export const triggerDocxDownload = async (
             cmdDelimiter: ['{', '}'],
             data: {
                 character,
-                WS: character.stats.WS,
-                BS: character.stats.BS,
-                S: character.stats.S,
-                T: character.stats.T,
-                I: character.stats.I,
-                Wp: character.stats.Wp,
-                Sg: character.stats.Sg,
-                Nv: character.stats.Nv,
-                Ld: character.stats.Ld,
+                ...statsPlusBoostBoons,
                 talents,
                 tagLine,
                 name: character.name || 'Unnamed Character',

@@ -1,5 +1,9 @@
 import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import { DefiniteBoon, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
+import {
+    DefiniteBoon,
+    Stat,
+    Talent,
+} from 'helpers/CompendiumHelper/CompendiumTypes';
 
 export interface Stats {
     BS: number;
@@ -13,7 +17,17 @@ export interface Stats {
     Wp: number;
 }
 
-export const STATS_ORDER = ['WS', 'BS', 'S', 'T', 'I', 'Wp', 'Sg', 'Nv', 'Ld'];
+export const STATS_ORDER: Stat[] = [
+    'WS',
+    'BS',
+    'S',
+    'T',
+    'I',
+    'Wp',
+    'Sg',
+    'Nv',
+    'Ld',
+];
 
 export interface Character {
     id: string;
