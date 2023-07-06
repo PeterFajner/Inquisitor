@@ -1,25 +1,10 @@
 import { Buffer } from 'buffer';
 import { Boon } from 'components/CharacterBuilder/BoonList';
 import createReport from 'docx-templates';
-import {
-    EmptyArchetype,
-    EmptyRole,
-    EmptySubtype,
-} from 'helpers/ArchetypeHelper/Placeholders';
 import { Compendium } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { buildTagLine } from 'helpers/Util';
 import { DynamicCharacter } from 'hooks/CharacterHooks/CharacterHooks';
 import { renderToStaticMarkup } from 'react-dom/server';
-
-/*const IncrementCreator = () => {
-    const IncrementCreator = function() {
-        this.value = 0;
-    }
-
-    IncrementCreator.prototype = {
-        value: this.value,
-        increment: function() { this.value++; },
-    }
-};*/
 
 // https://github.com/guigrpa/docx-templates/blob/79119723ff1c009b5bbdd28016558da9b405742f/examples/example-webpack/client/index.js#L91
 const downloadURL = (data: any, fileName: any) => {
@@ -70,12 +55,7 @@ export const triggerDocxDownload = async (
         </body>
         `;
 
-        const archetype =
-            character.archetype !== EmptyArchetype && character.archetype.name;
-        const subtype =
-            character.subtype !== EmptySubtype && character.subtype.name;
-        const role = character.role !== EmptyRole && character.role.name;
-        const tagLine = [archetype, subtype, role].filter((e) => e).join(', ');
+        const tagLine = buildTagLine(character);
         const boons = `
         <meta charset="UTF-8">
         <body style="font-size: 10.67; font-family: Helvetica">

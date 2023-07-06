@@ -19,7 +19,7 @@ export interface Character {
     id: string;
     name: string;
     archetype: Archetype;
-    role: Role;
+    role: Role | null;
     subtype: Subtype;
     stats: Stats;
     baseTalents: Set<Talent>;

@@ -1,14 +1,9 @@
 import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import { Character, Stats } from 'helpers/CharacterHelper/Character';
-import {
-    EmptyCharacter,
-    EmptyStats,
-} from 'helpers/CharacterHelper/Placeholders';
+import { initCharacter } from 'helpers/CharacterHelper/Placeholders';
 import {
     AbilityBoon,
     BoostBoon,
-    Compendium,
     DefiniteBoon,
     DieCode,
     RerollBoon,
@@ -18,6 +13,7 @@ import {
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { rollD100 } from 'helpers/Util';
 import { useEffect, useMemo, useState } from 'react';
+import { Compendium } from './../../helpers/CompendiumHelper/CompendiumTypes';
 
 /**
  * Includes dynamic readonly properties like talents (baseTalents + chosenTalents)
@@ -28,10 +24,8 @@ export interface DynamicCharacter extends Character {
     numTalentChoicesRemaining: number;
 }
 
-export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
-    const [data, setData] = useState<Character>(
-        Object.assign({}, defaultData, { id })
-    );
+export const useCharacter = (id: string = '', compendium: Compendium) => {
+    const [data, setData] = useState<Character>(initCharacter(compendium));
 
     const { archetype, subtype, role } = data;
 
@@ -198,15 +192,7 @@ export const useCharacter = ({ id = '', defaultData = EmptyCharacter }) => {
 
     // roll stats first time a subtype is selected
     useEffect(() => {
-        console.debug('roll stats?', {
-            subtype: data.subtype,
-            stats: data.stats,
-            subtypeeq: data.subtype === EmptySubtype,
-            statseq: data.stats === EmptyStats,
-        });
-        if (data.subtype !== EmptySubtype && data.stats === EmptyStats) {
-            rollStats();
-        }
+        rollStats();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.subtype]);
 

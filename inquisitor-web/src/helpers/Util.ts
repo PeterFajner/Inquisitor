@@ -1,3 +1,4 @@
+import { Character } from 'helpers/CharacterHelper/Character';
 import { DieCode } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { D100Rollable } from 'types/Rolls.d';
 
@@ -25,3 +26,8 @@ export const rollD100 = <T extends D100Rollable>(list: T[]): T => {
     }
     return result;
 };
+
+export const buildTagLine = (char: Character) =>
+    [char.archetype.name, char.subtype.name, char.role?.name]
+        .filter((e) => e)
+        .join(', ');

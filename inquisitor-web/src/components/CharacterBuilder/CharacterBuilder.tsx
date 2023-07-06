@@ -1,27 +1,16 @@
 import { BoonList } from 'components/CharacterBuilder/BoonList';
 import { TalentChoiceList } from 'helpers/ArchetypeHelper/Archetype';
-import { EmptySubtype } from 'helpers/ArchetypeHelper/Placeholders';
 import { Character, STATS_ORDER } from 'helpers/CharacterHelper/Character';
 import { Compendium, Talent } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
-import {
-    DynamicCharacter,
-    useCharacter,
-} from 'hooks/CharacterHooks/CharacterHooks';
+import { buildTagLine } from 'helpers/Util';
+import { useCharacter } from 'hooks/CharacterHooks/CharacterHooks';
 import { FunctionComponent } from 'react';
 import './CharacterBuilder.css';
 
-const sortTalents = (a: Talent, b: Talent) => (a.key < b.key ? -1 : 1);
-
 const buildTitle = (data: Character) => {
-    const additionalInfo = data.archetype
-        ? {
-              archetype: data.archetype.name,
-          }
-        : null;
-    const additionalInfoString = additionalInfo
-        ? ` (${additionalInfo.archetype ?? ''})`
-        : null;
+    const tagLine = buildTagLine(data);
+    const additionalInfoString = tagLine ? ` (${tagLine})` : null;
     return `${data.name || 'Unnamed Character'}${additionalInfoString}`;
 };
 
@@ -37,58 +26,6 @@ const TalentEntry: FunctionComponent<{
     </div>
 );
 
-const TalentList: FunctionComponent<{
-    data: DynamicCharacter;
-    compendium: Compendium;
-}> = ({ data, compendium }) => (
-    <div>{Array.from(data.talents).sort(sortTalents).map(TalentEntry)}</div>
-);
-
-const selectorStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'flex-start',
-};
-
-const TalentSelectorList: FunctionComponent<{
-    data: DynamicCharacter;
-    compendium: Compendium;
-    toggleTalent: (t: Talent) => boolean;
-}> = ({ data, compendium, toggleTalent }) => (
-    <>
-        <div style={{ marginBottom: '10px' }}>
-            Selected {data.numTalentChoices - data.numTalentChoicesRemaining}/
-            {data.numTalentChoices} talents
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {Object.values(compendium.talents)
-                .sort(sortTalents)
-                .map((talent) => (
-                    <span style={selectorStyle} key={talent.key}>
-                        <input
-                            type="checkbox"
-                            name={`${data.id}-talents`}
-                            value={talent.key}
-                            disabled={
-                                (!data.talents.has(talent) &&
-                                    data.numTalentChoicesRemaining <= 0) ||
-                                data.baseTalents.has(talent)
-                            }
-                            checked={data.talents.has(talent)}
-                            onChange={(e) => {
-                                toggleTalent(
-                                    compendium.talents[e.currentTarget.value]
-                                );
-                            }}
-                        />
-                        <label htmlFor={talent.key}>
-                            {TalentEntry(talent)}
-                        </label>
-                    </span>
-                ))}
-        </div>
-    </>
-);
-
 export const CharacterBuilder: FunctionComponent<{
     id: string;
     compendium: Compendium;
@@ -99,12 +36,11 @@ export const CharacterBuilder: FunctionComponent<{
         setRole,
         setArchetype,
         setSubtype,
-        toggleTalent,
         setStat,
         rerollStats,
         setChosenTalents,
         rollBoons,
-    } = useCharacter({ id });
+    } = useCharacter(id, compendium);
     console.debug({ data, compendium });
     const { archetypes } = compendium;
     const { boons, subtype, archetype } = data;
@@ -192,7 +128,7 @@ export const CharacterBuilder: FunctionComponent<{
                             type="radio"
                             name={`${id}-role`}
                             value={role.key}
-                            checked={data.role.key === role.key}
+                            checked={data.role?.key === role.key}
                             onChange={(e) => {
                                 setRole(roles[e.currentTarget.value]);
                             }}
@@ -207,30 +143,24 @@ export const CharacterBuilder: FunctionComponent<{
             <h3>Stats</h3>
             <section className="wide">
                 <button onClick={rerollStats}>Reroll stats</button>
-                {data.subtype === EmptySubtype ? (
-                    <span>Select a subtype to generate stats</span>
-                ) : (
-                    STATS_ORDER.map((stat) => (
-                        <div key={stat}>
-                            <label htmlFor={`${id}-stat-${stat}`}>
-                                {stat}{' '}
-                            </label>
-                            <input
-                                type="number"
-                                id={`${id}-stat-${stat}`}
-                                value={(data.stats as any)[stat]}
-                                onChange={(e) =>
-                                    setStat(
-                                        stat,
-                                        parseInt(
-                                            (e.target as HTMLInputElement).value
-                                        )
+                {STATS_ORDER.map((stat) => (
+                    <div key={stat}>
+                        <label htmlFor={`${id}-stat-${stat}`}>{stat} </label>
+                        <input
+                            type="number"
+                            id={`${id}-stat-${stat}`}
+                            value={(data.stats as any)[stat]}
+                            onChange={(e) =>
+                                setStat(
+                                    stat,
+                                    parseInt(
+                                        (e.target as HTMLInputElement).value
                                     )
-                                }
-                            />
-                        </div>
-                    ))
-                )}
+                                )
+                            }
+                        />
+                    </div>
+                ))}
             </section>
             <section className="wide">
                 <h3>Talents</h3>
