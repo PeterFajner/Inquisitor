@@ -7,7 +7,6 @@ import {
 } from 'helpers/ArchetypeHelper/Archetype';
 import {
     Character,
-    STATS_ORDER,
     Stats,
 } from 'helpers/CharacterHelper/Character';
 import { initCharacter } from 'helpers/CharacterHelper/Placeholders';
@@ -25,153 +24,17 @@ import {
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
 import { buildTagLine, rollD100 } from 'helpers/Util';
-import { FunctionComponent, ReactNode, useEffect, useState } from 'react';
+import { FunctionComponent, useEffect, useState } from 'react';
 import './CharacterBuilder.css';
+import { Dropdown } from './Dropdown';
+import { Section } from './Section';
+import { StatsTable } from './StatsTable';
+import { TalentEntry } from './TalentEntry';
 
 const buildTitle = (data: Character) => {
     const tagLine = buildTagLine(data);
     return tagLine ? ` (${tagLine})` : null;
 };
-
-const StatsRow: FunctionComponent<{
-    id: string;
-    stat: Stat;
-    base: number;
-    boon: number | undefined;
-    setStat: (key: Stat, value: number) => void;
-}> = ({ id, stat, base, boon, setStat }) => (
-    <tr>
-        <th>
-            <label htmlFor={`${id}-stat-${stat}`}>{stat} </label>
-        </th>
-        <td key={stat}>
-            <input
-                type="number"
-                id={`${id}-stat-${stat}`}
-                value={base}
-                onChange={(e) =>
-                    setStat(
-                        stat,
-                        parseInt((e.target as HTMLInputElement).value)
-                    )
-                }
-                size={3}
-            />
-        </td>
-        <td>{boon ?? '-'}</td>
-        <td>{base + (boon ?? 0)}</td>
-    </tr>
-);
-
-const StatsTable: FunctionComponent<{
-    id: string;
-    stats: Stats;
-    boons: DefiniteBoon[];
-    setStat: (key: Stat, value: number) => void;
-}> = ({ id, stats, boons, setStat }) => {
-    const statBoonBoosts: { [key in Stat]?: number } = {};
-    boons.forEach((boon) => {
-        if (boon.type === 'Boost') {
-            statBoonBoosts[boon.stat] =
-                (statBoonBoosts[boon.stat] ?? 0) + boon.amount;
-        }
-    });
-    return (
-        <table className="stats-table">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Base</th>
-                    <th>Boon</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {STATS_ORDER.map((stat) => (
-                    <StatsRow
-                        id={id}
-                        stat={stat}
-                        base={stats[stat]}
-                        boon={statBoonBoosts[stat]}
-                        setStat={setStat}
-                    ></StatsRow>
-                ))}
-            </tbody>
-        </table>
-    );
-};
-
-const Section: FunctionComponent<{
-    type: 'narrow' | 'wide';
-    children?: ReactNode;
-    title?: string;
-    leftOfTitle?: ReactNode[];
-    rightOfTitle?: ReactNode[];
-}> = ({ type, children, title, leftOfTitle, rightOfTitle }) => (
-    <section className={type}>
-        <h3>
-            {leftOfTitle ? (
-                <span style={{ marginRight: 20 }}>{leftOfTitle}</span>
-            ) : null}
-            {title && <span>{title}</span>}
-            {rightOfTitle ? (
-                <span style={{ marginLeft: 20 }}>{rightOfTitle}</span>
-            ) : null}
-        </h3>
-
-        {children}
-    </section>
-);
-
-const Dropdown: FunctionComponent<{
-    id: string;
-    label: string | null;
-    options: any[];
-    labelExtractor: (obj: any) => string;
-    keyExtractor: (obj: any) => string;
-    value: string | undefined;
-    setValue: (v: string) => void;
-    includeDefault?: Boolean;
-}> = ({
-    id,
-    label,
-    options,
-    labelExtractor,
-    keyExtractor,
-    value,
-    setValue,
-    includeDefault = false,
-}) => (
-    <div className={`dropdown ${label ? 'with-label' : 'no-label'}`}>
-        <label htmlFor={id}>{label}</label>
-        <select
-            id={id}
-            onChange={(e) => setValue(e.target.value)}
-            disabled={options.length === 0}
-            style={{ minWidth: 100 }}
-            value={value}
-        >
-            {includeDefault && <option value={undefined}></option>}
-            {options.map((option) => (
-                <option key={keyExtractor(option)} value={keyExtractor(option)}>
-                    {labelExtractor(option)}
-                </option>
-            ))}
-        </select>
-    </div>
-);
-
-const TalentEntry: FunctionComponent<{
-    name?: string;
-    description?: string;
-}> = ({ name, description }) => (
-    <div className="columns" style={{ marginBottom: '10px' }}>
-        <span>
-            <span style={{ fontWeight: 'bold' }}>{name}: </span>
-            {description}
-        </span>
-    </div>
-);
 
 export const CharacterBuilder: FunctionComponent<{
     id: string;
