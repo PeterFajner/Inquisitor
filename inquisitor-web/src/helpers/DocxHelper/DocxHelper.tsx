@@ -85,14 +85,17 @@ export const triggerDocxDownload = async (
         </body>
         `;
 
-        const boons = `
+        const boons = remainingBoons.length
+            ? `
         <meta charset="UTF-8">
         <body style="font-size: 10.67; font-family: Helvetica">
+        <span style="font-weight: bold">Boons:</span>
         ${remainingBoons
             .map((boon) => renderToStaticMarkup(<Boon boon={boon} />))
             .join('')}
         </body>
-        `;
+        `
+            : '';
 
         const filledTemplate = await createReport({
             template,
