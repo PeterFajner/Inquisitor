@@ -1,5 +1,5 @@
 import { Character, DieCode, Stats, Subtype } from 'types/Compendium';
-import { D100Rollable } from 'types/Rolls.d';
+import { D100Rollable } from 'types/Rolls';
 
 export const sortByKeyAscending = <T>(
     array: Array<T>,
