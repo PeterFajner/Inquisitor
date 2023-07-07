@@ -460,9 +460,11 @@ export const CharacterBuilder: FunctionComponent<{
             <Section
                 type="narrow"
                 title="Boons"
-                rightOfTitle={[
-                    <button onClick={() => rollBoons()}>Reroll</button>,
-                ]}
+                rightOfTitle={
+                    subtypeGetsBoons && [
+                        <button onClick={() => rollBoons()}>Reroll</button>,
+                    ]
+                }
             >
                 {subtypeGetsBoons ? (
                     <>
