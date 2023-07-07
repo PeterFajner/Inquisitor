@@ -125,12 +125,13 @@ const Section: FunctionComponent<{
 
 const Dropdown: FunctionComponent<{
     id: string;
-    label: string;
+    label: string | null;
     options: any[];
     labelExtractor: (obj: any) => string;
     keyExtractor: (obj: any) => string;
-    value: string;
+    value: string | undefined;
     setValue: (v: string) => void;
+    includeDefault?: Boolean;
 }> = ({
     id,
     label,
@@ -139,8 +140,9 @@ const Dropdown: FunctionComponent<{
     keyExtractor,
     value,
     setValue,
+    includeDefault = false,
 }) => (
-    <div className="dropdown">
+    <div className={`dropdown ${label ? 'with-label' : 'no-label'}`}>
         <label htmlFor={id}>{label}</label>
         <select
             id={id}
@@ -149,6 +151,7 @@ const Dropdown: FunctionComponent<{
             style={{ minWidth: 100 }}
             value={value}
         >
+            {includeDefault && <option value={undefined}></option>}
             {options.map((option) => (
                 <option key={keyExtractor(option)} value={keyExtractor(option)}>
                     {labelExtractor(option)}
@@ -402,8 +405,7 @@ export const CharacterBuilder: FunctionComponent<{
                     setStat={setStat}
                 ></StatsTable>
             </Section>
-            <section className="narrow">
-                <h3>Talents</h3>
+            <Section type="narrow" title="Talents">
                 <ul>
                     {Array.from(data.baseTalents).map((t) => (
                         <li key={t.key}>
@@ -415,29 +417,25 @@ export const CharacterBuilder: FunctionComponent<{
                     ))}
                     {talentChoices.map((tc, index) => (
                         <li>
-                            <select
-                                key={index}
-                                name={`${id}-talent-choice-${index}`}
+                            <Dropdown
                                 id={`${id}-talent-choice-${index}`}
-                                onChange={(event) => {
+                                label={null}
+                                options={
+                                    tc.talentChoiceList.talentList ??
+                                    Object.values(compendium.talents)
+                                }
+                                keyExtractor={(t) => (t as Talent).key}
+                                labelExtractor={(t) => (t as Talent).name}
+                                value={tc.talent?.key}
+                                setValue={(key) => {
                                     tc.talent =
-                                        compendium.talents?.[
-                                            event.target.value
-                                        ] ?? undefined;
+                                        compendium.talents?.[key] ?? undefined;
                                     setChosenTalents(
                                         talentChoices.map((tc) => tc.talent)
                                     );
                                 }}
-                                value={tc.talent?.key}
-                            >
-                                <option value={undefined}></option>
-                                {(
-                                    tc.talentChoiceList.talentList ??
-                                    Object.values(compendium.talents)
-                                ).map((t) => (
-                                    <option value={t.key}>{t.name}</option>
-                                ))}
-                            </select>
+                                includeDefault={true}
+                            ></Dropdown>
                             <label htmlFor={`${id}-talent-choice-${index}`}>
                                 {talentChoices[index].talent ? (
                                     <TalentEntry
@@ -454,7 +452,7 @@ export const CharacterBuilder: FunctionComponent<{
                         </li>
                     ))}
                 </ul>
-            </section>
+            </Section>
             <Section
                 type="narrow"
                 title="Boons"

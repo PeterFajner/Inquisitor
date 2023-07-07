@@ -103,14 +103,18 @@ input {
     width: 100%;
 }
 
-.dropdown label {
+.dropdown.with-label label {
     float: left;
     width: 30%;
 }
 
-.dropdown select {
+.dropdown.with-label select {
     float: right;
     width: 60%;
+}
+
+.dropdown {
+    margin-bottom: 5px;
 }
 
 h2 {
