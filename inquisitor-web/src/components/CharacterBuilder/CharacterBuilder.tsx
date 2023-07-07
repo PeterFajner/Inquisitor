@@ -5,10 +5,7 @@ import {
     Subtype,
     TalentChoiceList,
 } from 'helpers/ArchetypeHelper/Archetype';
-import {
-    Character,
-    Stats,
-} from 'helpers/CharacterHelper/Character';
+import { Character } from 'helpers/CharacterHelper/Character';
 import { initCharacter } from 'helpers/CharacterHelper/Placeholders';
 import {
     AbilityBoon,
@@ -23,8 +20,8 @@ import {
     Talent,
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
-import { buildTagLine, rollD100 } from 'helpers/Util';
-import { FunctionComponent, useEffect, useState } from 'react';
+import { buildTagLine, rollD100, rollStats } from 'helpers/Util';
+import { FunctionComponent, useCallback, useEffect, useState } from 'react';
 import './CharacterBuilder.css';
 import { Dropdown } from './Dropdown';
 import { Section } from './Section';
@@ -58,23 +55,16 @@ export const CharacterBuilder: FunctionComponent<{
         });
     };
 
-    const setSubtype = (subtype: Subtype) => {
-        // if subtype changes, roll new stats and clear boons
-        if (subtype !== data.subtype) {
-            const newStats = rollStats(subtype);
-            console.debug('setting subtype and stats', { subtype, newStats });
-            setData({
-                ...data,
-                subtype,
-                stats: newStats,
-                boons: [],
-            });
-        }
-    };
+    const setSubtype = useCallback((subtype: Subtype) => {
+        setData((data) => ({
+            ...data,
+            subtype,
+        }));
+    }, []);
 
-    const setRole = (role: Role) => {
-        setData({ ...data, role });
-    };
+    const setRole = useCallback((role: Role) => {
+        setData((data) => ({ ...data, role }));
+    }, []);
 
     const setChosenTalents = (chosenTalents: (Talent | undefined)[]) => {
         setData({
@@ -83,25 +73,10 @@ export const CharacterBuilder: FunctionComponent<{
         });
     };
 
-    const rollStats = (subtype: Subtype = data.subtype): Stats => {
-        const stats: Stats = {
-            BS: subtype.stats.BS.roll(),
-            I: subtype.stats.I.roll(),
-            Ld: subtype.stats.Ld.roll(),
-            Nv: subtype.stats.Nv.roll(),
-            S: subtype.stats.S.roll(),
-            Sg: subtype.stats.Sg.roll(),
-            T: subtype.stats.T.roll(),
-            WS: subtype.stats.WS.roll(),
-            Wp: subtype.stats.Wp.roll(),
-        };
-        return stats;
-    };
-
     const rerollStats = () => {
         setData({
             ...data,
-            stats: rollStats(),
+            stats: rollStats(subtype),
         });
     };
 
@@ -150,11 +125,15 @@ export const CharacterBuilder: FunctionComponent<{
         }));
     };
 
-    // roll stats first time a subtype is selected
+    // roll stats and clear boons when a subtype is selected
     useEffect(() => {
-        rollStats();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data.subtype]);
+        setData((data) => ({
+            ...data,
+            subtype,
+            stats: rollStats(subtype),
+            boons: [],
+        }));
+    }, [subtype]);
 
     // recalculate talents when archetype, subtype, or role changes
     useEffect(() => {
@@ -207,8 +186,6 @@ export const CharacterBuilder: FunctionComponent<{
     if (subtypeGetsBoons && boons.length === 0) {
         rollBoons();
     }
-
-    console.debug({ data });
 
     return (
         <div className="character-builder">

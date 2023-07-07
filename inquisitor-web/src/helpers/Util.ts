@@ -1,4 +1,5 @@
-import { Character } from 'helpers/CharacterHelper/Character';
+import { Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import { Character, Stats } from 'helpers/CharacterHelper/Character';
 import { DieCode } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { D100Rollable } from 'types/Rolls.d';
 
@@ -31,3 +32,18 @@ export const buildTagLine = (char: Character) =>
     [char.archetype.name, char.subtype.name, char.role?.name]
         .filter((e) => e)
         .join(', ');
+
+export const rollStats = (subtype: Subtype): Stats => {
+    const stats: Stats = {
+        BS: subtype.stats.BS.roll(),
+        I: subtype.stats.I.roll(),
+        Ld: subtype.stats.Ld.roll(),
+        Nv: subtype.stats.Nv.roll(),
+        S: subtype.stats.S.roll(),
+        Sg: subtype.stats.Sg.roll(),
+        T: subtype.stats.T.roll(),
+        WS: subtype.stats.WS.roll(),
+        Wp: subtype.stats.Wp.roll(),
+    };
+    return stats;
+};
