@@ -37,6 +37,6 @@ export interface Character {
     subtype: Subtype;
     stats: Stats;
     baseTalents: Set<Talent>;
-    chosenTalents: Talent[];
+    chosenTalents: (Talent | undefined)[];
     boons: DefiniteBoon[];
 }

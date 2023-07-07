@@ -6,6 +6,7 @@ import {
     Compendium,
     DefiniteBoon,
     Stat,
+    Talent,
 } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { buildTagLine } from 'helpers/Util';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -50,9 +51,9 @@ export const triggerDocxDownload = async (
             {},
             character.stats
         );
-        const talentsPlusBoons = [
+        const talentsPlusBoons: Talent[] = [
             ...character.baseTalents,
-            ...character.chosenTalents,
+            ...character.chosenTalents.filter((t): t is Talent => Boolean(t)),
         ];
         const remainingBoons: DefiniteBoon[] = [];
         character.boons.forEach((boon) => {

@@ -159,8 +159,8 @@ const Dropdown: FunctionComponent<{
 );
 
 const TalentEntry: FunctionComponent<{
-    name: string;
-    description: string;
+    name?: string;
+    description?: string;
 }> = ({ name, description }) => (
     <div className="columns" style={{ marginBottom: '10px' }}>
         <span>
@@ -175,6 +175,9 @@ export const CharacterBuilder: FunctionComponent<{
     compendium: Compendium;
 }> = ({ id = '', compendium }) => {
     const [data, setData] = useState<Character>(initCharacter(compendium));
+    const [talentChoices, setTalentChoices] = useState<
+        { talentChoiceList: TalentChoiceList; talent: Talent | undefined }[]
+    >([]);
 
     const { archetype, subtype, role, boons } = data;
 
@@ -207,7 +210,7 @@ export const CharacterBuilder: FunctionComponent<{
         setData({ ...data, role });
     };
 
-    const setChosenTalents = (chosenTalents: Talent[]) => {
+    const setChosenTalents = (chosenTalents: (Talent | undefined)[]) => {
         setData({
             ...data,
             chosenTalents,
@@ -298,18 +301,30 @@ export const CharacterBuilder: FunctionComponent<{
                 )
                 .map(({ talent }) => talent)
         );
-        // delete chosen talents that are now base talents
-        const newChosenTalents = new Set([...data.chosenTalents]);
-        Array.from(data.chosenTalents)
-            .filter((t) => newBaseTalents.has(t))
-            .forEach((t) => newChosenTalents.delete(t));
-        setData({
+        // delete chosen talents
+        const newChosenTalents: Talent[] = [];
+        setData((data) => ({
             ...data,
             baseTalents: newBaseTalents,
-            chosenTalents: Array.from(newChosenTalents),
-        });
-        // we shouldn't add 'data' as a dependency because we're not reading from baseTalents
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+            chosenTalents: newChosenTalents,
+        }));
+        // set talent choices
+        const tmpTalentChoices: typeof talentChoices = [];
+        archetype.talentChoices
+            .filter(
+                (tc) =>
+                    (tc.role === role || !tc.role) &&
+                    (tc.subtype === subtype || !tc.subtype)
+            )
+            .forEach((tc) => {
+                for (let j = 0; j < tc.numTalents; j++) {
+                    tmpTalentChoices.push({
+                        talentChoiceList: tc,
+                        talent: undefined,
+                    });
+                }
+            });
+        setTalentChoices(tmpTalentChoices);
     }, [archetype, subtype, role]);
 
     // when archetype changes, make sure subtype and role are valid, and reset them if not
@@ -322,33 +337,12 @@ export const CharacterBuilder: FunctionComponent<{
         }
     }, [archetype, role, setRole, setSubtype, subtype.key]);
 
-    const { archetypes } = compendium;
-    const talentChoices: {
-        talentChoiceList: TalentChoiceList;
-        talent: Talent;
-    }[] = [];
-    let i = 0;
-    data.archetype.talentChoices
-        .filter(
-            (tc) =>
-                (tc.role === data.role || !tc.role) &&
-                (tc.subtype === data.subtype || !tc.subtype)
-        )
-        .forEach((tc) => {
-            for (let talentNum = 0; talentNum < tc.numTalents; talentNum++) {
-                talentChoices.push({
-                    talentChoiceList: tc,
-                    talent: data.chosenTalents[i],
-                });
-                i++;
-            }
-        });
-
     const subtypeGetsBoons = !!compendium.boons[subtype.key];
-
     if (subtypeGetsBoons && boons.length === 0) {
         rollBoons();
     }
+
+    console.debug({ data });
 
     return (
         <div className="character-builder">
@@ -371,11 +365,11 @@ export const CharacterBuilder: FunctionComponent<{
                 <Dropdown
                     id={`${id}-archetype`}
                     label={'Archetype'}
-                    options={Object.values(archetypes)}
+                    options={Object.values(compendium.archetypes)}
                     keyExtractor={(a) => (a as Archetype).key}
                     labelExtractor={(a) => (a as Archetype).name}
                     value={archetype.key}
-                    setValue={(key) => setArchetype(archetypes[key])}
+                    setValue={(key) => setArchetype(compendium.archetypes[key])}
                 />
                 <Dropdown
                     id={`${id}-subtype`}
@@ -427,12 +421,16 @@ export const CharacterBuilder: FunctionComponent<{
                                 id={`${id}-talent-choice-${index}`}
                                 onChange={(event) => {
                                     tc.talent =
-                                        compendium.talents[event.target.value];
+                                        compendium.talents?.[
+                                            event.target.value
+                                        ] ?? undefined;
                                     setChosenTalents(
                                         talentChoices.map((tc) => tc.talent)
                                     );
                                 }}
+                                value={tc.talent?.key}
                             >
+                                <option value={undefined}></option>
                                 {(
                                     tc.talentChoiceList.talentList ??
                                     Object.values(compendium.talents)
@@ -449,7 +447,7 @@ export const CharacterBuilder: FunctionComponent<{
                                     <div>{`Choose a talent ${
                                         tc.talentChoiceList.talentList
                                             ? 'from the list'
-                                            : ''
+                                            : 'from the compendium'
                                     }`}</div>
                                 )}
                             </label>
