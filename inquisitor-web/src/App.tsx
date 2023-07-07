@@ -4,6 +4,7 @@ import { useCompendium } from 'hooks/CompendiumHooks/CompendiumHooks';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
+import { Background } from 'components/Background/background';
 
 function App() {
     const [characterIDs, setCharacterIDs] = useState<string[]>([]);
@@ -14,7 +15,8 @@ function App() {
     };
 
     return (
-        <div className="App">
+        <div id='App'>
+            <Background />
             <header className="App-header">
                 <h1>Inquisitor Character Generator</h1>
             </header>

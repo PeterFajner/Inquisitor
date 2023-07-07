@@ -1,27 +1,43 @@
-@import "./variables.css";
+@import './variables.css';
+
+#App {
+  min-height: 100vh;
+}
 
 .App-header {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: transparent;
-  font-family: 'Inquisitor Bold';
-  background: linear-gradient(var(--border-color-odd) 47%, #fff, var(--border-color-even) 54%);
-  background-clip: text;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(10px + 2vmin);
+    color: transparent;
+    font-family: 'Inquisitor Bold';
+    background: linear-gradient(
+        var(--border-color-odd) 47%,
+        #fff,
+        var(--border-color-even) 54%
+    );
+    background-clip: text;
 }
 
 .buttons-wrapper {
-  width: 100%;
-  display: flex;
-  justify-content: center;
+    width: 100%;
+    display: flex;
+    justify-content: center;
 }
 
 .all-characters {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: -100;
 }
