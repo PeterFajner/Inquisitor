@@ -104,7 +104,7 @@ const StatsTable: FunctionComponent<{
 const Section: FunctionComponent<{
     type: 'narrow' | 'wide';
     children?: ReactNode;
-    title: string;
+    title?: string;
     leftOfTitle?: ReactNode[];
     rightOfTitle?: ReactNode[];
 }> = ({ type, children, title, leftOfTitle, rightOfTitle }) => (
@@ -113,7 +113,7 @@ const Section: FunctionComponent<{
             {leftOfTitle ? (
                 <span style={{ marginRight: 20 }}>{leftOfTitle}</span>
             ) : null}
-            <span>{title}</span>
+            {title && <span>{title}</span>}
             {rightOfTitle ? (
                 <span style={{ marginLeft: 20 }}>{rightOfTitle}</span>
             ) : null}
@@ -140,7 +140,7 @@ const Dropdown: FunctionComponent<{
     value,
     setValue,
 }) => (
-    <>
+    <div className="dropdown">
         <label htmlFor={id}>{label}</label>
         <select
             id={id}
@@ -155,7 +155,7 @@ const Dropdown: FunctionComponent<{
                 </option>
             ))}
         </select>
-    </>
+    </div>
 );
 
 const TalentEntry: FunctionComponent<{
@@ -362,8 +362,9 @@ export const CharacterBuilder: FunctionComponent<{
                         onChange={(e) =>
                             setName((e.target as HTMLInputElement).value)
                         }
-                    />{' '}
-                    {buildTitle(data)}
+                        size={data.name.length ? data.name.length + 2 : 14}
+                    />
+                    <span> {buildTitle(data)}</span>
                 </h2>
             </section>
             <Section type="narrow" title="Occupation">
@@ -407,7 +408,7 @@ export const CharacterBuilder: FunctionComponent<{
                     setStat={setStat}
                 ></StatsTable>
             </Section>
-            <section className="wide">
+            <section className="narrow">
                 <h3>Talents</h3>
                 <ul>
                     {Array.from(data.baseTalents).map((t) => (
@@ -457,7 +458,7 @@ export const CharacterBuilder: FunctionComponent<{
                 </ul>
             </section>
             <Section
-                type="wide"
+                type="narrow"
                 title="Boons"
                 rightOfTitle={[
                     <button onClick={() => rollBoons()}>Reroll</button>,
@@ -471,13 +472,15 @@ export const CharacterBuilder: FunctionComponent<{
                     <p>Your subtype doesn't get any Boons.</p>
                 )}
             </Section>
-            <button
-                onClick={() => {
-                    triggerDocxDownload([data], compendium);
-                }}
-            >
-                Download Docx
-            </button>
+            <Section type="wide">
+                <button
+                    onClick={() => {
+                        triggerDocxDownload([data], compendium);
+                    }}
+                >
+                    Download Docx
+                </button>
+            </Section>
         </div>
     );
 };
