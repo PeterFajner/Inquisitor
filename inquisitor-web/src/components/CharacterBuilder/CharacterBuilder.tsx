@@ -187,7 +187,7 @@ export const CharacterBuilder: FunctionComponent<{
 
     return (
         <div className="character-builder">
-            <section className="wide center">
+            <div className="wide header-footer header">
                 <h2>
                     <input
                         className="character-name"
@@ -201,122 +201,129 @@ export const CharacterBuilder: FunctionComponent<{
                     />
                     <span> {buildTitle(data)}</span>
                 </h2>
-            </section>
-            <Section type="narrow" title="Occupation">
-                <Dropdown
-                    id={`${id}-archetype`}
-                    label={'Archetype'}
-                    options={Object.values(compendium.archetypes)}
-                    keyExtractor={(a) => (a as Archetype).key}
-                    labelExtractor={(a) => (a as Archetype).name}
-                    value={archetype.key}
-                    setValue={(key) => setArchetype(compendium.archetypes[key])}
-                />
-                <Dropdown
-                    id={`${id}-subtype`}
-                    label={'Subtype'}
-                    options={Object.values(archetype.subtypes)}
-                    keyExtractor={(a) => (a as Subtype).key}
-                    labelExtractor={(a) => (a as Subtype).name}
-                    value={subtype.key}
-                    setValue={(key) => setSubtype(archetype.subtypes[key])}
-                />
-                <Dropdown
-                    id={`${id}-role`}
-                    label={'Role'}
-                    options={Object.values(archetype.roles)}
-                    keyExtractor={(a) => (a as Role).key}
-                    labelExtractor={(a) => (a as Role).name}
-                    value={role?.key ?? ''}
-                    setValue={(key) => setRole(archetype.roles[key])}
-                />
-            </Section>
-            <Section
-                type="narrow"
-                title="Stats"
-                rightOfTitle={[<button onClick={rerollStats}>Reroll</button>]}
-            >
-                <StatsTable
-                    id={id}
-                    stats={data.stats}
-                    boons={data.boons}
-                    setStat={setStat}
-                ></StatsTable>
-            </Section>
-            <Section type="narrow" title="Talents">
-                <ul>
-                    {Array.from(data.baseTalents).map((t) => (
-                        <li key={t.key}>
-                            <TalentEntry
-                                name={t.name}
-                                description={t.description}
-                            />
-                        </li>
-                    ))}
-                    {talentChoices.map((tc, index) => (
-                        <li>
-                            <Dropdown
-                                id={`${id}-talent-choice-${index}`}
-                                label={null}
-                                options={
-                                    tc.talentChoiceList.talentList ??
-                                    Object.values(compendium.talents)
-                                }
-                                keyExtractor={(t) => (t as Talent).key}
-                                labelExtractor={(t) => (t as Talent).name}
-                                value={tc.talent?.key}
-                                setValue={(key) => {
-                                    tc.talent =
-                                        compendium.talents?.[key] ?? undefined;
-                                    setChosenTalents(
-                                        talentChoices.map((tc) => tc.talent)
-                                    );
-                                }}
-                                includeDefault={true}
-                            ></Dropdown>
-                            <label htmlFor={`${id}-talent-choice-${index}`}>
-                                {talentChoices[index].talent ? (
-                                    <TalentEntry
-                                        {...talentChoices[index].talent}
-                                    />
-                                ) : (
-                                    <div>{`Choose a talent ${
-                                        tc.talentChoiceList.talentList
-                                            ? 'from the list'
-                                            : 'from the compendium'
-                                    }`}</div>
-                                )}
-                            </label>
-                        </li>
-                    ))}
-                </ul>
-            </Section>
-            <Section
-                type="narrow"
-                title="Boons"
-                rightOfTitle={
-                    subtypeGetsBoons && [
-                        <button onClick={() => rollBoons()}>Reroll</button>,
-                    ]
-                }
-            >
-                {subtypeGetsBoons ? (
-                    <>
-                        <BoonList boons={boons}></BoonList>
-                    </>
-                ) : (
-                    <p>Your subtype doesn't get any Boons.</p>
-                )}
-            </Section>
-            <Section type="wide">
-                <button
+            </div>
+            <div className="character-builder-inner">
+                <Section type="narrow" title="Occupation">
+                    <Dropdown
+                        id={`${id}-archetype`}
+                        label={'Archetype'}
+                        options={Object.values(compendium.archetypes)}
+                        keyExtractor={(a) => (a as Archetype).key}
+                        labelExtractor={(a) => (a as Archetype).name}
+                        value={archetype.key}
+                        setValue={(key) =>
+                            setArchetype(compendium.archetypes[key])
+                        }
+                    />
+                    <Dropdown
+                        id={`${id}-subtype`}
+                        label={'Subtype'}
+                        options={Object.values(archetype.subtypes)}
+                        keyExtractor={(a) => (a as Subtype).key}
+                        labelExtractor={(a) => (a as Subtype).name}
+                        value={subtype.key}
+                        setValue={(key) => setSubtype(archetype.subtypes[key])}
+                    />
+                    <Dropdown
+                        id={`${id}-role`}
+                        label={'Role'}
+                        options={Object.values(archetype.roles)}
+                        keyExtractor={(a) => (a as Role).key}
+                        labelExtractor={(a) => (a as Role).name}
+                        value={role?.key ?? ''}
+                        setValue={(key) => setRole(archetype.roles[key])}
+                    />
+                </Section>
+                <Section
+                    type="narrow"
+                    title="Stats"
+                    rightOfTitle={[
+                        <button onClick={rerollStats}>Reroll</button>,
+                    ]}
+                >
+                    <StatsTable
+                        id={id}
+                        stats={data.stats}
+                        boons={data.boons}
+                        setStat={setStat}
+                    ></StatsTable>
+                </Section>
+                <Section type="narrow" title="Talents">
+                    <ul>
+                        {Array.from(data.baseTalents).map((t) => (
+                            <li key={t.key}>
+                                <TalentEntry
+                                    name={t.name}
+                                    description={t.description}
+                                />
+                            </li>
+                        ))}
+                        {talentChoices.map((tc, index) => (
+                            <li>
+                                <Dropdown
+                                    id={`${id}-talent-choice-${index}`}
+                                    label={null}
+                                    options={
+                                        tc.talentChoiceList.talentList ??
+                                        Object.values(compendium.talents)
+                                    }
+                                    keyExtractor={(t) => (t as Talent).key}
+                                    labelExtractor={(t) => (t as Talent).name}
+                                    value={tc.talent?.key}
+                                    setValue={(key) => {
+                                        tc.talent =
+                                            compendium.talents?.[key] ??
+                                            undefined;
+                                        setChosenTalents(
+                                            talentChoices.map((tc) => tc.talent)
+                                        );
+                                    }}
+                                    includeDefault={true}
+                                ></Dropdown>
+                                <label htmlFor={`${id}-talent-choice-${index}`}>
+                                    {talentChoices[index].talent ? (
+                                        <TalentEntry
+                                            {...talentChoices[index].talent}
+                                        />
+                                    ) : (
+                                        <div>{`Choose a talent ${
+                                            tc.talentChoiceList.talentList
+                                                ? 'from the list'
+                                                : 'from the compendium'
+                                        }`}</div>
+                                    )}
+                                </label>
+                            </li>
+                        ))}
+                    </ul>
+                </Section>
+                <Section
+                    type="narrow"
+                    title="Boons"
+                    rightOfTitle={
+                        subtypeGetsBoons && [
+                            <button onClick={() => rollBoons()}>Reroll</button>,
+                        ]
+                    }
+                >
+                    {subtypeGetsBoons ? (
+                        <>
+                            <BoonList boons={boons}></BoonList>
+                        </>
+                    ) : (
+                        <p>Your subtype doesn't get any Boons.</p>
+                    )}
+                </Section>
+            </div>
+            <div className="wide header-footer footer">
+                <h2><button
                     onClick={() => {
                         triggerDocxDownload([data], compendium);
                     }}
                 >
                     Download Docx
-                </button>
-            </Section>
+                </button></h2>
+            </div>
         </div>
     );
 };

@@ -1,11 +1,26 @@
 /* palette: https://coolors.co/0b0600-502410-e18d66-062105-75ea71 */
 
+@font-face {
+    font-family: Inquisitor;
+    src: url('../fonts/Inquisitor/Inquisitor.otf');
+}
+
+@font-face {
+    font-family: Inquisitor Bold;
+    src: url('../fonts/Inquisitor/Inquisitor Bold.otf');
+}
+
 :root {
     --app-bg-color: #0B0600;
-    --even-border-color: #441F0D;
+    --border-color-odd: #6d5d3c;
+    --border-color-even: #6d3c3c;
+    --card-color: #c6c6c6;
+    --text-color: #502410;
+    --text-color-border: #fff;
+    /* --even-border-color: #441F0D;
     --even-bg-color: #502410;
-    --even-fg-color: #E18D66;
+    --even-fg-color: #c6c6c6;
     --odd-border-color: #031203;
     --odd-bg-color: #062105;
-    --odd-fg-color: #75EA71;
+    --odd-fg-color: #9c9c9c; */
 }
