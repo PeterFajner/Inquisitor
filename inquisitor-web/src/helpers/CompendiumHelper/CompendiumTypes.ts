@@ -97,19 +97,19 @@ export class DieCode {
     dieSize: 3 | 6 | 10 | 100;
 
     constructor(dieCodeString: string) {
-        // the regex first tries to match `1+2D3` then `2D3` then `1`
+        // the regex first tries to match `1+2D3` or `1+D3` then `2D3` or `D3` then `1`
         const regex =
-            /((?<base1>\d*)\+(?<numDice1>\d*)D(?<dieSize1>\d*))|((?<numDice2>\d*)D(?<dieSize2>\d*))|((?<base3>\d*))/;
+            /((?<base1>\d*)\+(?<numDice1>\d*)?D(?<dieSize1>\d*))|((?<numDice2>\d*)?D(?<dieSize2>\d*))|((?<base3>\d*))/;
         const match = dieCodeString.match(regex);
         const { base1, numDice1, dieSize1, numDice2, dieSize2, base3 } =
             match?.groups || {};
-        if (base1 && numDice1 && dieSize1) {
+        if (base1 && dieSize1) {
             this.base = parseInt(base1);
-            this.numDice = parseInt(numDice1);
+            this.numDice = parseInt(numDice1) || 1;
             this.dieSize = parseInt(dieSize1) as 3 | 6 | 10 | 100;
-        } else if (numDice2 && dieSize2) {
+        } else if (dieSize2) {
             this.base = 0;
-            this.numDice = parseInt(numDice2);
+            this.numDice = parseInt(numDice2) || 1;
             this.dieSize = parseInt(dieSize2) as 3 | 6 | 10 | 100;
         } else if (base3) {
             this.base = parseInt(base3);
@@ -117,6 +117,27 @@ export class DieCode {
             this.dieSize = 3;
         } else {
             throw new TypeError(`Invalid die code string ${dieCodeString}`);
+        }
+        // sanity check
+        const generatedFirstPart = this.base ? `${this.base}` : '';
+        const generatedMiddle = this.base && this.numDice ? '+' : '';
+        const generatedSecondPart = this.numDice
+            ? `${this.numDice}D${this.dieSize}`
+            : '';
+        const generatedSecondPartOption2 =
+            this.numDice === 1 ? `D${this.dieSize}` : null; // D10 instead of 1D10
+        const generatedString =
+            generatedFirstPart + generatedMiddle + generatedSecondPart;
+        const generatedStringOption2 = generatedSecondPartOption2
+            ? generatedFirstPart + generatedMiddle + generatedSecondPartOption2
+            : null;
+        if (
+            dieCodeString !== generatedString &&
+            dieCodeString !== generatedStringOption2
+        ) {
+            console.debug(`Ensure ${dieCodeString} === ${generatedString}`, {
+                match,
+            });
         }
     }
 
