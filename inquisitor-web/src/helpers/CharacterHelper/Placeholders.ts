@@ -29,13 +29,14 @@ export const rollStats = (subtype: Subtype): Stats => ({
 export const initCharacter = (compendium: Compendium): Character => {
     const archetype = Object.values(compendium.archetypes)[0];
     const subtype = Object.values(archetype.subtypes)[0];
+    const role = Object.values(archetype.roles)?.[0];
     const stats = rollStats(subtype);
 
     return {
         id: '',
         name: '',
         archetype,
-        role: null,
+        role,
         subtype,
         stats,
         baseTalents: new Set(),

@@ -2,35 +2,35 @@
     background-color: var(--even-bg-color);
     color: var(--even-fg-color);
     border-color: var(--even-border-color);
-  }
-  
-  .character-builder:nth-child(even) input {
-    background-color: var(--even-fg-color);
-    color: var(--even-bg-color);
-  }
-  
-  .character-builder:nth-child(even) section:not(:last-child) {
+}
+
+.character-builder:nth-child(even) input {
+    background-color: var(--even-bg-color);
+    color: var(--even-fg-color);
+}
+
+.character-builder:nth-child(even) section:not(:last-child) {
     padding-bottom: 20px;
     border-bottom-color: var(--even-bg-color);
-  }
-  
-  .character-builder:nth-child(odd) {
+}
+
+.character-builder:nth-child(odd) {
     background-color: var(--odd-bg-color);
     color: var(--odd-fg-color);
     border-color: var(--odd-border-color);
-  }
-  
-  .character-builder:nth-child(odd) input {
-    background-color: var(--odd-fg-color);
-    color: var(--odd-bg-color);
-  }
-  
-  .character-builder:nth-child(odd) section:not(:last-child) {
+}
+
+.character-builder:nth-child(odd) input {
+    background-color: var(--odd-bg-color);
+    color: var(--odd-fg-color);
+}
+
+.character-builder:nth-child(odd) section:not(:last-child) {
     padding-bottom: 20px;
     border-bottom-color: var(--odd-bg-color);
-  }
-  
-  .character-builder {
+}
+
+.character-builder {
     margin: 20px;
     padding: 20px;
     border: solid 5px;
@@ -40,31 +40,60 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-  
-  .character-builder section:not(:last-child) {
+}
+
+.character-builder section:not(:last-child) {
     padding-bottom: 20px;
     border-bottom: 1px dashed;
-  }
-  
-  .columns {
+}
+
+.columns {
     display: flex;
     flex-wrap: wrap;
-  }
+}
 
-  section {
+section {
     width: 90%;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-  }
+}
 
-  section.center {
+section.center {
     align-items: center;
-  }
+}
 
-  @media screen and (min-width: 900px) {
+@media screen and (min-width: 900px) {
     section.narrow {
         width: 30%;
     }
-  }
+}
+
+.stats-table {
+    table-layout: fixed;
+    width: 12rem;
+}
+
+.stats-table th {
+    width: 3rem;
+}
+
+.stats-table td {
+    text-align: right;
+    width: 3rem;
+}
+
+.stats-table input {
+    text-align: right;
+    width: 3rem;
+}
+
+input {
+    border: none;
+    border-bottom: dotted 1px;
+    display: inline;
+    font-family: inherit;
+    font-size: inherit;
+    padding: none;
+    width: auto;
+}

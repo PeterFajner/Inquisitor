@@ -168,7 +168,7 @@ export const buildCompendium = async (
                 compendium,
                 talent,
             });
-            archetype.talents.push({ talent, role, subtype });
+            archetype?.talents.push({ talent, role, subtype });
         }
     });
     // load boons
