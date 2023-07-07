@@ -1,15 +1,15 @@
 import { Buffer } from 'buffer';
 import { Boon } from 'components/CharacterBuilder/BoonList';
 import createReport from 'docx-templates';
-import { Character } from 'helpers/CharacterHelper/Character';
+import { buildTagLine } from 'helpers/Util';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
+    Character,
     Compendium,
     DefiniteBoon,
     Stat,
     Talent,
-} from 'helpers/CompendiumHelper/CompendiumTypes';
-import { buildTagLine } from 'helpers/Util';
-import { renderToStaticMarkup } from 'react-dom/server';
+} from 'types/Compendium';
 
 // https://github.com/guigrpa/docx-templates/blob/79119723ff1c009b5bbdd28016558da9b405742f/examples/example-webpack/client/index.js#L91
 const downloadURL = (data: any, fileName: any) => {

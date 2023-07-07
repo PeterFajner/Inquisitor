@@ -1,42 +1,33 @@
-import { Archetype, Role, Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import {
-    DefiniteBoon,
-    Stat,
-    Talent,
-} from 'helpers/CompendiumHelper/CompendiumTypes';
+import { rollStats } from 'helpers/Util';
+import { Character, Compendium } from 'types/Compendium';
 
-export interface Stats {
-    BS: number;
-    I: number;
-    Ld: number;
-    Nv: number;
-    S: number;
-    Sg: number;
-    T: number;
-    WS: number;
-    Wp: number;
-}
+export const makeEmptyStats = () => ({
+    BS: 0,
+    I: 0,
+    Ld: 0,
+    Nv: 0,
+    S: 0,
+    Sg: 0,
+    T: 0,
+    WS: 0,
+    Wp: 0,
+});
 
-export const STATS_ORDER: Stat[] = [
-    'WS',
-    'BS',
-    'S',
-    'T',
-    'I',
-    'Wp',
-    'Sg',
-    'Nv',
-    'Ld',
-];
+export const initCharacter = (compendium: Compendium): Character => {
+    const archetype = Object.values(compendium.archetypes)[0];
+    const subtype = Object.values(archetype.subtypes)[0];
+    const role = Object.values(archetype.roles)?.[0];
+    const stats = rollStats(subtype);
 
-export interface Character {
-    id: string;
-    name: string;
-    archetype: Archetype;
-    role: Role | null;
-    subtype: Subtype;
-    stats: Stats;
-    baseTalents: Set<Talent>;
-    chosenTalents: (Talent | undefined)[];
-    boons: DefiniteBoon[];
-}
+    return {
+        id: '',
+        name: '',
+        archetype,
+        role,
+        subtype,
+        stats,
+        baseTalents: new Set(),
+        chosenTalents: [],
+        boons: [],
+    };
+};

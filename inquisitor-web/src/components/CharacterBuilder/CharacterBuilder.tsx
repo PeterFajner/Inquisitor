@@ -1,27 +1,25 @@
 import { BoonList } from 'components/CharacterBuilder/BoonList';
-import {
-    Archetype,
-    Role,
-    Subtype,
-    TalentChoiceList,
-} from 'helpers/ArchetypeHelper/Archetype';
-import { Character } from 'helpers/CharacterHelper/Character';
-import { initCharacter } from 'helpers/CharacterHelper/Placeholders';
+import { initCharacter } from 'helpers/CharacterHelper/Character';
+import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
+import { buildTagLine, rollD100, rollStats } from 'helpers/Util';
+import { FunctionComponent, useCallback, useEffect, useState } from 'react';
 import {
     AbilityBoon,
+    Archetype,
     BoostBoon,
+    Character,
     Compendium,
     DefiniteBoon,
     DieCode,
     RerollBoon,
+    Role,
     RolledExoticBoon,
     RolledPsychicBoon,
     Stat,
+    Subtype,
     Talent,
-} from 'helpers/CompendiumHelper/CompendiumTypes';
-import { triggerDocxDownload } from 'helpers/DocxHelper/DocxHelper';
-import { buildTagLine, rollD100, rollStats } from 'helpers/Util';
-import { FunctionComponent, useCallback, useEffect, useState } from 'react';
+    TalentChoiceList,
+} from 'types/Compendium';
 import './CharacterBuilder.css';
 import { Dropdown } from './Dropdown';
 import { Section } from './Section';

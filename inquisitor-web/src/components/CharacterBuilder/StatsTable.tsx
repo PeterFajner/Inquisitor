@@ -1,9 +1,5 @@
-import {
-    STATS_ORDER,
-    Stats
-} from 'helpers/CharacterHelper/Character';
-import { DefiniteBoon, Stat } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { FunctionComponent } from 'react';
+import { DefiniteBoon, STATS_ORDER, Stat, Stats } from 'types/Compendium';
 import { StatsRow } from './StatsRow';
 
 export const StatsTable: FunctionComponent<{

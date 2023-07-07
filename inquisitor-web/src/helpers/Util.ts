@@ -1,6 +1,4 @@
-import { Subtype } from 'helpers/ArchetypeHelper/Archetype';
-import { Character, Stats } from 'helpers/CharacterHelper/Character';
-import { DieCode } from 'helpers/CompendiumHelper/CompendiumTypes';
+import { Character, DieCode, Stats, Subtype } from 'types/Compendium';
 import { D100Rollable } from 'types/Rolls.d';
 
 export const sortByKeyAscending = <T>(

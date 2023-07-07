@@ -1,5 +1,5 @@
-import { Stat } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { FunctionComponent } from 'react';
+import { Stat } from 'types/Compendium';
 
 export const StatsRow: FunctionComponent<{
     id: string;
@@ -17,11 +17,14 @@ export const StatsRow: FunctionComponent<{
                 type="number"
                 id={`${id}-stat-${stat}`}
                 value={base}
-                onChange={(e) => setStat(
-                    stat,
-                    parseInt((e.target as HTMLInputElement).value)
-                )}
-                size={3} />
+                onChange={(e) =>
+                    setStat(
+                        stat,
+                        parseInt((e.target as HTMLInputElement).value)
+                    )
+                }
+                size={3}
+            />
         </td>
         <td>{boon ?? '-'}</td>
         <td>{base + (boon ?? 0)}</td>

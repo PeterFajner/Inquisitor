@@ -1,5 +1,3 @@
-import { Archetype } from '../ArchetypeHelper/Archetype';
-
 export interface Compendium {
     // compendium keys should always be lowercase, as there's some inconsistency in capitalization throughout the spreadsheet
     archetypes: { [key: string]: Archetype };
@@ -8,14 +6,6 @@ export interface Compendium {
     exoticAbilities: { [key: string]: ExoticAbility };
     randomExoticAbilities: RandomExoticAbility[]; // ordered by lowroll
 }
-
-export const EmptyCompendium: Compendium = {
-    archetypes: {},
-    talents: {},
-    boons: {},
-    exoticAbilities: {},
-    randomExoticAbilities: [],
-};
 
 export interface ExoticAbility {
     key: string; // lowercase
@@ -167,3 +157,79 @@ export const STAT_NAMES = {
     WS: 'Weapons Skill',
     Wp: 'Willpower',
 };
+
+export interface Subtype {
+    key: string; // lowercase name
+    name: string;
+    stats: {
+        BS: DieCode;
+        I: DieCode;
+        Ld: DieCode;
+        Nv: DieCode;
+        S: DieCode;
+        Sg: DieCode;
+        T: DieCode;
+        WS: DieCode;
+        Wp: DieCode;
+    };
+}
+
+export interface Role {
+    key: string; // lowercase name
+    name: string;
+}
+
+export interface TalentChoiceList {
+    numTalents: number;
+    subtype: Subtype | null;
+    role: Role | null;
+    talentList: Talent[] | null; // list to choose the talents from, if null it's all talents
+}
+
+export interface Archetype {
+    key: string; // lowercase name
+    name: string;
+    roles: { [key: string]: Role };
+    subtypes: { [key: string]: Subtype };
+    // null subtype/role = all subtypes/roles have this talent
+    // a talent available to multiple subtypes/roles appears multiple times
+    talents: { talent: Talent; subtype: Subtype | null; role: Role | null }[];
+    // free talents the player can select
+    talentChoices: TalentChoiceList[];
+}
+
+export interface Stats {
+    BS: number;
+    I: number;
+    Ld: number;
+    Nv: number;
+    S: number;
+    Sg: number;
+    T: number;
+    WS: number;
+    Wp: number;
+}
+
+export const STATS_ORDER: Stat[] = [
+    'WS',
+    'BS',
+    'S',
+    'T',
+    'I',
+    'Wp',
+    'Sg',
+    'Nv',
+    'Ld',
+];
+
+export interface Character {
+    id: string;
+    name: string;
+    archetype: Archetype;
+    role: Role | null;
+    subtype: Subtype;
+    stats: Stats;
+    baseTalents: Set<Talent>;
+    chosenTalents: (Talent | undefined)[];
+    boons: DefiniteBoon[];
+}

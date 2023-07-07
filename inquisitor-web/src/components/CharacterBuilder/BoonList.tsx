@@ -1,6 +1,6 @@
 import { B } from 'components/CharacterBuilder/Bold';
-import { DefiniteBoon } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { FunctionComponent } from 'react';
+import { DefiniteBoon } from 'types/Compendium';
 
 export const Boon: FunctionComponent<{
     boon: DefiniteBoon;

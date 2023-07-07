@@ -1,6 +1,6 @@
 import { buildCompendium } from 'helpers/CompendiumHelper/CompendiumHelper';
-import { Compendium } from 'helpers/CompendiumHelper/CompendiumTypes';
 import { useEffect, useState } from 'react';
+import { Compendium } from 'types/Compendium';
 
 export const useCompendium = () => {
     const [compendium, setCompendium] = useState<Compendium>();

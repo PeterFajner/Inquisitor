@@ -1,7 +1,8 @@
 import config from 'config';
-import { Archetype, Subtype } from 'helpers/ArchetypeHelper/Archetype';
+import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
 import {
     AbilityBoon,
+    Archetype,
     Boon,
     BoostBoon,
     Compendium,
@@ -9,8 +10,8 @@ import {
     ExoticBoon,
     PsychicBoon,
     RerollBoon,
-} from 'helpers/CompendiumHelper/CompendiumTypes';
-import { sheetUrlToCsv } from 'helpers/SheetsHelper/SheetsHelper';
+    Subtype,
+} from 'types/Compendium';
 
 const assertDefined = (
     property: any,
