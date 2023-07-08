@@ -43,7 +43,10 @@ export const BoonList: FunctionComponent<{
 }> = ({ boons }) => (
     <ul>
         {boons.map((boon) => (
-            <Boon boon={boon} />
+            <Boon
+                key={`${boon.type}${boon.highRoll}${boon.lowRoll}`}
+                boon={boon}
+            />
         ))}
     </ul>
 );
