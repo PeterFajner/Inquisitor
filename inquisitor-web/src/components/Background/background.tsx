@@ -4,9 +4,6 @@ import * as d3 from 'd3-color';
 import { mat4 } from 'gl-matrix';
 import { useEffect, useRef, useState } from 'react';
 import { FunctionComponent } from 'react';
-import { RGBColor } from 'd3';
-
-const CLIP_DISTANCE = 0;
 
 const vertexShaderSource = `
 		attribute vec4 aVertexPosition;
@@ -33,7 +30,24 @@ const fragmentShaderSource = `
 
 const randomRange = (min: number, max: number): number => {
     return Math.random() * (max - min) + min;
-}
+};
+
+const generatePoint = (x: number, y: number, jitter: number) =>
+    new Point(
+        new Vector2(
+            x + randomRange(x - jitter / 2, x + jitter / 2),
+            y + randomRange(y - jitter / 2, y + jitter / 2)
+        ),
+        RGB.randomDark()
+    );
+
+/**
+ * const x = i; // todo randomize within the square
+                    const y = j;
+                    const color = RGB.randomDark();
+                    const point = new Point(new Vector2(x, y), color);
+                    this.fixedPoints.push(point);
+ */
 
 class GameBoard {
     fixedPoints: Point[] = [];
@@ -42,6 +56,7 @@ class GameBoard {
     xmax: number;
     ymax: number;
     delaunayInput: Float64Array;
+    pointDensity: number;
     programInfo: {
         program: WebGLProgram;
         attribLocations: { vertexPosition: number; vertexColor: number };
@@ -53,15 +68,17 @@ class GameBoard {
         context: WebGL2RenderingContext,
         width: number,
         height: number,
-        pointDensity: number = 10,
+        pointDensity: number = 150 // pixels per point
     ) {
         this.context = context;
         this.xmax = width;
         this.ymax = height;
+        this.pointDensity = pointDensity;
 
         console.log({
             clientWidth: (this.context.canvas as HTMLCanvasElement).clientWidth,
-            clientHeight: (this.context.canvas as HTMLCanvasElement).clientHeight,
+            clientHeight: (this.context.canvas as HTMLCanvasElement)
+                .clientHeight,
             width,
             height,
         });
@@ -70,24 +87,15 @@ class GameBoard {
         context.viewport(0, 0, width, height);
 
         // initialize stationary points
-        const numFixedPoints = Math.floor(width * height / 1_000_000 * pointDensity);
-        console.log({ numFixedPoints });
-        for (let i = 0; i < numFixedPoints; i++) {
-            const x =
-                Math.random() *
-                (context.canvas as HTMLCanvasElement).clientWidth;
-            const y =
-                Math.random() *
-                (context.canvas as HTMLCanvasElement).clientHeight;
-            const color = RGB.randomDark();
-            const point = new Point(new Vector2(x, y), color);
-            this.fixedPoints.push(point);
+        // todo may need to flip this upside down, since y = 0 is at the bottom of the screen? maybe flip the whole canvas?
+        for (let i = 0; i < this.xmax; i += pointDensity) {
+            for (let j = 0; j < this.ymax; j += pointDensity) {
+                this.fixedPoints.push(generatePoint(i, j, pointDensity));
+            }
         }
 
         // setup delaunay input vector
-        this.delaunayInput = new Float64Array(
-            2 * (this.fixedPoints.length)
-        );
+        this.delaunayInput = new Float64Array(2 * this.fixedPoints.length);
         this.fixedPoints.forEach((point, index) => {
             const offset = 2 * index;
             this.delaunayInput[offset] = point.location.x;
@@ -97,20 +105,8 @@ class GameBoard {
         // initialize delaunay representation
         const delaunay = new Delaunay(this.delaunayInput);
 
-        // get the voronoi diagram, with the bounds set to the edges of the canvas
-        // this.voronoi = delaunay.voronoi([
-        //     0 - CLIP_DISTANCE,
-        //     0 - CLIP_DISTANCE,
-        //     this.xmax + CLIP_DISTANCE,
-        //     this.ymax + CLIP_DISTANCE,
-        // ]);
-
-        this.voronoi = delaunay.voronoi([
-            0,
-            0,
-            width,
-            height,
-        ]);
+        // generate the voronoi pattern, with the bounds set to the edges of the canvas
+        this.voronoi = delaunay.voronoi([0, 0, width, height]);
 
         // initialize shaders
         const vertexShader = context.createShader(
@@ -178,25 +174,14 @@ class GameBoard {
         // enable depth testing and make near things obscur far things
         context.enable(context.DEPTH_TEST);
         context.depthFunc(context.LEQUAL);
-        // create camera perspective matrix
-        const fieldOfView = Math.PI / 100; // Math.PI / 4; // 45°
-        const aspectRatio = this.xmax / this.ymax;
-        const clipNear = 0.1;
-        const clipFar = 100;
+        // define the projection bounds
         const projectionMatrix = mat4.create();
-        /*mat4.perspective(
-            projectionMatrix,
-            fieldOfView,
-            aspectRatio,
-            clipNear,
-            clipFar
-        );*/
         mat4.ortho(projectionMatrix, -1, 1, -1, 1, -100, 100);
 
-        // create a matrix to store the current drawing position
+        // create a matrix to store the current drawing position - just keep the default
         const modelViewMatrix = mat4.create();
-        //mat4.scale(modelViewMatrix, modelViewMatrix, [1, 1, 1]);
-        //mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, 0]);
+        // flip upside-down, so that y = 0 is at the top
+        mat4.scale(modelViewMatrix, modelViewMatrix, [1, -1, 1]);
 
         // select drawing program
         context.useProgram(this.programInfo.program);
@@ -212,21 +197,25 @@ class GameBoard {
             false,
             modelViewMatrix
         );
+
+        // draw
+        this.draw();
     }
 
     /**
      * Get the color of the point at the given index
      * @param index
      */
-    getColor = (index: number): d3.RGBColor => this.fixedPoints[index].color.rgb();
+    getColor = (index: number): d3.RGBColor =>
+        this.fixedPoints[index].color.rgb();
 
     /**
      * Scale a vertex from [0 0 xmax ymax] space to [-1 -1 1 1] space
      * @param vertex
      */
     scale(vertex: Delaunay.Point): [number, number] {
-        const x = (vertex[0] * 2 / this.xmax) - 1;
-        const y = (vertex[1] * 2 / this.ymax) - 1;
+        const x = (vertex[0] * 2) / this.xmax - 1;
+        const y = (vertex[1] * 2) / this.ymax - 1;
         return [x, y];
     }
 
@@ -347,6 +336,11 @@ class GameBoard {
         this.voronoi.update();
         const context = this.context;
 
+        console.debug({
+            voronoi: this.voronoi,
+            delaunayInput: this.delaunayInput,
+        });
+
         // refresh buffers
         const cellPolygons = Array.from(this.voronoi.cellPolygons());
         this.refreshBuffers(cellPolygons);
@@ -366,6 +360,68 @@ class GameBoard {
             offset += vertexCount;
         });
     }
+
+    resize(newWidth: number, newHeight: number) {
+        // generate points to fill new space
+        // bottom
+        if (newWidth > this.xmax) {
+            for (
+                let i = this.xmax + this.pointDensity;
+                i < newWidth;
+                i += this.pointDensity
+            ) {
+                for (let j = 0; j < this.ymax; j += this.pointDensity) {
+                    this.fixedPoints.push(
+                        generatePoint(i, j, this.pointDensity)
+                    );
+                }
+            }
+        }
+        // right
+        if (newHeight > this.ymax) {
+            for (let i = 0; i < this.xmax; i += this.pointDensity) {
+                for (
+                    let j = this.ymax + this.pointDensity;
+                    j < newHeight;
+                    j += this.pointDensity
+                ) {
+                    this.fixedPoints.push(
+                        generatePoint(i, j, this.pointDensity)
+                    );
+                }
+            }
+        }
+        // bottom right corner
+        if (newWidth > this.xmax && newHeight > this.ymax) {
+            for (let i = this.xmax + this.pointDensity * 2; i < newWidth; i++) {
+                for (
+                    let j = this.ymax + this.pointDensity * 2;
+                    j < newHeight;
+                    j++
+                ) {
+                    this.fixedPoints.push(
+                        generatePoint(i, j, this.pointDensity)
+                    );
+                }
+            }
+        }
+
+        // regenerate voronoi
+        this.delaunayInput = new Float64Array(2 * this.fixedPoints.length);
+        this.fixedPoints.forEach((point, index) => {
+            const offset = 2 * index;
+            this.delaunayInput[offset] = point.location.x;
+            this.delaunayInput[offset + 1] = point.location.y;
+        });
+        const delaunay = new Delaunay(this.delaunayInput);
+        this.voronoi = delaunay.voronoi([0, 0, newWidth, newHeight]);
+
+        // resize internal canvas
+        this.xmax = newWidth;
+        this.ymax = newHeight;
+        this.context.viewport(0, 0, newWidth, newHeight);
+        this.draw();
+    }
 }
 
 class Point {
@@ -381,27 +437,6 @@ class Point {
         return this.location.toString();
     }
 }
-
-class Rover extends Point {
-    spawn: Vector2 | null;
-    despawn: Vector2 | null;
-    speed: number;
-
-    constructor(
-        location: Vector2,
-        spawn: Vector2 | null,
-        despawn: Vector2 | null,
-        speed: number = 100,
-        color: d3.RGBColor
-    ) {
-        super(location, color);
-        this.spawn = spawn;
-        this.despawn = despawn;
-        this.speed = speed;
-    }
-}
-
-type Polygon = [x: number, y: number][];
 
 class Vector2 {
     x: number;
@@ -475,56 +510,48 @@ class RGB {
 }
 
 export const Background: FunctionComponent<{}> = ({}) => {
-    const [width, setWidth] = useState<number>(window.innerWidth);
-    const [height, setHeight] = useState<number>(window.innerHeight);
-    const [board, setBoard] = useState<GameBoard>();
-
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const App = document.querySelector("#App");
-    console.log({ App });
-    // if (App && (width !== App.clientWidth || height !== App.clientHeight)) {
-    //     setWidth(App.clientWidth);
-    //     setHeight(App.clientHeight);
-    // }
+    const [gameBoard, setGameBoard] = useState<GameBoard>();
 
     useEffect(() => {
-        // if (App) {
-        //     App.addEventListener('resize', event => {
-        //         console.log('App resized', { event, App });
-        //         setWidth((event.target as HTMLElement).clientWidth);
-        //         setHeight((event.target as HTMLElement).clientHeight);
-        //     })
-        // }
-        const App = document.querySelector("#App");
-        const observer = new ResizeObserver((event) => {
-            console.log({ event });
-            setWidth(event[0].contentRect.width);
-            setHeight(event[0].contentRect.height);
-        });
-        if (App) {
-            observer.observe(App);
+        if (!gameBoard) {
+            const canvas = canvasRef.current as HTMLCanvasElement;
+            const context = canvas.getContext(
+                'webgl2'
+            ) as WebGL2RenderingContext;
+            setGameBoard(
+                new GameBoard(context, window.innerWidth, window.innerHeight)
+            );
         }
-        return () => observer.disconnect();
-    }, []);
+    }, [gameBoard]);
 
     useEffect(() => {
-        const canvas = canvasRef.current as HTMLCanvasElement;
-        const context = canvas.getContext('webgl2') as WebGL2RenderingContext;
-        context.canvas.width = width;
-        context.canvas.height = height;
-        setBoard((oldBoard) => {
-            const newBoard = new GameBoard(context, width, height, 30);
-            newBoard.draw();
-            return newBoard;
-        });
-    }, [width, height]);
+        if (gameBoard) {
+            const canvas = canvasRef.current as HTMLCanvasElement;
+            const context = canvas.getContext(
+                'webgl2'
+            ) as WebGL2RenderingContext;
+            const App = document.querySelector('#App');
+            const observer = new ResizeObserver((event) => {
+                const newWidth = event[0].contentRect.width;
+                const newHeight = event[0].contentRect.height;
+                context.canvas.width = newWidth;
+                context.canvas.height = newHeight;
+                gameBoard.resize(newWidth, newHeight);
+            });
+            if (App) {
+                observer.observe(App);
+            }
+            return () => observer.disconnect();
+        }
+    }, [gameBoard]);
 
     return (
         <canvas
             ref={canvasRef}
-            width={width}
-            height={height}
+            width={window.innerWidth}
+            height={window.innerHeight}
             id="voronoiRoverCanvas"
         />
     );
