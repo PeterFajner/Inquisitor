@@ -1,10 +1,10 @@
+import { Background } from 'components/Background/Background';
 import { CharacterBuilder } from 'components/CharacterBuilder/CharacterBuilder';
 import { ProgressBar } from 'components/ProgressBar/ProgressBar';
 import { useCompendium } from 'hooks/CompendiumHooks/CompendiumHooks';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
-import { Background } from 'components/Background/background';
 
 function App() {
     const [characterIDs, setCharacterIDs] = useState<string[]>([]);
@@ -15,7 +15,7 @@ function App() {
     };
 
     return (
-        <div id='App'>
+        <div id="App">
             <Background />
             <header className="App-header">
                 <h1>Inquisitor Character Generator</h1>
