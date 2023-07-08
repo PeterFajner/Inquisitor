@@ -35,6 +35,7 @@ export const StatsTable: FunctionComponent<{
                         base={stats[stat]}
                         boon={statBoonBoosts[stat]}
                         setStat={setStat}
+                        key={`${id}-${stat}`}
                     ></StatsRow>
                 ))}
             </tbody>

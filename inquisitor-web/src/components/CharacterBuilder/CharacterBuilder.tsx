@@ -237,9 +237,7 @@ export const CharacterBuilder: FunctionComponent<{
                 <Section
                     type="narrow"
                     title="Stats"
-                    rightOfTitle={[
-                        <button onClick={rerollStats}>Reroll</button>,
-                    ]}
+                    rightOfTitle=<button onClick={rerollStats}>Reroll</button>
                 >
                     <StatsTable
                         id={id}
@@ -259,7 +257,7 @@ export const CharacterBuilder: FunctionComponent<{
                             </li>
                         ))}
                         {talentChoices.map((tc, index) => (
-                            <li>
+                            <li key={`${id}-talent-choice-${index}`}>
                                 <Dropdown
                                     id={`${id}-talent-choice-${index}`}
                                     label={null}
@@ -301,9 +299,9 @@ export const CharacterBuilder: FunctionComponent<{
                     type="narrow"
                     title="Boons"
                     rightOfTitle={
-                        subtypeGetsBoons && [
-                            <button onClick={() => rollBoons()}>Reroll</button>,
-                        ]
+                        subtypeGetsBoons && (
+                            <button onClick={() => rollBoons()}>Reroll</button>
+                        )
                     }
                 >
                     {subtypeGetsBoons ? (
@@ -316,13 +314,15 @@ export const CharacterBuilder: FunctionComponent<{
                 </Section>
             </div>
             <div className="wide header-footer footer">
-                <h2><button
-                    onClick={() => {
-                        triggerDocxDownload([data], compendium);
-                    }}
-                >
-                    Download Docx
-                </button></h2>
+                <h2>
+                    <button
+                        onClick={() => {
+                            triggerDocxDownload([data], compendium);
+                        }}
+                    >
+                        Download Docx
+                    </button>
+                </h2>
             </div>
         </div>
     );

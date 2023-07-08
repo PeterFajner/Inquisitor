@@ -4,8 +4,8 @@ export const Section: FunctionComponent<{
     type: 'narrow' | 'wide';
     children?: ReactNode;
     title?: string;
-    leftOfTitle?: ReactNode[];
-    rightOfTitle?: ReactNode[];
+    leftOfTitle?: ReactNode;
+    rightOfTitle?: ReactNode;
 }> = ({ type, children, title, leftOfTitle, rightOfTitle }) => (
     <section className={type}>
         <h3>
