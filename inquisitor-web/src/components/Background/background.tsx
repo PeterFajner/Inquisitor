@@ -208,6 +208,8 @@ class GameBoard {
 
         if (start) {
             this.loop();
+        } else {
+            this.draw();
         }
     }
 
@@ -336,6 +338,13 @@ class GameBoard {
             new Float32Array(colors),
             context.STATIC_DRAW
         );
+
+        const reconstructed = [];
+        for (let i = 0, v = 0, c = 0; v < vertices.length; i++, v += 2, c += 4) {
+            reconstructed.push([vertices[v], vertices[v+1], colors[c], colors[c+1], colors[c+2]]);
+        }
+
+        console.info({ reconstructed, sample: reconstructed[1800] });
     }
 
     loop() {
@@ -393,8 +402,8 @@ class GameBoard {
         // }
         for (let point of this.fixedPoints) {
             const move1 = Math.sin(Date.now() * 10);
-            const move2 = Math.sin((point.location.x * 10) % 10 - 5);
-            const move = (move1 + move2);
+            const move2 = Math.sin(((point.location.x * 10) % 10) - 5);
+            const move = move1 + move2;
             console.log({ move1, move2, move });
             point.location.x += move;
         }
@@ -407,7 +416,6 @@ class GameBoard {
         });
         const delaunay = new Delaunay(this.delaunayInput);
         this.voronoi = delaunay.voronoi([0, 0, this.xmax, this.ymax]);
-
 
         // remember, this is a 1D list of x y x y x y
         // for (
@@ -458,7 +466,7 @@ class GameBoard {
         }
     }
 
-    resize(newWidth: number, newHeight: number) {
+    resize(newWidth: number, newHeight: number, restart = false) {
         this.stop();
         // generate points to fill new space
         // bottom
@@ -503,7 +511,6 @@ class GameBoard {
                 }
             }
         }
-        this.fixedPoints.sort((a, b) => a.location.x - b.location.x);
 
         // regenerate voronoi
         this.delaunayInput = new Float64Array(2 * this.fixedPoints.length);
@@ -515,13 +522,17 @@ class GameBoard {
         const delaunay = new Delaunay(this.delaunayInput);
         this.voronoi = delaunay.voronoi([0, 0, newWidth, newHeight]);
 
-        // resize buffers
+        console.log({ voronoi: this.voronoi });
 
         // resize internal canvas
         this.xmax = newWidth;
         this.ymax = newHeight;
         this.context.viewport(0, 0, newWidth, newHeight);
-        this.start();
+        if (restart) {
+            this.start();
+        } else {
+            this.draw();
+        }
     }
 }
 
@@ -625,7 +636,7 @@ export const Background: FunctionComponent<{}> = ({}) => {
                 context,
                 window.innerWidth,
                 window.innerHeight,
-                true
+                false
             );
             setGameBoard((oldBoard) => {
                 oldBoard?.stop();
