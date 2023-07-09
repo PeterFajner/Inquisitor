@@ -1,9 +1,8 @@
+import * as d3 from 'd3-color';
 import { Delaunay, Voronoi } from 'd3-delaunay';
 import { hsv } from 'd3-hsv';
-import * as d3 from 'd3-color';
 import { mat4 } from 'gl-matrix';
-import { useEffect, useRef, useState } from 'react';
-import { FunctionComponent } from 'react';
+import { FunctionComponent, useEffect, useRef, useState } from 'react';
 
 const vertexShaderSource = `
 		attribute vec4 aVertexPosition;
@@ -63,17 +62,26 @@ class GameBoard {
         uniformLocations: { projectionMatrix: any; modelViewMatrix: any };
         buffers: { position: WebGLBuffer; color: WebGLBuffer };
     };
+    previousFrameTimestampMs: number;
+    cutoffFramerate: number = 0.001;
+    cutoffMinFrames: number = 10;
+    targetFramerate: number = 10;
+    numFramesBelowCutoff = 0;
+    stoppedDueToLowFPS: boolean = false;
+    stoppedManually: boolean = false;
 
     constructor(
         context: WebGL2RenderingContext,
         width: number,
         height: number,
-        pointDensity: number = 150 // pixels per point
+        start = false,
+        pointDensity: number = 30 // pixels per point
     ) {
         this.context = context;
         this.xmax = width;
         this.ymax = height;
         this.pointDensity = pointDensity;
+        this.previousFrameTimestampMs = Date.now();
 
         console.log({
             clientWidth: (this.context.canvas as HTMLCanvasElement).clientWidth,
@@ -198,8 +206,9 @@ class GameBoard {
             modelViewMatrix
         );
 
-        // draw
-        this.draw();
+        if (start) {
+            this.loop();
+        }
     }
 
     /**
@@ -251,7 +260,6 @@ class GameBoard {
             const stride = 0; // not sure what this is for
             const offset = 0;
             context.bindBuffer(context.ARRAY_BUFFER, positionBuffer);
-            console.debug({ this: this });
             context.vertexAttribPointer(
                 vertexPosition,
                 numComponents,
@@ -330,9 +338,104 @@ class GameBoard {
         );
     }
 
+    loop() {
+        // calculate fps
+        const currentFrameTimestampMs = Date.now();
+        const timeElapsedMs =
+            currentFrameTimestampMs - this.previousFrameTimestampMs;
+        this.previousFrameTimestampMs = currentFrameTimestampMs;
+        const fps = 1000 / timeElapsedMs;
+        // warn if fps is below cutoff threshold
+        if (fps < this.cutoffFramerate) {
+            console.warn(
+                `fps is ${fps}, below threshold of ${this.cutoffFramerate}`
+            );
+        }
+        // if fps is too low for too many frames, stop the animation
+        if (fps > this.cutoffFramerate) {
+            this.numFramesBelowCutoff = 0;
+        } else {
+            this.numFramesBelowCutoff++;
+        }
+        if (this.numFramesBelowCutoff > this.cutoffMinFrames) {
+            this.stoppedDueToLowFPS = true;
+        }
+        if (this.stoppedDueToLowFPS) {
+            console.debug(
+                `Ran under ${this.cutoffFramerate} fps for ${this.cutoffMinFrames} frames, stopping animation`
+            );
+            return;
+        }
+        if (this.stoppedManually) {
+            return;
+        }
+
+        // jiggle points - in a 20 second cycle, move every 10th point left and then right
+        // const numberOfMovingGroups = 10;
+        // const eachMovementDuration = 30; // seconds
+        // const speed = 0.01;
+        // const currentInterval = Math.floor(
+        //     Date.now() / 1000 / eachMovementDuration
+        // );
+        // const currentGroup = currentInterval % numberOfMovingGroups;
+        // const direction =
+        //     currentInterval % (numberOfMovingGroups * 2) < numberOfMovingGroups
+        //         ? -1
+        //         : 1;
+        // const distance = speed * direction * timeElapsedMs;
+
+        // for (
+        //     let i = currentGroup;
+        //     i < this.fixedPoints.length;
+        //     i += numberOfMovingGroups
+        // ) {
+        //     this.fixedPoints[i].location.x += distance;
+        // }
+        for (let point of this.fixedPoints) {
+            const move1 = Math.sin(Date.now() * 10);
+            const move2 = Math.sin((point.location.x * 10) % 10 - 5);
+            const move = (move1 + move2);
+            console.log({ move1, move2, move });
+            point.location.x += move;
+        }
+
+        this.delaunayInput = new Float64Array(2 * this.fixedPoints.length);
+        this.fixedPoints.forEach((point, index) => {
+            const offset = 2 * index;
+            this.delaunayInput[offset] = point.location.x;
+            this.delaunayInput[offset + 1] = point.location.y;
+        });
+        const delaunay = new Delaunay(this.delaunayInput);
+        this.voronoi = delaunay.voronoi([0, 0, this.xmax, this.ymax]);
+
+
+        // remember, this is a 1D list of x y x y x y
+        // for (
+        //     let i = currentGroup;
+        //     i < this.delaunayInput.length;
+        //     i += 2 * numberOfMovingGroups
+        // ) {
+        //     this.delaunayInput[i] += distance;
+        // }
+        this.draw();
+
+        // sleep
+        setTimeout(() => {
+            this.loop();
+        }, 1000 / this.targetFramerate);
+    }
+
+    stop() {
+        this.stoppedManually = true;
+    }
+
+    start() {
+        this.stoppedManually = false;
+        this.loop();
+    }
+
     draw() {
-        // render rovers and cells
-        // update the voronoi diagram
+        // recalculate voronoi
         this.voronoi.update();
         const context = this.context;
 
@@ -345,23 +448,18 @@ class GameBoard {
         const cellPolygons = Array.from(this.voronoi.cellPolygons());
         this.refreshBuffers(cellPolygons);
 
-        // clear canvas
-
         // draw - since each polygon has a different number of vertices,
         // we need to iterate over them and make a separate draw call for each
-        context.bindBuffer(
-            context.ARRAY_BUFFER,
-            this.programInfo.buffers.position
-        );
-        let offset = 0;
-        cellPolygons.forEach((cell) => {
+        for (let offset = 0, p = 0; p < cellPolygons.length; p++) {
+            const cell = cellPolygons[p];
             const vertexCount = cell.length - 1; // first vertex is a duplicate of the last and is ignored
             context.drawArrays(context.TRIANGLE_FAN, offset, vertexCount);
             offset += vertexCount;
-        });
+        }
     }
 
     resize(newWidth: number, newHeight: number) {
+        this.stop();
         // generate points to fill new space
         // bottom
         if (newWidth > this.xmax) {
@@ -405,6 +503,7 @@ class GameBoard {
                 }
             }
         }
+        this.fixedPoints.sort((a, b) => a.location.x - b.location.x);
 
         // regenerate voronoi
         this.delaunayInput = new Float64Array(2 * this.fixedPoints.length);
@@ -416,11 +515,13 @@ class GameBoard {
         const delaunay = new Delaunay(this.delaunayInput);
         this.voronoi = delaunay.voronoi([0, 0, newWidth, newHeight]);
 
+        // resize buffers
+
         // resize internal canvas
         this.xmax = newWidth;
         this.ymax = newHeight;
         this.context.viewport(0, 0, newWidth, newHeight);
-        this.draw();
+        this.start();
     }
 }
 
@@ -520,9 +621,16 @@ export const Background: FunctionComponent<{}> = ({}) => {
             const context = canvas.getContext(
                 'webgl2'
             ) as WebGL2RenderingContext;
-            setGameBoard(
-                new GameBoard(context, window.innerWidth, window.innerHeight)
+            const board = new GameBoard(
+                context,
+                window.innerWidth,
+                window.innerHeight,
+                true
             );
+            setGameBoard((oldBoard) => {
+                oldBoard?.stop();
+                return board;
+            });
         }
     }, [gameBoard]);
 
