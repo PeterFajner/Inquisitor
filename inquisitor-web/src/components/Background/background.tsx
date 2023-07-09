@@ -75,14 +75,6 @@ class GameBoard {
         this.pointDensity = pointDensity;
         this.previousFrameTimestampMs = Date.now();
 
-        console.log({
-            clientWidth: (this.context.canvas as HTMLCanvasElement).clientWidth,
-            clientHeight: (this.context.canvas as HTMLCanvasElement)
-                .clientHeight,
-            width,
-            height,
-        });
-
         // initialize canvas size
         context.viewport(0, 0, width, height);
 
@@ -352,8 +344,6 @@ class GameBoard {
                 colors[c + 2],
             ]);
         }
-
-        console.info({ reconstructed, sample: reconstructed[1800] });
     }
 
     loop() {
@@ -392,7 +382,6 @@ class GameBoard {
             const move1 = Math.sin(Date.now() * 10);
             const move2 = Math.sin(((point.location.x * 10) % 10) - 5);
             const move = move1 + move2;
-            console.log({ move1, move2, move });
             point.location.x += move;
         }
 
@@ -426,11 +415,6 @@ class GameBoard {
         // recalculate voronoi
         this.voronoi.update();
         const context = this.context;
-
-        console.debug({
-            voronoi: this.voronoi,
-            delaunayInput: this.delaunayInput,
-        });
 
         // refresh buffers
         this.refreshBuffers(this.fixedPoints);
@@ -510,8 +494,6 @@ class GameBoard {
         const delaunay = new Delaunay(this.delaunayInput);
         this.voronoi = delaunay.voronoi([0, 0, newWidth, newHeight]);
 
-        console.log({ voronoi: this.voronoi });
-
         // resize internal canvas
         this.xmax = newWidth;
         this.ymax = newHeight;
@@ -581,7 +563,6 @@ class RGB {
         const color = d3.rgb(
             `rgb(${Math.random()}, ${Math.random()}, ${Math.random()})`
         );
-        console.debug('color', color);
         return color;
     }
 
