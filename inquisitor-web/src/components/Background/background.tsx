@@ -40,14 +40,6 @@ const generatePoint = (x: number, y: number, jitter: number) =>
         RGB.randomDark()
     );
 
-/**
- * const x = i; // todo randomize within the square
-                    const y = j;
-                    const color = RGB.randomDark();
-                    const point = new Point(new Vector2(x, y), color);
-                    this.fixedPoints.push(point);
- */
-
 class GameBoard {
     fixedPoints: Point[] = [];
     context: WebGL2RenderingContext;
@@ -98,7 +90,9 @@ class GameBoard {
         // todo may need to flip this upside down, since y = 0 is at the bottom of the screen? maybe flip the whole canvas?
         for (let i = 0; i < this.xmax; i += pointDensity) {
             for (let j = 0; j < this.ymax; j += pointDensity) {
-                this.fixedPoints.push(generatePoint(i, j, pointDensity));
+                this.fixedPoints.push(
+                    new Point(new Vector2(i, j), RGB.randomDark())
+                );
             }
         }
 
@@ -224,11 +218,10 @@ class GameBoard {
      * Scale a vertex from [0 0 xmax ymax] space to [-1 -1 1 1] space
      * @param vertex
      */
-    scale(vertex: Delaunay.Point): [number, number] {
-        const x = (vertex[0] * 2) / this.xmax - 1;
-        const y = (vertex[1] * 2) / this.ymax - 1;
-        return [x, y];
-    }
+    scale = (x: number, y: number): [number, number] => [
+        (x * 2) / this.xmax - 1,
+        (y * 2) / this.ymax - 1,
+    ];
 
     initBuffers(
         vertexPosition: number,
@@ -295,27 +288,33 @@ class GameBoard {
         return { position: positionBuffer, color: colorBuffer };
     }
 
-    refreshBuffers(voronoiCells: (Delaunay.Polygon & { index: number })[]) {
+    refreshBuffers(points: Point[]) {
         const context = this.context;
         // vertices and their corresponding colors
         const vertices: number[] = []; // x y x y x y x y
         const colors: number[] = []; // r g b a r g b a r g b a r g b a
-        voronoiCells.forEach((cell, index) => {
-            const color = this.getColor(index).rgb();
-            const r = color.r / 255;
-            const g = color.g / 255;
-            const b = color.b / 255;
-            cell.forEach((vertex, index) => {
-                if (index > 0) {
-                    vertices.push(this.scale(vertex)[0]);
-                    vertices.push(this.scale(vertex)[1]);
-                    colors.push(r);
-                    colors.push(g);
-                    colors.push(b);
-                    colors.push(1);
-                }
-            });
-        });
+        for (let p of points) {
+            const fourCorners = [
+                [p.location.x, p.location.y],
+                [p.location.x, p.location.y + this.pointDensity],
+                [
+                    p.location.x + this.pointDensity,
+                    p.location.y + this.pointDensity,
+                ],
+                [p.location.x + this.pointDensity, p.location.y],
+                [p.location.x, p.location.y],
+            ];
+            const scaledCorners = fourCorners.map((p) =>
+                this.scale(p[0], p[1])
+            );
+            const scaledColor = [p.color.r, p.color.g, p.color.b].map(
+                (c) => c / 255
+            );
+            for (let corner of scaledCorners) {
+                vertices.push(...corner);
+                colors.push(...scaledColor, 1);
+            }
+        }
 
         // fill vertex buffer
         context.bindBuffer(
@@ -340,8 +339,18 @@ class GameBoard {
         );
 
         const reconstructed = [];
-        for (let i = 0, v = 0, c = 0; v < vertices.length; i++, v += 2, c += 4) {
-            reconstructed.push([vertices[v], vertices[v+1], colors[c], colors[c+1], colors[c+2]]);
+        for (
+            let i = 0, v = 0, c = 0;
+            v < vertices.length;
+            i++, v += 2, c += 4
+        ) {
+            reconstructed.push([
+                vertices[v],
+                vertices[v + 1],
+                colors[c],
+                colors[c + 1],
+                colors[c + 2],
+            ]);
         }
 
         console.info({ reconstructed, sample: reconstructed[1800] });
@@ -379,27 +388,6 @@ class GameBoard {
             return;
         }
 
-        // jiggle points - in a 20 second cycle, move every 10th point left and then right
-        // const numberOfMovingGroups = 10;
-        // const eachMovementDuration = 30; // seconds
-        // const speed = 0.01;
-        // const currentInterval = Math.floor(
-        //     Date.now() / 1000 / eachMovementDuration
-        // );
-        // const currentGroup = currentInterval % numberOfMovingGroups;
-        // const direction =
-        //     currentInterval % (numberOfMovingGroups * 2) < numberOfMovingGroups
-        //         ? -1
-        //         : 1;
-        // const distance = speed * direction * timeElapsedMs;
-
-        // for (
-        //     let i = currentGroup;
-        //     i < this.fixedPoints.length;
-        //     i += numberOfMovingGroups
-        // ) {
-        //     this.fixedPoints[i].location.x += distance;
-        // }
         for (let point of this.fixedPoints) {
             const move1 = Math.sin(Date.now() * 10);
             const move2 = Math.sin(((point.location.x * 10) % 10) - 5);
@@ -417,14 +405,6 @@ class GameBoard {
         const delaunay = new Delaunay(this.delaunayInput);
         this.voronoi = delaunay.voronoi([0, 0, this.xmax, this.ymax]);
 
-        // remember, this is a 1D list of x y x y x y
-        // for (
-        //     let i = currentGroup;
-        //     i < this.delaunayInput.length;
-        //     i += 2 * numberOfMovingGroups
-        // ) {
-        //     this.delaunayInput[i] += distance;
-        // }
         this.draw();
 
         // sleep
@@ -453,60 +433,68 @@ class GameBoard {
         });
 
         // refresh buffers
-        const cellPolygons = Array.from(this.voronoi.cellPolygons());
-        this.refreshBuffers(cellPolygons);
+        this.refreshBuffers(this.fixedPoints);
 
-        // draw - since each polygon has a different number of vertices,
-        // we need to iterate over them and make a separate draw call for each
-        for (let offset = 0, p = 0; p < cellPolygons.length; p++) {
-            const cell = cellPolygons[p];
-            const vertexCount = cell.length - 1; // first vertex is a duplicate of the last and is ignored
-            context.drawArrays(context.TRIANGLE_FAN, offset, vertexCount);
-            offset += vertexCount;
+        // draw each square - it has 5 points, since we need to return to the start at the end
+        for (let p = 0; p < this.fixedPoints.length; p += 1) {
+            context.drawArrays(context.TRIANGLE_FAN, p * 5, 5);
         }
     }
 
     resize(newWidth: number, newHeight: number, restart = false) {
         this.stop();
         // generate points to fill new space
-        // bottom
+        // right
         if (newWidth > this.xmax) {
             for (
-                let i = this.xmax + this.pointDensity;
+                // the complex-ish math here is to make sure we start at the next square boundary
+                let i =
+                    Math.floor(this.xmax / this.pointDensity + 1) *
+                    this.pointDensity;
                 i < newWidth;
                 i += this.pointDensity
             ) {
                 for (let j = 0; j < this.ymax; j += this.pointDensity) {
                     this.fixedPoints.push(
-                        generatePoint(i, j, this.pointDensity)
+                        new Point(new Vector2(i, j), RGB.randomDark())
                     );
                 }
             }
         }
-        // right
+        // bottom
         if (newHeight > this.ymax) {
             for (let i = 0; i < this.xmax; i += this.pointDensity) {
                 for (
-                    let j = this.ymax + this.pointDensity;
+                    let j =
+                        Math.floor(this.ymax / this.pointDensity + 1) *
+                        this.pointDensity;
                     j < newHeight;
                     j += this.pointDensity
                 ) {
                     this.fixedPoints.push(
-                        generatePoint(i, j, this.pointDensity)
+                        new Point(new Vector2(i, j), RGB.randomDark())
                     );
                 }
             }
         }
         // bottom right corner
         if (newWidth > this.xmax && newHeight > this.ymax) {
-            for (let i = this.xmax + this.pointDensity * 2; i < newWidth; i++) {
+            for (
+                let i =
+                    Math.floor(this.xmax / this.pointDensity + 2) *
+                    this.pointDensity;
+                i < newWidth;
+                i++
+            ) {
                 for (
-                    let j = this.ymax + this.pointDensity * 2;
+                    let j =
+                        Math.floor(this.ymax / this.pointDensity + 2) *
+                        this.pointDensity;
                     j < newHeight;
                     j++
                 ) {
                     this.fixedPoints.push(
-                        generatePoint(i, j, this.pointDensity)
+                        new Point(new Vector2(i, j), RGB.randomDark())
                     );
                 }
             }
@@ -597,10 +585,18 @@ class RGB {
         return color;
     }
 
-    static randomDark(): d3.RGBColor {
+    static randomDarkOld(): d3.RGBColor {
         const h = Math.random() * 90;
         const s = Math.random() * 0.2 + 0.2;
         const v = Math.random() * 0.2;
+        const color = hsv(h, s, v).rgb() as d3.RGBColor;
+        return color;
+    }
+
+    static randomDark(): d3.RGBColor {
+        const h = Math.random() * 30;
+        const s = Math.random() * 0.2 + 0.2;
+        const v = Math.random() * 0.1;
         const color = hsv(h, s, v).rgb() as d3.RGBColor;
         return color;
     }
