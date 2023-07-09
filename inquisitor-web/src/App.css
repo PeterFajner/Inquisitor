@@ -1,7 +1,11 @@
 @import './variables.css';
 
+body {
+    background-color: black;
+}
+
 #App {
-  min-height: 100vh;
+    min-height: 100vh;
 }
 
 .App-header {
@@ -14,9 +18,9 @@
     color: transparent;
     font-family: 'Inquisitor Bold';
     background: linear-gradient(
-        var(--border-color-odd) 47%,
+        var(--text-color-header) 47%,
         #fff,
-        var(--border-color-even) 54%
+        var(--primary) 54%
     );
     background-clip: text;
 }

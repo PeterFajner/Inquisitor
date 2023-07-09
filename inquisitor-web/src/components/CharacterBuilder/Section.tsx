@@ -12,12 +12,11 @@ export const Section: FunctionComponent<{
             {leftOfTitle ? (
                 <span style={{ marginRight: 20 }}>{leftOfTitle}</span>
             ) : null}
-            {title && <span>{title}</span>}
+            {title && <span className='title'>{title}</span>}
             {rightOfTitle ? (
                 <span style={{ marginLeft: 20 }}>{rightOfTitle}</span>
             ) : null}
         </h3>
-
         {children}
     </section>
 );

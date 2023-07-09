@@ -576,8 +576,8 @@ class RGB {
 
     static randomDark(): d3.RGBColor {
         const h = Math.random() * 30;
-        const s = Math.random() * 0.2 + 0.2;
-        const v = Math.random() * 0.1;
+        const s = Math.random() * 0.2 + 0.7;
+        const v = Math.random() * 0.2;
         const color = hsv(h, s, v).rgb() as d3.RGBColor;
         return color;
     }

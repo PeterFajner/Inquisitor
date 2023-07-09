@@ -11,16 +11,10 @@
 }
 
 :root {
-    --app-bg-color: #0B0600;
-    --border-color-odd: #6d5d3c;
-    --border-color-even: #6d3c3c;
-    --card-color: #c6c6c6;
-    --text-color: #502410;
-    --text-color-border: #fff;
-    /* --even-border-color: #441F0D;
-    --even-bg-color: #502410;
-    --even-fg-color: #c6c6c6;
-    --odd-border-color: #031203;
-    --odd-bg-color: #062105;
-    --odd-fg-color: #9c9c9c; */
+    --border-color: #1d1d1d;
+    --card-color: #121212;
+    --section-shadow-color: #0d0d0d;
+    --text-color: #e1e1e1;
+    --primary: #ff5e5e;
+    --text-color-header: #7e7e7e;
 }

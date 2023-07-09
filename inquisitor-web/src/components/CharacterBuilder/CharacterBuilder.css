@@ -1,73 +1,76 @@
-/*.character-builder:nth-child(even) {
-    background-color: var(--even-bg-color);
-    color: var(--even-fg-color);
-    border-color: var(--even-border-color);
-}
-
-.character-builder:nth-child(even) input {
-    background-color: var(--even-bg-color);
-    color: var(--even-fg-color);
-}
-
-.character-builder:nth-child(even) section:not(:last-child) {
-    padding-bottom: 20px;
-    border-bottom-color: var(--even-bg-color);
-}
-
-.character-builder:nth-child(odd) {
-    background-color: var(--odd-bg-color);
-    color: var(--odd-fg-color);
-    border-color: var(--odd-border-color);
-}
-
-.character-builder:nth-child(odd) input {
-    background-color: var(--odd-bg-color);
-    color: var(--odd-fg-color);
-}
-
-.character-builder:nth-child(odd) section:not(:last-child) {
-    padding-bottom: 20px;
-    border-bottom-color: var(--odd-bg-color);
-}*/
-
 .character-builder input {
-    background-color: var(--card-color);
-    color: var(--text-color);
+    background-color: var(--border-color);
+    color: var(--primary);
 }
 
-.character-builder:nth-child(even) {
-    border-color: var(--border-color-even);
+.character-builder select {
+    background-color: transparent;
+    border: dotted 1px var(--primary);
+    border-radius: 1px;
+    color: var(--primary);
 }
 
-.character-builder:nth-child(odd) {
-    border-color: var(--border-color-odd);
+.character-builder {
+    border-color: var(--border-color);
 }
 
-.character-builder:nth-child(even) .header-footer {
-    background-color: var(--border-color-even);
+.character-builder .header-footer {
+    background-color: var(--border-color);
 }
 
-.character-builder:nth-child(odd) .header-footer {
-    background-color: var(--border-color-odd);
+.character-builder .header-footer input {
+    background-color: var(--border-color);
+    color: var(--text-color-header);
 }
 
-.character-builder:nth-child(even) .header-footer input {
-    background-color: var(--border-color-even);
-    color: var(--text-color-border);
+.character-builder .character-builder-inner h3 {
+    background-color: var(--border-color);
+    color: var(--text-color-header);
 }
 
-.character-builder:nth-child(odd) .header-footer input {
-    background-color: var(--border-color-odd);
-    color: var(--text-color-border);
+.character-builder section {
+    background-color: var(--border-color);
+}
+
+h3 {
+    width: 100%;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 5px;
+    align-items: center;
+}
+
+section .title {
+    padding: 5px;
+}
+
+button {
+    border: none;
+    background-color: var(--primary);
+    color: var(--card-color);
+    padding: 5px;
+    border-radius: 5px;
+    font-weight: bold;
 }
 
 .header-footer {
     margin: 0;
-    width: 100%;
-    display: flex;
+    display: inline-flex;
     flex-direction: row;
     justify-content: center;
-    color: var(--text-color-border);
+    color: var(--text-color-header);
+    width: 100%;
+    padding: 0;
+}
+
+.header {
+    box-shadow: 2px 2px var(--section-shadow-color);
+}
+
+.footer {
+    box-shadow: -2px -2px var(--section-shadow-color);
 }
 
 .character-builder-inner {
@@ -76,15 +79,21 @@
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: center;
+    gap: 20px;
+    padding: 20px 0px;
 }
 
 .character-builder {
-    background-color: var(--card-color);
     color: var(--text-color);
     margin: 20px;
-    border: solid 5px;
-    border-radius: 5px;
+    overflow: hidden;
+    border-radius: 10px;
     max-width: 1100px;
+    background-color: var(--card-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* box-shadow: 2px 2px var(--section-shadow-color); */
 }
 
 .columns {
@@ -95,10 +104,13 @@
 section {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    max-width: 90vw;
+    align-items: center;
+    max-width: 70vw;
     width: 500px;
     margin: 5px 40px;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 2px 2px var(--section-shadow-color);
 }
 
 section.wide {
@@ -117,6 +129,7 @@ section.wide {
 .stats-table {
     table-layout: fixed;
     width: 100%;
+    padding-top: 10px;
 }
 
 .stats-table th {
@@ -124,8 +137,14 @@ section.wide {
 }
 
 .stats-table td {
+    text-align: center;
+    width: 3rem;
+}
+
+.stats-table td span {
     text-align: right;
     width: 3rem;
+    display: block;
 }
 
 .stats-table input {
@@ -140,6 +159,12 @@ input {
     font-family: inherit;
     font-size: inherit;
     width: auto;
+}
+
+select:disabled {
+    border: dotted 1px var(--text-color-header);
+    border-radius: 1px;
+    color: var(--text-color-header);
 }
 
 .dropdown {

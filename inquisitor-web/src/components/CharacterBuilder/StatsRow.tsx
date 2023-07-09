@@ -26,7 +26,7 @@ export const StatsRow: FunctionComponent<{
                 size={3}
             />
         </td>
-        <td>{boon ?? '-'}</td>
-        <td>{base + (boon ?? 0)}</td>
+        <td><span>{boon ?? '-'}</span></td>
+        <td><span>{base + (boon ?? 0)}</span></td>
     </tr>
 );
