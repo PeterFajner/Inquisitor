@@ -1,8 +1,9 @@
 import { Background } from 'components/Background/Background';
 import { CharacterBuilder } from 'components/CharacterBuilder/CharacterBuilder';
 import { ProgressBar } from 'components/ProgressBar/ProgressBar';
+import { BackendContext } from 'contexts/BackendContext';
 import { useCompendium } from 'hooks/CompendiumHooks/CompendiumHooks';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
 
@@ -14,9 +15,21 @@ function App() {
         setCharacterIDs([...characterIDs, uuidv4()]);
     };
 
+    const backendContext = useContext(BackendContext);
+    if (!backendContext) {
+        return null;
+    }
+    const {
+        buttons: { LoginButton, SignUpButton },
+    } = backendContext;
+
     return (
         <div id="App">
             <Background />
+            <div className="nav">
+                {LoginButton}
+                {SignUpButton}
+            </div>
             <header className="App-header">
                 <h1>Inquisitor Character Generator</h1>
             </header>
