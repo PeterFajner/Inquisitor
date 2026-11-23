@@ -103,7 +103,7 @@ export function distribution(rules: Rules, archetype: string, subtype: string): 
 
 export type Balance = BalanceLabel & { text: string };
 
-/** "overpowered (+1.3σ vs a median Inquisitors Psyker)": the approved form. */
+/** "overpowered (+1.3σ vs a median Inquisitor Psyker)": the approved form (archetypeName: the archetype's `characters` name). */
 export function balanceText(score: number, dist: Distribution, archetypeName: string, subtypeName: string): Balance {
   const l = label(score, dist);
   const sigma = `${l.sigma >= 0 ? "+" : "−"}${Math.abs(l.sigma).toFixed(1)}σ`;

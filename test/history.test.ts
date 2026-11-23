@@ -108,11 +108,13 @@ test("summary: compare in the book's terms", () => {
   assert.deepEqual(back.lost.map((t) => t.id), [thing]);
 });
 
-test("when: numbers only", () => {
+test("when: relative, in words", () => {
   const now = Date.parse("2026-11-23T12:00:00Z");
-  assert.equal(when("2026-11-23T11:55:00Z", now), "−0:05");
-  assert.equal(when("2026-11-23T08:48:30Z", now), "−3:11");
-  assert.equal(when("2026-11-23T12:00:30Z", now), "−0:00");
-  assert.match(when("2026-11-01T12:00:00Z", now), /^2026-11-0[12]$/);
+  assert.equal(when("2026-11-23T11:55:00Z", now), "5 minutes ago");
+  assert.equal(when("2026-11-23T08:48:30Z", now), "3 hours ago");
+  assert.equal(when("2026-11-23T11:59:40Z", now), "now");
+  assert.equal(when("2026-11-23T12:00:30Z", now), "now");
+  assert.equal(when("2026-11-22T11:00:00Z", now), "yesterday");
+  assert.equal(when("2026-11-01T12:00:00Z", now), "22 days ago");
   assert.equal(when("nonsense", now), "");
 });

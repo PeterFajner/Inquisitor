@@ -51,6 +51,7 @@ id: adeptus-astartes
 kind: archetype
 name: Adeptus Astartes
 gmApproval: true            # asterisked in the book
+characters: Space Marine    # optional: one character, in the book's words (stat table header without "Characters")
 human: false                # rolled stats may exceed 100 (default true: "Human characters' stats can't surpass 100" caps the roll; later bonuses may exceed it)
 source: { page: 6, text: "…" }
 subtypes:                    # the stat table rows; one row → one subtype

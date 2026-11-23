@@ -35,7 +35,11 @@ Word sheet. See PLAN.md for the design and its decisions.
   Leg, Groin, L. Arm, R. Arm, Abdomen, Chest, Head, Injury Total, Armour /
   Injury Lvl, Firearm, Type, Rng, Mode, Acc, Damage, Shots, Rld, Enc, #
   Rld, Special, Melee, Rch, Dam, PP, Other Equipment/Bionics/Etc,
-  Abilities). Anything else needs the owner's approval first: don't add
+  Abilities); "–" for an unnamed character or warband; "×N" quantities;
+  brackets around chosen variants ("Bionic sense (Right eye, Average)");
+  "/" in the sheet's # Rld and Injury Total cells; relative times in
+  history ("5 minutes ago", "yesterday", via Intl.RelativeTimeFormat).
+  Anything else needs the owner's approval first: don't add
   placeholder text, empty-state messages, headings or button captions.
 - **Characters store dice, not seeds.** Every roll and choice is recorded
   under a stable key (`<entry id>/<effect id>[#n]`); replaying a record

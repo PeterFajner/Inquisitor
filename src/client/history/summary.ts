@@ -126,18 +126,27 @@ export function compare(a: Summary, b: Summary): Comparison {
 /** "Name ×2" for more than one. */
 export const thingText = (t: Thing): string => (t.qty > 1 ? `${t.name} ×${t.qty}` : t.name);
 
-/**
- * When a version was made, relative to now, with no words: "−0:05" (hours
- * and minutes ago) within a day, else the local date as numbers
- * ("2026-11-20").
- */
+const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["second", 60],
+  ["minute", 60],
+  ["hour", 24],
+  ["day", 30],
+  ["month", 12],
+  ["year", Infinity],
+];
+
+/** When a version was made, relative to now: "5 minutes ago", "yesterday" (approved text). */
 export function when(iso: string, now: number): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return "";
-  const mins = Math.max(0, Math.floor((now - t) / 60_000));
-  if (mins < 24 * 60) return `−${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
-  const d = new Date(t);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  let v = Math.max(0, (now - t) / 1000);
+  for (const [unit, next] of UNITS) {
+    // under a minute is just "now"
+    if (v < next) return RELATIVE.format(unit === "second" ? 0 : -Math.floor(v), unit);
+    v /= next;
+  }
+  return "";
 }
 
 /** The full local date and time, numbers only, for a tooltip. */

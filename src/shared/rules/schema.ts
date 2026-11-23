@@ -730,6 +730,10 @@ export const Archetype = z.strictObject({
   ...base,
   kind: z.literal("archetype"),
   gmApproval: z.boolean().optional(), // marked * in the book
+  // one character of the archetype in the book's words: its stat table's header
+  // without "Characters" ("Inquisitor Characters" → Inquisitor), or the p3
+  // list's singular; used where the name reads as a single character
+  characters: z.string().optional(),
   human: z.boolean().optional(), // stats can't surpass 100 (default true)
   // the subtype is rolled: this die against each subtype's `range`
   // (Alien Bounty Hunter's Level Of Experience); see rollSubtype()

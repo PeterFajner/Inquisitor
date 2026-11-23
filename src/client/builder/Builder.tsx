@@ -112,7 +112,7 @@ export function BalanceLabel({ rules, built }: { rules: Rules; built: ReturnType
     };
   }, [rules.version, ch.archetype.id, ch.subtype.id]);
   if (!dist) return null;
-  const b = balanceText(powerScore(ch, rules.compendium), dist, ch.archetype.name, ch.subtype.name);
+  const b = balanceText(powerScore(ch, rules.compendium), dist, rules.compendium.archetypes.get(ch.archetype.id)?.characters ?? ch.archetype.name, ch.subtype.name);
   return (
     <span class={`balance balance-${b.word}`} role="status" aria-label={`${L.balance}: ${b.text}`}>
       {b.text}
