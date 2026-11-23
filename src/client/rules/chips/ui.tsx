@@ -3,6 +3,7 @@
 // and tooltip (../labels.ts).
 import type { ComponentChildren, ComponentType } from "preact";
 import { ChevronRight } from "lucide-preact";
+import { Icon } from "../icon.tsx";
 
 export type IconType = ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true"; class?: string }>;
 
@@ -10,7 +11,7 @@ export type IconType = ComponentType<{ size?: number | string; "aria-hidden"?: b
 export function Ic({ icon: I, label, size = 13 }: { icon: IconType; label: string; size?: number }) {
   return (
     <span class="ci" role="img" aria-label={label} title={label}>
-      <I size={size} aria-hidden="true" />
+      <Icon icon={I} size={size} />
     </span>
   );
 }
@@ -33,7 +34,7 @@ export function Group(p: { class?: string; lead: ComponentChildren; children?: C
   );
 }
 
-export const Arrow = () => <ChevronRight class="arrow" size={12} aria-hidden="true" />;
+export const Arrow = () => <Icon icon={ChevronRight} class="arrow" size={12} />;
 export const Sep = () => (
   <span class="sep" aria-hidden="true">
     ·

@@ -1,17 +1,19 @@
 // The rules canvas (/rules): every entry of every visible pack as a card on
 // one canvas, in the book's sections in book order, then a region per
-// extra pack. Cards keep their saved position (entry.pos); the rest are
-// laid out by layoutRegions from their measured heights. Wires join every
+// extra pack. Every card is placed by layoutRegions from its height
+// (stored from an earlier visit, else measured hidden once); saved positions
+// (entry.pos) are ignored and cards aren't dragged. Wires join every
 // archetype and table to the tables it rolls on. Signed in, cards can be
-// dragged (saved as moves), edited, created and deleted; edits from others
-// arrive live and the changed card is highlighted.
+// edited, created and deleted; edits from others arrive live and the
+// changed card is highlighted.
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { FilePlus } from "lucide-preact";
+import { Menu, Plus, ScrollText } from "lucide-preact";
 import type { PageData } from "../../shared/api.ts";
 import { buildCompendium, effectLists, walkEffects, type PackEntries } from "../../shared/rules/compendium.ts";
 import type { Entry } from "../../shared/rules/schema.ts";
-import { Canvas, layoutRegions, type CanvasApi, type CanvasCard, type CanvasRegion, type CanvasWire, type Size, type View } from "../canvas/index.ts";
+import { Canvas, layoutRegions, type CanvasApi, type CanvasCard, type CanvasRegion, type CanvasWire, type Size } from "../canvas/index.ts";
 import { AccountButton } from "../components/account/AccountButton.tsx";
+import { L as B } from "../builder/labels.ts";
 import { account } from "../lib/account.ts";
 import { useStore } from "../lib/store.ts";
 import { Card, CheapCard, type CardActions } from "./Card.tsx";
@@ -19,8 +21,9 @@ import { ctxOf, namesOf, type RefKind } from "./ctx.ts";
 import { Editor, type EditTarget } from "./edit/Editor.tsx";
 import { HistoryPanel } from "./History.tsx";
 import { KIND_ICON, KIND_LABEL } from "./chips/index.ts";
+import { buildId, heightKey, loadHeights, saveHeights } from "./heights.ts";
 import { L } from "./labels.ts";
-import { connect, keyOf, load, moveEntry, parseKey, rules, type Item, type Key } from "./model.ts";
+import { connect, keyOf, load, parseKey, rules, type Item, type Key } from "./model.ts";
 import { PacksMenu } from "./Packs.tsx";
 import { BASE_PACK, BOOK_REGIONS, bookOrder, PACK_ICON, packRegionId, regionOf } from "./regions.ts";
 import { blankEntry } from "./edit/blank.ts";
@@ -37,13 +40,14 @@ const ACTIVE_KEY = "inquisitor:rules-active-pack";
 type RCard = CanvasCard & { item: Item; flash: boolean; editing: boolean };
 
 const XWIDE = 3 * COL + 2 * GAP;
-const bigCache = new WeakMap<Entry, boolean>();
-// Very long entries (Cherubim) get a third column rather than a very tall card.
-const big = (e: Entry) => {
-  let b = bigCache.get(e);
-  if (b === undefined) bigCache.set(e, (b = JSON.stringify(e).length > 14000));
-  return b;
+const jsonCache = new WeakMap<Entry, string>();
+const jsonOf = (e: Entry) => {
+  let j = jsonCache.get(e);
+  if (j === undefined) jsonCache.set(e, (j = JSON.stringify(e)));
+  return j;
 };
+// Very long entries (Cherubim) get a third column rather than a very tall card.
+const big = (e: Entry) => jsonOf(e).length > 14000;
 
 function widthOf(e: Entry): number {
   switch (e.kind) {
@@ -160,23 +164,63 @@ export function RulesCanvas({ data }: { data: PageData }) {
     return list.sort((a, b) => (rank.get(a.region) ?? 0) - (rank.get(b.region) ?? 0) || bookOrder(a.it.entry, b.it.entry));
   }, [visible, regionDefs]);
 
-  // Measured heights (all cards, measured hidden once by the canvas).
-  const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(new Map());
-  const sizesRef = useRef(sizes);
-  const onMeasure = useCallback((m: ReadonlyMap<string, Size>) => {
-    sizesRef.current = m;
-    setSizes(new Map(m));
-  }, []);
-
-  const layout = useMemo(
-    () =>
-      layoutRegions(
-        regionDefs.map((r) => ({ id: r.id, columns: r.columns })),
-        ordered.map(({ key, it, region }) => ({ id: key, region, w: widthOf(it.entry), h: sizes.get(key)?.h ?? EST_H })),
-        { columnWidth: COL, gap: GAP, padding: 32, regionGap: 240, rowWidth: 16000, aspect: 1.5 },
-      ),
-    [regionDefs, ordered, sizes],
+  // Card heights (heights.ts): stored from an earlier visit, else measured
+  // hidden once by the canvas (then stored).
+  const build = useMemo(buildId, []);
+  const stored = useMemo(() => loadHeights(build), [build]);
+  const hkeys = useMemo(
+    () => new Map(ordered.map(({ key, it }) => [key, heightKey(jsonOf(it.entry), widthOf(it.entry), !!it.meta?.edited)])),
+    [ordered],
   );
+
+  // Measured heights (the canvas measures, hidden, every card it isn't given a size for).
+  const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(new Map());
+  const saveTimer = useRef(0);
+  const onMeasure = useCallback(
+    (m: ReadonlyMap<string, Size>) => {
+      setSizes(new Map(m));
+      clearTimeout(saveTimer.current);
+      saveTimer.current = window.setTimeout(() => {
+        for (const [key, sz] of m) {
+          const k = hkeys.get(key);
+          if (k) stored.set(k, Math.round(sz.h * 100) / 100);
+        }
+        // Only what the current cards show.
+        const live = new Set(hkeys.values());
+        for (const k of stored.keys()) if (!live.has(k)) stored.delete(k);
+        saveHeights(build, stored);
+      }, 1500);
+    },
+    [hkeys, stored, build],
+  );
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+  const heightOf = (key: string): number | undefined => sizes.get(key)?.h ?? stored.get(hkeys.get(key)!);
+  // What the canvas starts from (it measures the rest).
+  const known = useMemo(() => {
+    const m = new Map<string, Size>();
+    for (const { key, it } of ordered) {
+      const h = stored.get(hkeys.get(key)!);
+      if (h !== undefined) m.set(key, { w: widthOf(it.entry), h });
+    }
+    return m;
+  }, [ordered, hkeys, stored]);
+
+
+  // Laid out again only when a card's slot changes (not on every measurement).
+  const lastLayout = useRef<{ regionDefs: unknown; ordered: unknown; hs: number[]; layout: ReturnType<typeof layoutRegions> } | null>(null);
+  const layout = useMemo(() => {
+    const hs = ordered.map(({ key }) => heightOf(key) ?? EST_H);
+    const last = lastLayout.current;
+    if (last && last.regionDefs === regionDefs && last.ordered === ordered && last.hs.length === hs.length && last.hs.every((h, i) => Math.abs(h - hs[i]) < 0.5))
+      return last.layout;
+    const l = layoutRegions(
+      regionDefs.map((r) => ({ id: r.id, columns: r.columns })),
+      ordered.map(({ key, it, region }, i) => ({ id: key, region, w: widthOf(it.entry), h: hs[i] })),
+      { columnWidth: COL, gap: GAP, padding: 32, regionGap: 240, rowWidth: 16000, aspect: 1.5 },
+    );
+    lastLayout.current = { regionDefs, ordered, hs, layout: l };
+    return l;
+  }, [regionDefs, ordered, sizes, known]);
 
   const [selected, setSelected] = useState<Key | null>(null);
   const [panel, setPanel] = useState<{ mode: "edit"; target: EditTarget } | { mode: "history"; key: Key } | null>(null);
@@ -188,7 +232,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
     const next = new Map<Key, RCard>();
     const out: RCard[] = [];
     for (const { key, it } of ordered) {
-      const pos = it.entry.pos ? { x: it.entry.pos[0], y: it.entry.pos[1] } : layout.positions.get(key) ?? { x: 0, y: 0 };
+      const pos = layout.positions.get(key) ?? { x: 0, y: 0 };
       const w = widthOf(it.entry);
       const flash = s.flash.has(key);
       const editing = editingKey === key;
@@ -196,7 +240,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
       const c =
         old && old.item === it && old.x === pos.x && old.y === pos.y && old.w === w && old.flash === flash && old.editing === editing
           ? old
-          : { id: key, x: pos.x, y: pos.y, w, h: sizes.get(key)?.h ?? EST_H, label: it.entry.name, item: it, flash, editing };
+          : { id: key, x: pos.x, y: pos.y, w, h: heightOf(key) ?? EST_H, label: it.entry.name, item: it, flash, editing };
       next.set(key, c);
       out.push(c);
     }
@@ -243,8 +287,6 @@ export function RulesCanvas({ data }: { data: PageData }) {
     ctxCache.current = new WeakMap();
   }, [names, go]);
 
-  const [cheap, setCheap] = useState(false);
-  const onViewChange = useCallback((v: View) => setCheap(v.k < CHEAP_BELOW), []);
 
   // Keep a card in view beside a panel that just opened (the canvas narrows).
   const reveal = (key: Key) =>
@@ -270,8 +312,6 @@ export function RulesCanvas({ data }: { data: PageData }) {
     (c: CanvasCard, st: { selected: boolean }) => {
       const rc = c as RCard;
       const e = rc.item.entry;
-      const h = sizesRef.current.get(c.id)?.h;
-      if (cheap && h && !st.selected) return <CheapCard entry={e} h={h} flash={rc.flash} />;
       let ctx = ctxCache.current.get(e);
       if (!ctx) {
         ctx = { ...ctxOf(e, names), go };
@@ -291,16 +331,14 @@ export function RulesCanvas({ data }: { data: PageData }) {
         />
       );
     },
-    [cheap, names, go, signedIn, stableActions],
+    [names, go, signedIn, stableActions],
   );
+  const renderCheap = useCallback((c: CanvasCard, sz: Size) => <CheapCard entry={(c as RCard).item.entry} h={sz.h} flash={(c as RCard).flash} />, []);
 
-  const onMove = useCallback((id: string, p: { x: number; y: number }) => {
-    void moveEntry(id, [Math.round(p.x), Math.round(p.y)]);
-  }, []);
 
   // A card named in the address (#<pack>:<kind>/<id>) is shown once every card is measured (the layout has settled).
   const flewHash = useRef(false);
-  const measured = cards.length > 0 && cards.every((c) => sizes.has(c.id));
+  const measured = cards.length > 0 && cards.every((c) => heightOf(c.id) !== undefined);
   useEffect(() => {
     if (flewHash.current || !s.loaded || !measured) return;
     flewHash.current = true;
@@ -332,6 +370,53 @@ export function RulesCanvas({ data }: { data: PageData }) {
 
   const labels = useMemo(() => ({ zoomIn: L.zoomIn, zoomOut: L.zoomOut, fit: L.fit, minimap: L.minimap, canvas: L.canvas }), []);
 
+  // The bar: on the left the same controls, in the same places, as the builder's
+  // (characters on narrow screens, home, +, rules); the region tabs; then packs and account.
+  const barStart = (
+    <>
+      <a class="icon-btn list-toggle" href="/" aria-label={B.characters} title={B.characters}>
+        <Menu size={20} aria-hidden="true" />
+      </a>
+      <a class="home" href="/" aria-label="Inquisitor" title="Inquisitor">
+        <img src="/static/icon.svg" alt="" width={28} height={28} />
+      </a>
+      <div class="menu-wrap">
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label={L.newEntry}
+          title={L.newEntry}
+          aria-expanded={signedIn ? newOpen : undefined}
+          disabled={!signedIn}
+          onClick={() => setNewOpen(!newOpen)}
+        >
+          <Plus size={20} aria-hidden="true" />
+        </button>
+        {signedIn && newOpen && (
+          <div class="menu menu-left kinds-menu" role="menu">
+            {(["archetype", "talent", "exotic", "item", "power", "mutation", "table", "rule"] as const).map((k) => {
+              const I = KIND_ICON[k];
+              return (
+                <button type="button" role="menuitem" class="icon-btn" aria-label={KIND_LABEL[k]} title={KIND_LABEL[k]} onClick={() => newEntry(k)}>
+                  <I size={20} aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <a class="icon-btn" href="/rules" aria-label={B.rules} title={B.rules} aria-current="page">
+        <ScrollText size={20} aria-hidden="true" />
+      </a>
+    </>
+  );
+  const barEnd = (
+    <span class="rules-tools">
+      <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} />
+      <AccountButton />
+    </span>
+  );
+
   return (
     <main class={`rules-page${panel ? " has-panel" : ""}`}>
       <div class="rules-canvas" aria-busy={!s.loaded}>
@@ -339,59 +424,21 @@ export function RulesCanvas({ data }: { data: PageData }) {
           <Canvas
             cards={cards}
             renderCard={renderCard}
+            renderCheap={renderCheap}
+            cheapBelow={CHEAP_BELOW}
             wires={wires}
             regions={regions}
             selected={selected}
             onSelect={setSelected}
-            onMove={signedIn ? onMove : undefined}
-            snap={8}
             measure
+            initialSizes={known}
             onMeasure={onMeasure}
-            onViewChange={onViewChange}
             apiRef={api}
             labels={labels}
+            barStart={barStart}
+            barEnd={barEnd}
           />
         )}
-        <div class="rules-tools cv-ui">
-        <a class="icon-btn rules-home" href="/" aria-label="Inquisitor" title="Inquisitor">
-          <img src="/static/icon.svg" alt="" width={26} height={26} />
-        </a>
-        <PacksMenu
-          packs={s.packs}
-          hidden={hidden}
-          onToggle={toggleHidden}
-          active={activePack}
-          onActive={setActive}
-          signedIn={signedIn}
-        />
-        {signedIn && (
-          <div class="menu-wrap">
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label={L.newEntry}
-              title={L.newEntry}
-              aria-expanded={newOpen}
-              onClick={() => setNewOpen(!newOpen)}
-            >
-              <FilePlus size={20} aria-hidden="true" />
-            </button>
-            {newOpen && (
-              <div class="menu kinds-menu" role="menu">
-                {(["archetype", "talent", "exotic", "item", "power", "mutation", "table", "rule"] as const).map((k) => {
-                  const I = KIND_ICON[k];
-                  return (
-                    <button type="button" role="menuitem" class="icon-btn" aria-label={KIND_LABEL[k]} title={KIND_LABEL[k]} onClick={() => newEntry(k)}>
-                      <I size={20} aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-        <AccountButton />
-        </div>
       </div>
       {panel?.mode === "edit" && (
         <Editor key={panel.target.key ?? "new"} target={panel.target} names={names} onClose={closePanel} onSaved={onSaved} />

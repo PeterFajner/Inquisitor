@@ -85,23 +85,26 @@ The canvas fills its container (`height: 100%`): give the parent a height.
 
 | prop | |
 |---|---|
-| `cards: CanvasCard[]` | `{id, x, y, w, h?, label?}`: world position of the top-left corner, width (the card is laid out at that CSS width), an estimated height until it's measured, an accessible name (also on its placeholder). Order = Tab order. |
+| `cards: CanvasCard[]` | `{id, x, y, w, h?, label?}`: world position of the top-left corner, width (the card is laid out at that CSS width), an estimated height until it's measured, an accessible name (also drawn on its placeholder, and the name of its keyboard stand-in). Order = Tab order. |
+| `renderCheap?(card, size)`, `cheapBelow?` | A cheaper rendering, fixed to the card's measured size, used for measured, unselected cards while the settled zoom is below `cheapBelow` (default 0.5). |
 | `renderCard(card, {selected})` | The card's content: ordinary Preact children (HTML, so text is selectable and accessible). **Keep it stable** (`useCallback`): a card re-renders only when its card object, position, selection or `renderCard` changes. Give a card a new object when its content changes. |
-| `wires?: CanvasWire[]` | `{from, to, fromSide?, toSide?, class?, style?}`: a curve between two cards (by id), drawn under the cards. Sides default to the facing ones (`left`/`right`/`top`/`bottom`). Default stroke `--wire`; style per wire with `class` or `style` (e.g. `{stroke: "var(--accent)", strokeDasharray: "4 4"}`). Wires whose box is off screen aren't drawn. |
-| `regions?: CanvasRegion[]` | `{id, title, icon?, x, y, w, h, class?}`: a titled area under the cards. The title is drawn above the region's top-left corner, over the cards, and grows as you zoom out so it stays readable (up to a twelfth of the region's width): leave `regionGap` room for it. A region with an `icon` gets a tab in the tab bar (top left) that flies to it; the tab of the region under the viewport's centre has `aria-current="true"`. |
+| `wires?: CanvasWire[]` | `{from, to, fromSide?, toSide?, class?, style?}`: a curve between two cards (by id), drawn under the cards. Sides default to the facing ones (`left`/`right`/`top`/`bottom`). Default stroke `--wire`; style per wire with `class` or `style` (e.g. `{stroke: "var(--accent)", strokeDasharray: "4 4"}`): wires are drawn on the placeholder canvas, each with the stroke, width, dashes and opacity a hidden `<path class="cv-wire …">` computes to (read once per class/style). Wires whose box is off screen aren't drawn. |
+| `regions?: CanvasRegion[]` | `{id, title, icon?, x, y, w, h, class?}`: a titled area under the cards. The title is drawn above the region's top-left corner, over the cards, and grows as you zoom out so it stays readable (up to a twelfth of the region's width): leave `regionGap` room for it. A region with an `icon` gets a tab in the tab bar (top left, or in the bar between `barStart` and `barEnd`) that flies to it; the tab of the region under the viewport's centre has `aria-current="true"`. |
 | `selected?`, `onSelect?(id \| null)` | Controlled selection. A click/tap on a card selects it (not when the click ended a text selection); a click/tap on the background or Escape selects nothing; Enter/Space on a focused card selects it. Selected cards get `data-selected` and `aria-current`. |
 | `onMove?(id, {x, y})` | Makes cards draggable; called on drop with the new world position (snapped). The card follows the pointer meanwhile; it goes back unless the caller updates its `x`/`y`. |
 | `snap?: number` | Grid step for dragged cards. |
-| `measure?: boolean` | Measure every card once, hidden, 40 per frame after fonts load (needed for masonry by measured height). Mounted cards are always measured (ResizeObserver). |
-| `onMeasure?(sizes)` | All measured sizes so far (`Map<id, {w, h}>`), at most once a frame. |
+| `measure?: boolean` | Measure every card without a known size once, hidden, after fonts load: rendered straight into a hidden box (no canvas re-render) in ~8 ms slices that yield in between, the batch size adapting to how long the last took (needed for masonry by measured height). Mounted cards are always measured (ResizeObserver). |
+| `initialSizes?` | Sizes known from before (e.g. a cache): used as if measured, and not measured hidden; a mounted card's own measurement replaces them. |
+| `onMeasure?(sizes)` | All sizes measured so far (`Map<id, {w, h}>`, not `initialSizes`): once a frame for mounted cards, about once a second while measuring hidden. |
 | `initialView?: View \| "fit"` | Default `"fit"`: fits all cards and regions, and keeps fitting while sizes arrive until the first pan/zoom. |
 | `onViewChange?(view)` | The view, 200 ms after it stops changing (e.g. to keep it in the URL). |
 | `minZoom?`, `maxZoom?` | Default 0.02 and 2.5. |
-| `placeholderBelow?` | Default 0.32: below this zoom cards are empty boxes (no content mounted). |
+| `placeholderBelow?` | Default 0.32: below this zoom cards are placeholders (no content mounted). |
 | `overscan?` | Default 700: screen pixels around the viewport whose cards stay mounted (doubled for placeholders). |
 | `minimap?` | Show the minimap at first (it has a toggle). |
 | `controls?` | Default true: the zoom in / zoom out / fit / minimap buttons (bottom right). |
 | `labels?` | `{zoomIn, zoomOut, fit, minimap, canvas?}`: the controls' `aria-label`s and tooltips. The defaults are English placeholders that need the owner's approval (AGENTS.md); pass approved words. |
+| `barStart?`, `barEnd?` | With either, the region tabs sit in a full-width bar along the top (`.cv-bar`), between these (the rules page puts the builder's home, + and rules controls first, so they stay in the same place on both pages). |
 | `apiRef?` | Receives a `CanvasApi`. |
 | `class?` | Extra class on the root. |
 
@@ -141,17 +144,35 @@ The canvas fills its container (`height: 100%`): give the parent a height.
 ## Performance
 
 Panning and zooming set a CSS transform on three layers (regions, then
-wires and cards, then region titles) without re-rendering. Preact re-renders only
-when the viewport leaves the mounted window (viewport + overscan), the zoom
-crosses `placeholderBelow`, or zooming in more than doubles. Each card is a
-memoised slot, so a re-render mounts and unmounts only the cards entering
-and leaving. `will-change: transform` is set only while moving, so text is
-re-rastered crisp when the view settles.
+cards, then region titles) and redraw one 2D canvas, without re-rendering.
+Preact re-renders only when the viewport leaves the mounted window
+(viewport + overscan), the zoom crosses `placeholderBelow`, or zooming in
+more than doubles.
 
-Measured in headless Chrome with the 867 cards of `data/rules`, at
-1280×800 and 390×844: panning with all 867 placeholders on screen and at
-zoom 1 (~30 cards mounted), and flinging 12,000 px across ~210 cards, run at
-a 16.7 ms median frame (p95 ≈ 18.5 ms).
+- **Placeholders and wires are drawn, not elements.** Every frame of a pan
+  the browser re-sorts the page's painted pieces ("Layerize"), and that
+  cost grows with each positioned or transformed box, each inline `<svg>`
+  and anything as large as a wires SVG: 900 placeholder boxes cost 50 ms a
+  frame on a 6× slowed CPU. So cards that aren't mounted are boxes (with
+  their names once legible) on one canvas under the cards, redrawn with the
+  view, and so are the wires; clicks and taps on them are hit-tested in
+  world coordinates. Keyboard users get transparent focusable stand-ins
+  (`.cv-ph`) over the placeholders once they Tab into the canvas.
+- **Cards are placed with left/top**, not a transform per card.
+- **Mounting is spread over frames.** Cards entering the window start as
+  placeholders and are mounted (or switched between cheap and full) a
+  budget's worth per frame (~8 ms, adapted per level from how long the
+  last frame's took), those on screen first, then nearest the centre
+  (`nextToMount`). Selected and dragged cards mount at once.
+- Callers should keep card content cheap to composite: the rules cards
+  draw their icons as `<img>`s (src/client/rules/icon.tsx), not inline SVG.
+
+Measured in headless Chrome with the 964 cards of `data/rules`
+(`scratchpad` scripts, rAF frame times while wheel-panning/zooming each
+frame): at 1280×800 and 390×844, with the CPU slowed 6×, panning at fit,
+0.35, 0.6 and 1 runs at a 16.7 ms median frame; a first visit's hidden
+measuring takes ~6 s of sliced background work at 6× (no long task over
+~400 ms), a repeat visit (stored heights) is ready in ~0.5 s.
 
 ## Layout helper
 
@@ -170,8 +191,7 @@ run left to right, wrapping to a new row past `rowWidth`. Deterministic.
 - Returns `{positions: Map<id, {x, y}>, regions: Map<id, Rect>, bounds}`.
 
 Typical use: pass `measure` and `onMeasure` to the canvas, keep the sizes
-in state, and recompute the layout from them; saved positions (moved
-cards) override the layout's.
+in state, and recompute the layout from them.
 
 ## Styling
 
@@ -181,5 +201,5 @@ regions, `--line` placeholders and region borders, `--wire` wires,
 Cards are styled by the caller's content; the slot (`.cv-card`) only
 positions it. Classes: `.cv` (root; `.is-moving` while the view moves,
 `.is-panning`, `.is-dragging`), `.cv-region`, `.cv-region-title`,
-`.cv-wire`, `.cv-card` (`.is-ph` placeholder, `.is-drag`), `.cv-tabs`,
+`.cv-wire` (on the hidden probe path only), `.cv-phs` (the placeholder canvas), `.cv-ph` (keyboard stand-ins), `.cv-card` (`.is-drag`; `data-level` 1 cheap, 2 full), `.cv-tabs`, `.cv-bar`,
 `.cv-controls`, `.cv-minimap`.

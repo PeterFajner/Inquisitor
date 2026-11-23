@@ -5,11 +5,12 @@
 // edited). Selected, it offers edit (signed in) and history.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { Coins, FilePenLine, GripVertical, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
+import { Coins, FilePenLine, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
 import type { EntryMeta } from "../../shared/api.ts";
 import { STATS, type Archetype, type Effect, type Entry, type Item, type Table } from "../../shared/rules/schema.ts";
 import { Chip, condText, Effects, EffectChip, Ic, KIND_ICON, KIND_LABEL } from "./chips/index.ts";
 import { cap, type Ctx } from "./ctx.ts";
+import { Icon } from "./icon.tsx";
 import { L } from "./labels.ts";
 
 export type CardActions = {
@@ -37,9 +38,8 @@ export function Card(p: CardProps) {
   return (
     <article class={`rc k-${e.kind}${p.flash ? " flash" : ""}${p.editing ? " editing" : ""}`}>
       <header>
-        <span class="rc-handle" data-canvas-handle role="img" aria-label={KIND_LABEL[e.kind]} title={KIND_LABEL[e.kind]}>
-          <KindIcon size={16} aria-hidden="true" />
-          <GripVertical class="grip" size={12} aria-hidden="true" />
+        <span class="rc-handle" role="img" aria-label={KIND_LABEL[e.kind]} title={KIND_LABEL[e.kind]}>
+          <Icon icon={KindIcon} size={16} />
         </span>
         <h3 class="name">
           {e.name}
@@ -49,7 +49,7 @@ export function Card(p: CardProps) {
         <span class="sp" />
         {e.points !== undefined && (
           <span class="meta" role="img" aria-label={`${L.points}: ${e.points}`} title={L.points}>
-            <Coins size={13} aria-hidden="true" />
+            <Icon icon={Coins} size={13} />
             {e.points}
           </span>
         )}
@@ -64,18 +64,18 @@ export function Card(p: CardProps) {
             setQuote(!quote);
           }}
         >
-          <Quote size={13} aria-hidden="true" />
+          <Icon icon={Quote} size={13} />
           {e.source.page}
-          {meta?.edited && <FilePenLine size={13} aria-hidden="true" />}
+          {meta?.edited && <Icon icon={FilePenLine} size={13} />}
         </button>
         {p.selected && (
           <span class="rc-actions">
             <button type="button" class="icon-btn icon-sm" aria-label={L.history} title={L.history} onClick={(ev) => (ev.stopPropagation(), p.actions.history(p.cardKey))}>
-              <History size={16} aria-hidden="true" />
+              <Icon icon={History} size={16} />
             </button>
             {p.signedIn && (
               <button type="button" class="icon-btn icon-sm" aria-label={L.edit} title={L.edit} onClick={(ev) => (ev.stopPropagation(), p.actions.edit(p.cardKey))}>
-                <Pencil size={16} aria-hidden="true" />
+                <Icon icon={Pencil} size={16} />
               </button>
             )}
           </span>
@@ -85,12 +85,12 @@ export function Card(p: CardProps) {
         <div class="rc-quote" data-canvas-nodrag>
           <div class="rc-quote-head">
             <span class={`meta${meta?.edited ? " stale" : ""}`}>
-              <Quote size={13} aria-hidden="true" />
+              <Icon icon={Quote} size={13} />
               {e.source.page}
               {meta?.edited && <Ic icon={FilePenLine} label={L.stale} />}
             </span>
             <button type="button" class="icon-btn icon-sm" aria-label={L.close} title={L.close} onClick={(ev) => (ev.stopPropagation(), setQuote(false))}>
-              <X size={14} aria-hidden="true" />
+              <Icon icon={X} size={14} />
             </button>
           </div>
           <blockquote>{e.source.text ?? ""}</blockquote>
@@ -109,8 +109,8 @@ export function CheapCard({ entry: e, h, flash }: { entry: Entry; h: number; fla
   return (
     <article class={`rc rc-cheap k-${e.kind}${flash ? " flash" : ""}`} style={{ height: `${h}px` }}>
       <header>
-        <span class="rc-handle" data-canvas-handle>
-          <KindIcon size={16} aria-hidden="true" />
+        <span class="rc-handle">
+          <Icon icon={KindIcon} size={16} />
         </span>
         <h3 class="name">{e.name}</h3>
       </header>

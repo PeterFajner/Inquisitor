@@ -15,8 +15,8 @@
 .cv.is-panning { cursor: grabbing; }
 .cv-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 .cv.is-moving .cv-layer { will-change: transform; }
-.cv.is-moving .cv-card { pointer-events: none; }
-.cv.is-dragging .cv-card { pointer-events: auto; }
+.cv.is-moving .cv-card, .cv.is-moving .cv-ph { pointer-events: none; }
+.cv.is-dragging .cv-card, .cv.is-dragging .cv-ph { pointer-events: auto; }
 .cv:not(.is-ready) .cv-layer { visibility: hidden; }
 
 /* Regions: an area under the cards (back layer); their titles sit above the
@@ -43,7 +43,8 @@
   pointer-events: none;
 }
 
-.cv-wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+/* Wires are drawn on the placeholder canvas; .cv-wire (plus the caller's class/style) on a hidden probe path gives each its look. */
+.cv-probe { position: absolute; width: 0; height: 0; visibility: hidden; pointer-events: none; }
 .cv-wire { fill: none; stroke: var(--wire); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
 
 .cv-card {
@@ -55,8 +56,12 @@
 }
 .cv-card:focus-visible { outline: 2px solid var(--focus); }
 .cv-card[data-selected] { outline: 3px solid var(--accent); }
-.cv-card.is-ph { background: var(--line); border-radius: 12px; }
-.cv-card.is-ph[data-selected] { background: var(--accent); }
+/* Cards not mounted: boxes drawn on one canvas (fills: --line, --accent when selected),
+   with transparent focusable stand-ins over them for keyboard users. */
+.cv-phs { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.cv:not(.is-ready) .cv-phs { visibility: hidden; }
+.cv-ph { position: absolute; border-radius: 12px; outline-offset: 3px; }
+.cv-ph:focus-visible { outline: 2px solid var(--focus); }
 .cv-card.is-drag { z-index: 1; box-shadow: var(--shadow); }
 .cv-measure { position: absolute; left: -100000px; top: 0; visibility: hidden; pointer-events: none; contain: layout style; }
 .cv-measure > .cv-card { position: relative; }
@@ -76,6 +81,13 @@
 }
 .cv-tabs { left: 12px; top: 12px; flex-wrap: wrap; max-width: calc(100% - 24px); }
 .cv-tabs .icon-btn[aria-current="true"] { background: var(--surface-2); border-color: var(--line); color: var(--accent); }
+/* The full-width bar (barStart/barEnd): the caller's controls either side of the tabs. */
+.cv-bar {
+  left: 0; right: 0; top: 0; align-items: center; flex-wrap: wrap; padding: 4px 8px;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: rgb(18 18 18 / 0.92);
+}
+.cv-bar .cv-tabs { position: static; max-width: none; flex-wrap: nowrap; flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 2px; padding: 0 8px; overflow-x: auto; scrollbar-width: none; }
+.cv-bar .cv-tabs .icon-btn { flex: none; }
 .cv-controls { right: 12px; bottom: 12px; flex-direction: column; }
 .cv-minimap {
   position: absolute;
@@ -100,4 +112,11 @@
   .cv-tabs .icon-btn { flex: none; }
   .cv-controls { right: 8px; bottom: 8px; }
   .cv-minimap { right: 60px; bottom: 8px; width: 150px; height: 104px; }
+}
+@media (max-width: 560px) {
+  /* the tabs take the bar's second row */
+  .cv-bar .cv-tabs { order: 3; flex-basis: 100%; min-height: 0; padding: 2px 0 0; }
+}
+@media (max-width: 420px) {
+  .cv-bar { padding: 4px; }
 }

@@ -3,7 +3,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
-  contains, cull, facingSides, fitView, flyPath, intersects, miniMapping, panBy, snap, toScreen, toWorld, union, visibleRect, wirePath, zoomAt,
+  adaptCount, contains, cull, facingSides, fitView, flyPath, intersects, miniMapping, nextToMount, panBy, snap, toScreen, toWorld, union, visibleRect, wirePath, zoomAt,
   type Rect, type View,
 } from "../src/client/canvas/geometry.ts";
 import { layoutRegions, type LayoutEntry } from "../src/client/canvas/layout.ts";
@@ -166,4 +166,28 @@ test("layout: auto columns aim at the aspect; rows wrap; wide entries span", () 
   const e = layoutRegions([{ id: "a" }, { id: "empty" }], [{ id: "lost", region: "nope", h: 10 }], { columnWidth: 100 });
   assert.equal(e.positions.size, 0);
   assert.ok(e.regions.get("empty"));
+});
+
+test("cards are mounted on-screen first, then nearest the centre, at most n", () => {
+  const screen: Rect = { x: 0, y: 0, w: 100, h: 100 };
+  const pending = [
+    { id: "far", rect: { x: 900, y: 900, w: 10, h: 10 } },
+    { id: "edge", rect: { x: 95, y: 95, w: 50, h: 50 } },
+    { id: "near", rect: { x: 120, y: 40, w: 10, h: 10 } },
+    { id: "mid", rect: { x: 45, y: 45, w: 10, h: 10 } },
+  ];
+  assert.deepEqual(nextToMount(pending, screen, 10), ["mid", "edge", "near", "far"]);
+  assert.deepEqual(nextToMount(pending, screen, 2), ["mid", "edge"]);
+  assert.deepEqual(nextToMount(pending, screen, 0), []);
+  // Ties keep input order.
+  const twins = [{ id: "a", rect: { x: 0, y: 0, w: 10, h: 10 } }, { id: "b", rect: { x: 0, y: 0, w: 10, h: 10 } }];
+  assert.deepEqual(nextToMount(twins, screen, 2), ["a", "b"]);
+});
+
+test("the per-frame count adapts to the time budget", () => {
+  assert.equal(adaptCount(4, 16, 8, 40), 2); // took twice the budget: halve
+  assert.equal(adaptCount(4, 1, 8, 40), 8); // much faster: at most double
+  assert.equal(adaptCount(4, 0, 8, 40), 8);
+  assert.equal(adaptCount(1, 500, 8, 40), 1); // never below one
+  assert.equal(adaptCount(30, 1, 8, 40), 40); // never above max
 });

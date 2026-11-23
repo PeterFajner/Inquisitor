@@ -151,3 +151,22 @@ export function miniMapping(r: Rect, box: Size, pad = 6) {
   const s = Math.min((box.w - 2 * pad) / Math.max(1, r.w), (box.h - 2 * pad) / Math.max(1, r.h));
   return { s, ox: (box.w - r.w * s) / 2 - r.x * s, oy: (box.h - r.h * s) / 2 - r.y * s };
 }
+
+/** Ids of the next `n` cards to mount: those meeting `screen` first, then the
+ * nearest to its centre (ties keep input order). */
+export function nextToMount(pending: readonly { id: string; rect: Rect }[], screen: Rect, n: number): string[] {
+  const c = center(screen);
+  const scored = pending.map((p, i) => {
+    const q = center(p.rect);
+    return { id: p.id, i, on: intersects(p.rect, screen) ? 0 : 1, d: Math.hypot(q.x - c.x, q.y - c.y) };
+  });
+  scored.sort((a, b) => a.on - b.on || a.d - b.d || a.i - b.i);
+  return scored.slice(0, Math.max(0, n)).map((s) => s.id);
+}
+
+/** How many to do next time so it takes about `budget` ms, given `n` took `took` ms:
+ * proportional, at most doubling, between 1 and `max`. */
+export function adaptCount(n: number, took: number, budget: number, max: number): number {
+  const next = took > 0 ? Math.round((n * budget) / took) : n * 2;
+  return clamp(Math.min(next, n * 2), 1, max);
+}

@@ -6,8 +6,13 @@
 .rules-page { position: fixed; inset: 0; display: flex; overflow: hidden; background: var(--bg); }
 .rules-canvas { position: relative; flex: 1; min-width: 0; height: 100%; }
 
-/* Tool bar (top right). */
-.rules-tools { right: 12px; top: 12px; }
+/* The bar (the canvas's barStart/barEnd): home, +, rules where the builder has them. */
+.rules-page .cv-bar .home { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius); }
+.rules-page .cv-bar .home img { display: block; }
+.rules-page .cv-bar .icon-btn { color: var(--ink); text-decoration: none; }
+.rules-page .cv-bar .icon-btn[aria-current="page"] { color: var(--accent); }
+.rules-page .list-toggle { display: none; }
+.rules-tools { display: flex; gap: 2px; margin-left: auto; }
 .menu-wrap { position: relative; }
 .menu {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 5;
@@ -25,9 +30,9 @@
 .icon-btn.icon-sm { width: 32px; height: 32px; }
 .icon-btn.icon-xs { width: 28px; height: 28px; }
 .icon-btn.danger { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
-@media (max-width: 599px) {
-  .rules-tools { right: 8px; top: auto; bottom: 8px; right: 60px; }
-  .rules-tools .menu { top: auto; bottom: calc(100% + 6px); }
+.menu.menu-left { right: auto; left: 0; }
+@media (max-width: 860px) {
+  .rules-page .list-toggle { display: inline-grid; }
 }
 
 /* ---- cards ---- */
@@ -50,8 +55,7 @@
 .rc .name { margin: 0; font: 650 15px/1.25 var(--font); }
 .rc .grp { color: var(--ink-2); font-size: 12px; }
 .rc .sp { flex: 1; }
-.rc-handle { display: inline-flex; align-items: center; color: var(--kc, var(--ink-2)); cursor: grab; touch-action: none; padding: 2px 0; }
-.rc-handle .grip { color: var(--ink-3); margin-left: -1px; }
+.rc-handle { display: inline-flex; align-items: center; color: var(--kc, var(--ink-2)); padding: 2px 0; }
 .rc .meta { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .quote-btn { border: 0; background: none; cursor: pointer; padding: 4px 4px; border-radius: 4px; min-height: 28px; }
 .quote-btn:hover { background: var(--surface-2); color: var(--ink); }

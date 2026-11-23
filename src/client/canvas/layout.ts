@@ -56,13 +56,16 @@ function masonry(entries: LayoutEntry[], columns: number, o: Required<Omit<Layou
     // The run of `span` columns whose tallest is lowest.
     let best = 0, bestTop = Infinity;
     for (let c = 0; c + span <= columns; c++) {
-      const top = Math.max(...tops.slice(c, c + span));
+      let top = tops[c];
+      for (let j = c + 1; j < c + span; j++) if (tops[j] > top) top = tops[j];
       if (top < bestTop - 1e-9) { best = c; bestTop = top; }
     }
     placed.push({ id: e.id, x: o.padding + best * step, y: o.padding + o.header + bestTop });
     for (let c = best; c < best + span; c++) tops[c] = bestTop + e.h + o.gap;
   }
-  const height = Math.max(0, ...tops) - (entries.length ? o.gap : 0);
+  let height = 0;
+  for (const t of tops) if (t > height) height = t;
+  if (entries.length) height -= o.gap;
   return {
     placed,
     w: 2 * o.padding + columns * o.columnWidth + (columns - 1) * o.gap,
