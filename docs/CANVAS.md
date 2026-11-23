@@ -11,6 +11,7 @@ src/client/canvas/
   index.ts       exports everything below
   Canvas.tsx     the component
   Minimap.tsx    the minimap (internal)
+  tiles.ts       cards drawn ahead into tiles (drawCard; internal)
   geometry.ts    pure maths: transforms, zoom, fit, culling, fly path, wires
   layout.ts      layoutRegions: masonry placement into regions
   canvas.css     styles (base.css tokens only)
@@ -99,7 +100,8 @@ The canvas fills its container (`height: 100%`): give the parent a height.
 | `initialView?: View \| "fit"` | Default `"fit"`: fits all cards and regions, and keeps fitting while sizes arrive until the first pan/zoom. |
 | `onViewChange?(view)` | The view, 200 ms after it stops changing (e.g. to keep it in the URL). |
 | `minZoom?`, `maxZoom?` | Default 0.02 and 2.5. |
-| `placeholderBelow?` | Default 0.32: below this zoom cards are placeholders (no content mounted). |
+| `placeholderBelow?` | Default 0.32: below this zoom cards are placeholders (no content mounted). Mounted cards stay until the zoom is 10% below it (no flapping around it). |
+| `drawCard?(g, card, scale)` | Draws a card that isn't mounted, on the placeholder canvas, instead of a plain box: in world units from the card's top-left, `scale` device pixels a world unit (draw less when small). Cards are drawn ahead into tiles (below); keep it stable: a new function redraws every card, and a card is redrawn when its object, position or size changes. A card mounted over its drawing fades in (0.18 s, none with reduced motion). Where no tile is drawn yet, cards are boxes of `--cv-ph` (default `--line`). |
 | `overscan?` | Default 700: screen pixels around the viewport whose cards stay mounted (doubled for placeholders). |
 | `minimap?` | Show the minimap at first (it has a toggle). |
 | `controls?` | Default true: the zoom in / zoom out / fit / minimap buttons (bottom right). |
@@ -149,6 +151,17 @@ Preact re-renders only when the viewport leaves the mounted window
 (viewport + overscan), the zoom crosses `placeholderBelow`, or zooming in
 more than doubles.
 
+- **Drawn cards come from tiles.** With `drawCard`, the world is cut into
+  512-device-pixel squares at levels of 2^L device pixels a world unit, each
+  drawn once into its own canvas (a few cards at a time, in idle callbacks,
+  nearest the centre first) and blitted with the view: a frame shows the
+  level at or above the view's scale (at most one above the mount
+  threshold's), stands in a coarser or finer tile until its own is drawn,
+  else plain boxes. A changed card marks the tiles it was and is on stale;
+  they keep showing until redrawn. At most 96 tiles are kept (LRU). While a
+  zoom gesture is below 0.9 × `placeholderBelow`, the mounted cards' layer
+  is `content-visibility: hidden` (`.cv-world.is-far`) over their drawings:
+  scaled far down, the browser repaints them at every step.
 - **Placeholders and wires are drawn, not elements.** Every frame of a pan
   the browser re-sorts the page's painted pieces ("Layerize"), and that
   cost grows with each positioned or transformed box, each inline `<svg>`
@@ -183,10 +196,12 @@ Measured in headless Chrome with the 964 cards of `data/rules`
 frame): at 1280×800 and 390×844, with the CPU slowed 6×, panning at fit,
 0.35, 0.6 and 1 runs at a 16.7 ms median frame. A 2 s trackpad-like pinch
 (ctrl+wheel every 8 ms, 1440×900 at 2×) from the whole board to readable,
-back and forth across 0.32/0.5, and around 1, runs at 16.7 ms frames at 1×
-(no frame over 33 ms) and has no long task over ~85 ms at 6×. The rules canvas measures
+back and forth across the mount threshold, and around 1, runs at a 16.7 ms
+median at 1× (no frame over 33.4 ms); at 6× the pinch across the threshold
+has a 33 ms p95 and a long task or two of ~130 ms (painting the full cards
+mounted from 0.33 at 2×). The rules canvas measures
 nothing: every card's size is worked out from its content (below), so a
-first visit is laid out at once (ready in ~0.65 s at 6×, no background work
+first visit is laid out at once (ready in ~0.55 s at 6×, no background work
 after).
 
 ## Card sizes without measuring (src/shared/layout)
@@ -214,9 +229,44 @@ is made wider.
   card out itself (~0.6 ms a card, ~3 ms at 6×).
 - Each card gets its worked-out height as `min-height`.
 - `npm run heights:check` renders every card in headless Chrome at a desktop
-  and a phone viewport and compares: run it after changing the cards'
-  markup or CSS. A CSS feature the engine doesn't know (or a new font) needs
-  the engine taught first.
+  and a phone viewport and compares, heights and where every word went
+  (below): run it after changing the cards' markup or CSS. A CSS feature
+  the engine doesn't know (or a new font) needs the engine taught first.
+
+## Cards too small to read (geometry, src/client/rules/greek.ts)
+
+Below the zoom at which its text would be readable, a rules card isn't
+mounted but drawn (the canvas's `drawCard`) from its geometry: the engine,
+asked to (`measure(el, w, true)`), also says where it put every box with a
+background, border or shadow, every word (left edge, width, baseline) and
+every icon, with their colours as the app's tokens (`var(--ink-2)`, drawn
+in the page's theme). `paint.ts` encodes a card's pieces compactly (a
+shared table of looks; rectangles in half pixels, each from the end of the
+one before; numbers as URL-safe characters, 5 bits each), served for every
+card at `GET /api/v1/rules/geometry` (same bake as the heights, fetched
+after them; ~720 KB, ~180 KB gzipped for the 964 cards), and worked out in
+the browser for a card worked out there. Words are bars over the band their
+letters fill (from 0.6 em above the baseline, 0.6 em tall) at 42% alpha
+(55% bold), which holds about the same ink as the text; chips, cells,
+rules and the card are drawn as they are; under ~2 device pixels a line,
+a line's words are one bar.
+
+- **The threshold**: a card is mounted once its body text's x-height
+  (13px Ubuntu: 6.8 CSS px) is 4.5 device pixels, the size under which
+  lowercase letters can't be told apart (9px text on a 1× screen, the
+  smallest UI text there is): zoom 0.67 at 1×, 0.33 at 2×, 0.22 at 3×
+  (`readableAt` in RulesCanvas.tsx; it follows `devicePixelRatio`). It
+  fades in over its drawing, the words seeming to sharpen in place.
+- **WebKit** (Safari, every iOS browser) floors line heights to whole
+  pixels: its cards are a little shorter than Chrome's (the server's
+  heights still hold as their slots), so there the geometry is worked out
+  in the browser with the engine in WebKit's lines (`wholeLines`, as each
+  card is first drawn; ~0.7 ms a card). Checked against headless WebKit:
+  964/964 heights within 0.5 px, every baseline exact.
+- heights:check compares each text node's words in Chrome with the
+  geometry's (left and right edges, baseline): within 1 px for every card
+  but one whose text has a character the fonts lack (drawn by a system
+  font, its width only guessed).
 
 ## Layout helper
 

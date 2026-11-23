@@ -2,7 +2,9 @@
 // one canvas, in the book's sections in book order, then a region per
 // extra pack. Every card is placed by layoutRegions from its size, worked
 // out rather than measured (./sizes.ts: the server's, else worked out here),
-// so a first visit lays everything out at once; saved positions (entry.pos)
+// so a first visit lays everything out at once. Cards too small to read
+// aren't mounted but drawn from their geometry (./greek.ts), and mounted
+// (fading in over the drawing) once their text would be readable; saved positions (entry.pos)
 // are ignored and cards aren't dragged. Wires join every
 // archetype and table to the tables it rolls on. Signed in, cards can be
 // edited, created and deleted; edits from others arrive live and the
@@ -17,12 +19,14 @@ import { AccountButton } from "../components/account/AccountButton.tsx";
 import { L as B } from "../builder/labels.ts";
 import { account } from "../lib/account.ts";
 import { useStore } from "../lib/store.ts";
-import { Card, CheapCard, type CardActions } from "./Card.tsx";
+import { decodeGeo, geoOf, type Geo } from "../../shared/layout/paint.ts";
+import { Card, type CardActions } from "./Card.tsx";
 import { ctxOf, namesOf, type RefKind } from "./ctx.ts";
 import { Editor, type EditTarget } from "./edit/Editor.tsx";
 import { HistoryPanel } from "./History.tsx";
 import { KIND_ICON, KIND_LABEL } from "./chips/index.ts";
-import { cardHeight, LAYOUT } from "./card-height.tsx";
+import { cardHeight, LAYOUT, WEBKIT } from "./card-height.tsx";
+import { drawBlank, drawGeo, X_HEIGHT } from "./greek.ts";
 import { COL, GAP, holds, widthOf } from "./sizes.ts";
 import { L } from "./labels.ts";
 import { connect, keyOf, load, parseKey, rules, type Item, type Key } from "./model.ts";
@@ -32,7 +36,20 @@ import { blankEntry } from "./edit/blank.ts";
 import "./rules.css";
 
 const EST_H = 200;
-const CHEAP_BELOW = 0.5;
+/**
+ * Cards are mounted (the browser draws their text) once their body text's
+ * x-height (13px Ubuntu: 6.8 CSS px) is this many device pixels, and drawn
+ * (./greek.ts) below that. Under about 4.5 pixels lowercase letters can't
+ * be told apart (it's 9px text on a 1× screen, the smallest UI text there
+ * is), so nothing readable is lost; measured in device pixels, a retina
+ * screen switches at the same physical size: zoom 0.67 at 1×, 0.33 at 2×,
+ * 0.22 at 3×.
+ */
+const READABLE_X_PX = 4.5;
+const BODY_PX = 13;
+const readableAt = (dpr: number) => READABLE_X_PX / (BODY_PX * X_HEIGHT * dpr);
+/** Screen pixels around the view whose cards stay mounted: few, since a card mounted late fades in over its drawing rather than popping in, and full cards are mounted from a low zoom. */
+const OVERSCAN = 250;
 const HIDDEN_KEY = "inquisitor:rules-hidden-packs";
 const ACTIVE_KEY = "inquisitor:rules-active-pack";
 /** Cards worked out here at once; more (no heights from the server) are worked out in slices. */
@@ -41,6 +58,8 @@ const SLICE_MS = 8;
 
 type RCard = CanvasCard & { item: Item; flash: boolean; editing: boolean };
 type Sized = { w: number; h: number };
+/** Where a card's geometry comes from: the server's (with its height), or worked out here. */
+type GeoSource = "server" | Geo;
 
 function readLocal(k: string): string | null {
   try {
@@ -144,29 +163,37 @@ export function RulesCanvas({ data }: { data: PageData }) {
   // Card sizes: the server's while they hold (same content, same names
   // looked up), else worked out here, at once for a few (an edit), in slices
   // for many (no heights from the server).
-  const worked = useRef(new Map<Key, { item: Item; names: unknown; size: Sized }>());
+  const worked = useRef(new Map<Key, { item: Item; names: unknown; size: Sized; geo: Geo }>());
   const [workedTick, setWorkedTick] = useState(0);
+  const geoSource = useRef(new Map<Key, GeoSource>());
   const computed = useMemo(() => {
     const out = new Map<Key, Sized>();
+    const src = new Map<Key, GeoSource>();
     const todo: { key: Key; it: Item }[] = [];
     const server = s.heights?.build === LAYOUT ? s.heights.cards : null;
     for (const { key, it } of ordered) {
       const rec = server?.[key];
       if (holds(rec, it.entry, !!it.meta?.edited, names)) {
         out.set(key, { w: rec.w, h: rec.h });
+        src.set(key, "server");
         continue;
       }
       const w = worked.current.get(key);
-      if (w && w.item === it && w.names === names) out.set(key, w.size);
-      else todo.push({ key, it });
+      if (w && w.item === it && w.names === names) {
+        out.set(key, w.size);
+        src.set(key, w.geo);
+      } else todo.push({ key, it });
     }
     if (todo.length <= AT_ONCE)
       for (const { key, it } of todo) {
         const r = cardHeight(key, it.entry, it.meta, names);
         const size = { w: r.w, h: r.h };
-        worked.current.set(key, { item: it, names, size });
+        const geo = geoOf(r.ops);
+        worked.current.set(key, { item: it, names, size, geo });
         out.set(key, size);
+        src.set(key, geo);
       }
+    geoSource.current = src;
     return out;
   }, [ordered, names, s.heights, workedTick]);
   useEffect(() => {
@@ -181,7 +208,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
       while (todo.length && performance.now() - t0 < SLICE_MS) {
         const { key, it } = todo.shift()!;
         const r = cardHeight(key, it.entry, it.meta, names);
-        worked.current.set(key, { item: it, names, size: { w: r.w, h: r.h } });
+        worked.current.set(key, { item: it, names, size: { w: r.w, h: r.h }, geo: geoOf(r.ops) });
       }
       if (!todo.length || performance.now() - last > 1000) {
         last = performance.now();
@@ -334,7 +361,54 @@ export function RulesCanvas({ data }: { data: PageData }) {
     },
     [names, go, signedIn, stableActions],
   );
-  const renderCheap = useCallback((c: CanvasCard, sz: Size) => <CheapCard entry={(c as RCard).item.entry} h={sz.h} flash={(c as RCard).flash} />, []);
+
+  // Cards too small to read: drawn from their geometry (the server's, decoded once, or worked out here;
+  // in WebKit always here, in its own lines: card-height.tsx).
+  const decoded = useRef({ of: null as unknown, geos: new Map<Key, Geo | null>() });
+  const ownGeo = useRef({ names: null as unknown, geos: new Map<Key, { item: Item; geo: Geo }>() });
+  const geometry = s.heights && s.geometry?.version === s.heights.version && s.geometry.build === LAYOUT ? s.geometry : null;
+  const drawCard = useCallback(
+    (g: CanvasRenderingContext2D, c: CanvasCard, scale: number) => {
+      if (WEBKIT) {
+        const it = (c as RCard).item;
+        if (ownGeo.current.names !== names) ownGeo.current = { names, geos: new Map() };
+        let own = ownGeo.current.geos.get(c.id);
+        if (own?.item !== it) {
+          own = { item: it, geo: geoOf(cardHeight(c.id, it.entry, it.meta, names, true).ops) };
+          ownGeo.current.geos.set(c.id, own);
+        }
+        drawGeo(g, own.geo, scale, c.h);
+        return;
+      }
+      const src = geoSource.current.get(c.id);
+      let geo: Geo | null | undefined = src === "server" ? undefined : src;
+      if (src === "server" && geometry) {
+        if (decoded.current.of !== geometry) decoded.current = { of: geometry, geos: new Map() };
+        geo = decoded.current.geos.get(c.id);
+        if (geo === undefined) {
+          const str = geometry.cards[c.id];
+          try {
+            geo = str === undefined ? null : decodeGeo(str, geometry.looks);
+          } catch {
+            geo = null;
+          }
+          decoded.current.geos.set(c.id, geo);
+        }
+      }
+      if (geo) drawGeo(g, geo, scale, c.h);
+      else drawBlank(g, c.w, c.h ?? EST_H);
+    },
+    [geometry, names],
+  );
+
+  // Device pixels per CSS pixel (a window moved to another screen changes it).
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+  useEffect(() => {
+    const mq = matchMedia(`(resolution: ${dpr}dppx)`);
+    const on = () => setDpr(window.devicePixelRatio || 1);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, [dpr]);
 
 
   // A card named in the address (#<pack>:<kind>/<id>) is shown once every card has its size (the layout has settled).
@@ -425,8 +499,9 @@ export function RulesCanvas({ data }: { data: PageData }) {
           <Canvas
             cards={cards}
             renderCard={renderCard}
-            renderCheap={renderCheap}
-            cheapBelow={CHEAP_BELOW}
+            drawCard={drawCard}
+            placeholderBelow={readableAt(dpr)}
+            overscan={OVERSCAN}
             wires={wires}
             regions={regions}
             selected={selected}

@@ -3,7 +3,7 @@
 // writes (src/shared/api.ts: SaveEntry, DeleteEntry, MoveEntry, RevertEntry,
 // NewPack). Keys are "<pack>:<kind>/<id>".
 import {
-  API, type EntryMeta, type NewPackResult, type RulesConflict, type RulesEvent, type RulesHeights, type RulesHistory,
+  API, type EntryMeta, type NewPackResult, type RulesConflict, type RulesEvent, type RulesGeometry, type RulesHeights, type RulesHistory,
   type RulesIssue, type RulesPayload, type RulesWriteResult,
 } from "../../shared/api.ts";
 import type { Entry, Pack } from "../../shared/rules/schema.ts";
@@ -32,16 +32,18 @@ export type RulesState = {
   flash: ReadonlyMap<Key, number>;
   /** Card sizes the server worked out (./sizes.ts), as of when the rules loaded; null if it couldn't. */
   heights: RulesHeights | null;
+  /** What those cards look like laid out (src/shared/layout/paint.ts), once it has arrived (after the rules). */
+  geometry: RulesGeometry | null;
 };
 
-export const rules = store<RulesState>({ loaded: false, failed: false, version: "", packs: [], items: new Map(), flash: new Map(), heights: null });
+export const rules = store<RulesState>({ loaded: false, failed: false, version: "", packs: [], items: new Map(), flash: new Map(), heights: null, geometry: null });
 
-/** The server's card sizes; it may still be working them out (202) for a moment. */
-async function loadHeights(): Promise<RulesHeights | null> {
+/** The server's card sizes (or geometry); it may still be working them out (202) for a moment. */
+async function loadHeights<T = RulesHeights>(what = "heights"): Promise<T | null> {
   for (let i = 0; i < 4; i++) {
     try {
-      const res = await fetch(`${API}/rules/heights`, { credentials: "same-origin" });
-      if (res.status === 200) return (await res.json()) as RulesHeights;
+      const res = await fetch(`${API}/rules/${what}`, { credentials: "same-origin" });
+      if (res.status === 200) return (await res.json()) as T;
       if (res.status !== 202) return null;
     } catch {
       return null;
@@ -60,6 +62,12 @@ function fromPayload(p: RulesPayload): Pick<RulesState, "version" | "packs" | "i
 
 export async function load(fresh = false): Promise<void> {
   const heights = loadHeights();
+  // The cards' geometry isn't needed to lay them out: it arrives when it does.
+  const geometry = loadHeights<RulesGeometry>("geometry");
+  void geometry.then(async (g) => {
+    await heights;
+    if (g) rules.set({ geometry: g });
+  });
   try {
     let payload: RulesPayload;
     if (fresh) {

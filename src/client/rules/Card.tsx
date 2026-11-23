@@ -106,21 +106,6 @@ export function Card(p: CardProps) {
   );
 }
 
-/** The cheap card for low zoom: the header alone at the full card's height. */
-export function CheapCard({ entry: e, h, flash }: { entry: Entry; h: number; flash?: boolean }) {
-  const KindIcon = KIND_ICON[e.kind];
-  return (
-    <article class={`rc rc-cheap k-${e.kind}${flash ? " flash" : ""}`} style={{ height: `${h}px` }}>
-      <header>
-        <span class="rc-handle">
-          <Icon icon={KindIcon} size={16} />
-        </span>
-        <h3 class="name">{e.name}</h3>
-      </header>
-    </article>
-  );
-}
-
 export function Body({ e, ctx }: { e: Entry; ctx: Ctx }): ComponentChildren {
   switch (e.kind) {
     case "archetype":

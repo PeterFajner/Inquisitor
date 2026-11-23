@@ -80,13 +80,17 @@ const BEFORE_OPEN = new Set([...")]}.,;:!?+=%\"°−&*#|\\~>"]);
 
 /**
  * Whether a line may break between the characters `a` and `b` (spaces
- * aside): after hyphens, en dashes, "?" and "…", around an em dash, and
- * before "(" or "[" after closing punctuation. Never at a slash.
+ * aside; `before` is the character before `a`): after hyphens (not a
+ * minus sign before a figure), en dashes, "?" and "…",
+ * around an em dash, and before "(" or "[" after closing punctuation. Never
+ * at a slash.
  */
-export function breakBetween(a: string, b: string): boolean {
+export function breakBetween(a: string, b: string, before = ""): boolean {
   if (!a || !b) return false;
   if (b === "-" || b === "‐" || b === "–") return false;
   if (a === "—" || b === "—") return a !== b;
+  // A hyphen-minus starting a word before a figure is a minus sign ("-30%"): kept with it ("3-4" may break).
+  if (a === "-" && b >= "0" && b <= "9" && (before === "" || before === " ")) return false;
   if (BREAK_AFTER.has(a)) return true;
   if ((b === "(" || b === "[") && BEFORE_OPEN.has(a)) return true;
   return false;

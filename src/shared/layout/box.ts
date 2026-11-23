@@ -6,6 +6,11 @@
 // fr tracks), tables (auto layout), images. Everything is in CSS pixels;
 // line heights are floored to 1/64 px as Chrome does (LayoutUnit).
 //
+// Asked to (measure(…, true)), it also says where everything went: boxes
+// with a background, border or shadow, each word of text (its left edge,
+// width and baseline), images (PaintOp; ./paint.ts encodes them), which the
+// rules canvas draws for cards too small to read.
+//
 // scripts/heights-check.ts compares it with Chrome for every card.
 import { computeStyle, lineHeightPx, parseCss, ROOT_STYLE, UA_CSS, type Len, type LNode, type Sheet, type Style, type Track } from "./css.ts";
 import { breakBetween, faceFor, textWidth, type Face } from "./text.ts";
@@ -22,9 +27,17 @@ const FIT = 1 / LU;
 
 type Metrics = { asc: number; desc: number };
 
+/** Where a laid-out element's pieces are, in CSS px from its border box's
+ * top-left: boxes with a background, border or shadow; each word of text
+ * (x, width, and y = its baseline; `n` its text node); images. */
+export type PaintOp =
+  | { t: "box"; x: number; y: number; w: number; h: number; s: Style }
+  | { t: "text"; x: number; y: number; w: number; s: Style; n?: LNode }
+  | { t: "img"; x: number; y: number; w: number; h: number; s: Style };
+
 /** Inline content, flattened: text, atomic inlines, forced breaks. */
 type Item =
-  | { k: "text"; s: Style; text: string; boxes: Style[]; edgeL: number; edgeR: number }
+  | { k: "text"; s: Style; text: string; boxes: Style[]; edgeL: number; edgeR: number; n?: LNode }
   | { k: "atomic"; box: Box; s: Style; boxes: Style[] }
   | { k: "br"; s: Style; boxes: Style[] };
 
@@ -43,7 +56,7 @@ function anon(parent: Style): Style {
   let a = anonCache.get(parent);
   if (!a) {
     a = { ...ROOT_STYLE, margin: [...ROOT_STYLE.margin], padding: [...ROOT_STYLE.padding], border: [0, 0, 0, 0] };
-    for (const k of ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "lineHeightIsNumber", "whiteSpace", "textAlign"] as const)
+    for (const k of ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "lineHeightIsNumber", "whiteSpace", "textAlign", "color", "vars"] as const)
       (a as Record<string, unknown>)[k] = parent[k];
     anonCache.set(parent, a);
   }
@@ -179,7 +192,7 @@ class Builder {
     const walk = (list: LNode[], ps: Style, boxes: Style[]) => {
       for (const k of list) {
         if (k.nodeType === 3) {
-          if (k.data !== undefined && k.data !== "") out.push({ k: "text", s: ps, text: String(k.data), boxes, edgeL: 0, edgeR: 0 });
+          if (k.data !== undefined && k.data !== "") out.push({ k: "text", s: ps, text: String(k.data), boxes, edgeL: 0, edgeR: 0, n: k });
           continue;
         }
         if (k.nodeType !== 1) continue;
@@ -297,12 +310,17 @@ function faceOf(s: Style): Face {
 }
 
 /** A style's line-height contribution: ascent and descent around the baseline, with half the leading each. */
+/** WebKit's line heights: whole pixels (Chrome's: 1/64 px). Set by the Layout measuring. */
+let wholeLines = false;
+
 function strut(s: Style): Metrics {
   const f = faceOf(s);
   const a = Math.round(f.ascent * s.fontSize);
   const d = Math.round(f.descent * s.fontSize);
-  const lh = floorLU(lineHeightPx(s, (f.ascent + f.descent + f.lineGap) * s.fontSize));
-  const half = floorLU((lh - (a + d)) / 2);
+  const px = lineHeightPx(s, (f.ascent + f.descent + f.lineGap) * s.fontSize);
+  const lh = wholeLines ? Math.floor(px + 1e-7) : floorLU(px);
+  // Half the leading, in whole pixels (Chrome: the baseline sits on a pixel).
+  const half = Math.floor((lh - (a + d)) / 2);
   return { asc: a + half, desc: lh - (a + half) };
 }
 
@@ -316,17 +334,24 @@ type Unit = {
   br: boolean;
   /** Its contributions to the line's height. */
   m: Metrics[];
+  /** When painting: its words (x from the unit's start) and atomic inline (top = its border box's height above the baseline). */
+  parts?: ({ x: number; w: number; it: Extract<Item, { k: "text" }> } | { x: number; top: number; ops: PaintOp[] })[];
 };
 
-function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => { w: number; h: number; base: number }): Unit[] {
+type Atomic = { w: number; h: number; base: number; ops?: PaintOp[] };
+
+function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => Atomic, paint = false): Unit[] {
   if (box.units) return box.units;
   const units: Unit[] = [];
-  let cur: Unit = { w: 0, sw: 0, br: false, m: [] };
+  const fresh = (): Unit => (paint ? { w: 0, sw: 0, br: false, m: [], parts: [] } : { w: 0, sw: 0, br: false, m: [] });
+  let cur: Unit = fresh();
   let last = "";
+  // The character before `last` ("" or " " at a word's start).
+  let prev = "";
   const metricsOf = (boxes: Style[], s: Style): Metrics[] => [...boxes, s].map(strut);
   const close = () => {
     units.push(cur);
-    cur = { w: 0, sw: 0, br: false, m: [] };
+    cur = fresh();
   };
   for (const it of box.items) {
     if (it.k === "br") {
@@ -354,6 +379,7 @@ function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => {
         }
       }
       cur.w = a.w + hMargin(it.s, 0);
+      if (paint && a.ops) cur.parts!.push({ x: lenPx(it.s.margin[3], 0), top: ma.asc - lenPx(it.s.margin[0], 0), ops: a.ops });
       cur.m = [...metricsOf(it.boxes, it.s).slice(0, -1), ma];
       close();
       last = "";
@@ -368,7 +394,11 @@ function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => {
     if (text) for (const x of m) if (!cur.m.includes(x)) cur.m.push(x);
     let seg = "";
     const flushSeg = () => {
-      if (seg) cur.w += textWidth(f, s.fontSize, seg);
+      if (seg) {
+        const sw = textWidth(f, s.fontSize, seg);
+        if (paint) cur.parts!.push({ x: cur.w, w: sw, it });
+        cur.w += sw;
+      }
       seg = "";
     };
     for (let i = 0; i < text.length; i++) {
@@ -401,7 +431,7 @@ function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => {
       } else if (last === " " && !wrap && cur.sw) {
         cur.w += cur.sw;
         cur.sw = 0;
-      } else if (wrap && last && breakBetween(last, ch)) {
+      } else if (wrap && last && breakBetween(last, ch, prev)) {
         flushSeg();
         close();
         cur.m = [...m];
@@ -412,6 +442,7 @@ function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => {
         cur.sw = 0;
       }
       seg += ch;
+      prev = last;
       last = ch;
     }
     flushSeg();
@@ -424,15 +455,17 @@ function unitsOf(box: Extract<Box, { t: "inline" }>, layoutAtomic: (b: Box) => {
   return units;
 }
 
-type Line = { w: number; asc: number; desc: number };
+/** A line box; when painting, its units and where each starts. */
+type Line = { w: number; asc: number; desc: number; placed?: { u: Unit; x: number }[] };
 
-function lineBreak(units: Unit[], width: number, s: Style): Line[] {
+function lineBreak(units: Unit[], width: number, s: Style, paint = false): Line[] {
   const base = strut(s);
   const lines: Line[] = [];
   let cur: Line | null = null;
   let trailing = 0;
   const add = (u: Unit) => {
-    if (!cur) cur = { w: 0, asc: base.asc, desc: base.desc };
+    if (!cur) cur = paint ? { w: 0, asc: base.asc, desc: base.desc, placed: [] } : { w: 0, asc: base.asc, desc: base.desc };
+    cur.placed?.push({ u, x: cur.w + trailing });
     cur.w += trailing + u.w;
     trailing = u.sw;
     for (const m of u.m) {
@@ -463,12 +496,48 @@ function lineBreak(units: Unit[], width: number, s: Style): Line[] {
 // Layout
 // ---------------------------------------------------------------------------
 
-type Result = { h: number; base: number | null };
+/** A box laid out: its border-box height, first baseline, and when painting what's in it (`deco` its own box, also ops[0]). */
+type Result = { h: number; base: number | null; ops?: PaintOp[]; deco?: Extract<PaintOp, { t: "box" }> };
+
+/** Moves a child's paint into its parent's, `dy` down (its own box `decoDy`). */
+function place(out: PaintOp[], r: Result, dx: number, dy: number, decoDy = dy): void {
+  if (!r.ops) return;
+  for (const o of r.ops) {
+    o.x += dx;
+    o.y += o === r.deco ? decoDy : dy;
+    out.push(o);
+  }
+}
+
+/** A box's own paint, if it has any: a background, a visible border, a shadow. */
+function decoOf(s: Style, w: number, h: number): Extract<PaintOp, { t: "box" }> | undefined {
+  const border = s.border.some((b, i) => b > 0 && s.borderStyle[i] !== "none" && s.borderStyle[i] !== "hidden");
+  if (!s.background && !border && !s.shadow) return undefined;
+  return { t: "box", x: 0, y: 0, w, h, s };
+}
+
+/** Where a line starts, for its text-align (an overflowing line starts at the start). */
+function alignOffset(s: Style, room: number): number {
+  if (room <= 0) return 0;
+  if (s.textAlign === "right" || s.textAlign === "end") return room;
+  if (s.textAlign === "center") return room / 2;
+  return 0;
+}
+
+/** A flex or grid item's place in its line or row: what's above it, whether it stretches. */
+function crossOffset(align: string, room: number): number {
+  if (align === "center") return room / 2;
+  if (align === "flex-end" || align === "end") return room;
+  return 0;
+}
+const stretches = (k: Box, align: string) => (align === "normal" || align === "stretch") && k.s.height === "auto";
 
 export class Layout {
   private builder: Builder;
-  constructor(sheet: Sheet) {
+  private wholeLines: boolean;
+  constructor(sheet: Sheet, opts: LayoutOptions = {}) {
     this.builder = new Builder(sheet);
+    this.wholeLines = !!opts.wholeLines;
   }
 
   /** The border-box height of `el` laid out at border-box width `width` (its ancestors give it their inherited styles). */
@@ -476,16 +545,23 @@ export class Layout {
     return this.measure(el, width).h;
   }
 
-  /** The border-box height of `el` at a width, and whether anything in it scrolls sideways (content wider than a scroll container). */
-  measure(el: LNode, width: number): { h: number; overflow: boolean } {
+  /** The border-box height of `el` at a width, and whether anything in it scrolls sideways (content wider than a scroll container); with `paint`, where everything in it went. */
+  measure(el: LNode, width: number, paint = false): { h: number; overflow: boolean; ops?: PaintOp[] } {
     const box = this.builder.element(el, this.parentStyle(el));
-    if (!box) return { h: 0, overflow: false };
+    if (!box) return { h: 0, overflow: false, ops: paint ? [] : undefined };
     this.overflow = false;
-    const h = roundLU(this.layout(box, width, width).h);
-    return { h, overflow: this.overflow };
+    this.painting = paint;
+    wholeLines = this.wholeLines;
+    try {
+      const r = this.layout(box, width, width);
+      return { h: roundLU(r.h), overflow: this.overflow, ops: r.ops };
+    } finally {
+      this.painting = false;
+    }
   }
 
   private overflow = false;
+  private painting = false;
 
   private parentStyle(el: LNode): Style {
     const chain: LNode[] = [];
@@ -520,7 +596,7 @@ export class Layout {
         w = b.w;
         break;
       case "inline": {
-        const units = unitsOf(b, (a) => this.atomic(a));
+        const units = unitsOf(b, (a) => this.atomic(a), this.painting);
         if (which === "min") for (const u of units) w = Math.max(w, u.w);
         else {
           let line = 0, trailing = 0;
@@ -578,36 +654,60 @@ export class Layout {
   layout(b: Box, w: number, cb: number): Result {
     const r = this.layoutBox(b, w, cb);
     if (this.trace && b.n) this.trace.set(b.n, { w, h: r.h });
+    if (this.painting) {
+      r.ops ??= [];
+      const deco = decoOf(b.s, w, r.h);
+      if (deco) {
+        r.deco = deco;
+        r.ops.unshift(deco);
+      }
+    }
     return r;
   }
 
   private layoutBox(b: Box, w: number, cb: number): Result {
     const s = b.s;
+    const paint = this.painting;
+    // Where the content box starts.
+    const top = lenPx(s.padding[0], cb) + s.border[0];
+    const left = lenPx(s.padding[3], cb) + s.border[3];
     switch (b.t) {
       case "img":
-        return { h: b.h, base: b.h };
+        return { h: b.h, base: b.h, ops: paint ? [{ t: "img", x: 0, y: 0, w: b.w, h: b.h, s }] : undefined };
       case "inline": {
         const inner = w - hPad(s, cb);
-        const lines = lineBreak(unitsOf(b, (a) => this.atomic(a)), inner, s);
+        const lines = lineBreak(unitsOf(b, (a) => this.atomic(a), paint), inner, s, paint);
         let h = 0;
-        for (const l of lines) h += l.asc + l.desc;
-        const top = lenPx(s.padding[0], cb) + s.border[0];
-        return { h: clampH(s, h + vPad(s, cb), cb), base: lines.length ? top + lines[0].asc : null };
+        const ops: PaintOp[] | undefined = paint ? [] : undefined;
+        for (const l of lines) {
+          if (ops) {
+            const x0 = left + alignOffset(s, inner - l.w);
+            const baseline = top + h + l.asc;
+            for (const { u, x } of l.placed!)
+              for (const p of u.parts!) {
+                if ("it" in p) ops.push({ t: "text", x: x0 + x + p.x, y: baseline, w: p.w, s: p.it.s, n: p.it.n });
+                else for (const o of p.ops) ops.push({ ...o, x: o.x + x0 + x + p.x, y: o.y + baseline - p.top });
+              }
+          }
+          h += l.asc + l.desc;
+        }
+        return { h: clampH(s, h + vPad(s, cb), cb), base: lines.length ? top + lines[0].asc : null, ops };
       }
       case "block": {
         const inner = w - hPad(s, cb);
         let h = 0;
         let base: number | null = null;
-        const top = lenPx(s.padding[0], cb) + s.border[0];
+        const ops: PaintOp[] | undefined = paint ? [] : undefined;
         for (const k of b.kids) {
           const kw = this.fillWidth(k, inner);
           if (s.overflowX !== "visible" && kw + hMargin(k.s, inner) > inner + 0.01) this.overflow = true;
           const r = this.layout(k, kw, inner);
           const mt = lenPx(k.s.margin[0], inner);
           if (base === null && r.base !== null) base = top + h + mt + r.base;
+          if (ops) place(ops, r, left + lenPx(k.s.margin[3], inner), top + h + mt);
           h += r.h + vMargin(k.s, inner);
         }
-        return { h: clampH(s, h + vPad(s, cb), cb), base };
+        return { h: clampH(s, h + vPad(s, cb), cb), base, ops };
       }
       case "flex":
         return s.flexDirection.startsWith("column") ? this.flexColumn(b, w, cb) : this.flexRow(b, w, cb);
@@ -619,10 +719,10 @@ export class Layout {
   }
 
   /** An atomic inline's size and baseline (shrink-to-fit width). */
-  private atomic(b: Box): { w: number; h: number; base: number } {
+  private atomic(b: Box): Atomic {
     const w = b.t === "img" ? b.w : this.shrinkToFit(b, Infinity);
     const r = this.layout(b, w, w);
-    return { w, h: r.h, base: r.base ?? r.h };
+    return { w, h: r.h, base: r.base ?? r.h, ops: r.ops };
   }
 
   private shrinkToFit(b: Box, avail: number): number {
@@ -687,10 +787,14 @@ export class Layout {
     let h = 0;
     let base: number | null = null;
     const top = lenPx(s.padding[0], cb) + s.border[0];
+    const left = lenPx(s.padding[3], cb) + s.border[3];
+    const ops: PaintOp[] | undefined = this.painting ? [] : undefined;
+    const placedLines: { rs: { it: (typeof items)[number]; r: Result }[]; lh: number; lineTop: number }[] = [];
     lines.forEach((l, li) => {
       const rs = l.map((it) => ({ it, r: this.layout(it.k, it.size, inner) }));
       let lh = 0;
       for (const { it, r } of rs) lh = Math.max(lh, r.h + vMargin(it.k.s, inner));
+      const lineTop = top + h + (li ? s.rowGap : 0);
       if (li === 0 && rs.length) {
         const { it, r } = rs[0];
         const align = it.k.s.alignSelf !== "auto" ? it.k.s.alignSelf : s.alignItems;
@@ -698,9 +802,28 @@ export class Layout {
         const off = align === "center" ? (lh - outerH) / 2 : align === "flex-end" || align === "end" ? lh - outerH : 0;
         base = top + off + lenPx(it.k.s.margin[0], inner) + (r.base ?? r.h);
       }
+      if (ops) placedLines.push({ rs, lh, lineTop });
       h += lh + (li ? s.rowGap : 0);
     });
-    return { h: clampH(s, h + vPad(s, cb), cb), base };
+    const outer = clampH(s, h + vPad(s, cb), cb);
+    if (ops) {
+      // Room the content box has beyond its lines (a min-height) goes to the lines alike (align-content: normal).
+      const extra = placedLines.length ? Math.max(0, outer - vPad(s, cb) - h) / placedLines.length : 0;
+      placedLines.forEach(({ rs, lh, lineTop }, li) => {
+        const cross = lh + extra;
+        let x = left;
+        for (const { it, r } of rs) {
+          const ks = it.k.s;
+          const align = ks.alignSelf !== "auto" ? ks.alignSelf : s.alignItems;
+          const outerH = r.h + vMargin(ks, inner);
+          if (r.deco && stretches(it.k, align)) r.deco.h = cross - vMargin(ks, inner);
+          x += lenPx(ks.margin[3], inner);
+          place(ops, r, x, lineTop + li * extra + crossOffset(align, cross - outerH) + lenPx(ks.margin[0], inner));
+          x += it.size + lenPx(ks.margin[1], inner) + gap;
+        }
+      });
+    }
+    return { h: outer, base, ops };
   }
 
   private resolveFlex(line: { k: Box; base: number; hyp: number; min: number; max: number; outer: number; size: number; frozen: boolean }[], space: number) {
@@ -746,6 +869,8 @@ export class Layout {
     let h = 0;
     let base: number | null = null;
     const top = lenPx(s.padding[0], cb) + s.border[0];
+    const left = lenPx(s.padding[3], cb) + s.border[3];
+    const ops: PaintOp[] | undefined = this.painting ? [] : undefined;
     b.kids.forEach((k, i) => {
       const align = k.s.alignSelf !== "auto" ? k.s.alignSelf : s.alignItems;
       const avail = inner - hMargin(k.s, inner);
@@ -758,9 +883,13 @@ export class Layout {
       if (isFixed(fb) && !fb.pct) kh = Math.max(kh, fb.px);
       if (i) h += s.rowGap;
       if (base === null && r.base !== null) base = top + h + lenPx(k.s.margin[0], inner) + r.base;
+      if (ops) {
+        if (r.deco) r.deco.h = kh;
+        place(ops, r, left + lenPx(k.s.margin[3], inner) + crossOffset(align, avail - kw), top + h + lenPx(k.s.margin[0], inner));
+      }
       h += kh + vMargin(k.s, inner);
     });
-    return { h: clampH(s, h + vPad(s, cb), cb), base };
+    return { h: clampH(s, h + vPad(s, cb), cb), base, ops };
   }
 
   // --- grid ---------------------------------------------------------------------
@@ -828,23 +957,42 @@ export class Layout {
     const placed = this.placement(b, n);
     const rowH: number[] = [];
     const rowBase: (number | null)[] = [];
+    const done: { p: (typeof placed)[number]; r: Result; cw: number; align: string }[] = [];
     for (const p of placed) {
       let cw = 0;
       for (let i = p.col; i < p.col + p.span; i++) cw += cols[i];
       cw += s.columnGap * (p.span - 1);
       const fixed = specified(p.k.s, p.k.s.width, cw, true);
       const align = p.k.s.alignSelf !== "auto" ? p.k.s.alignSelf : s.alignItems;
-      void align;
       const kw = fixed ?? clampW(p.k.s, cw - hMargin(p.k.s, cw), cw);
       const r = this.layout(p.k, kw, cw);
       const oh = r.h + vMargin(p.k.s, cw);
       rowH[p.row] = Math.max(rowH[p.row] ?? 0, oh);
       if (rowBase[p.row] === undefined && r.base !== null) rowBase[p.row] = lenPx(p.k.s.margin[0], cw) + r.base;
+      if (this.painting) done.push({ p, r, cw, align });
     }
     let h = 0;
     rowH.forEach((x, i) => (h += (x ?? 0) + (i ? s.rowGap : 0)));
     const top = lenPx(s.padding[0], cb) + s.border[0];
-    return { h: clampH(s, h + vPad(s, cb), cb), base: rowBase[0] !== undefined && rowBase[0] !== null ? top + rowBase[0] : null };
+    let ops: PaintOp[] | undefined;
+    if (this.painting) {
+      ops = [];
+      const left = lenPx(s.padding[3], cb) + s.border[3];
+      const colX: number[] = [];
+      cols.reduce((x, c, i) => ((colX[i] = x), x + c + s.columnGap), left);
+      const rowY: number[] = [];
+      for (let i = 0, y = top; i < rowH.length; i++) {
+        rowY[i] = y;
+        y += (rowH[i] ?? 0) + s.rowGap;
+      }
+      for (const { p, r, cw, align } of done) {
+        const ks = p.k.s;
+        const room = (rowH[p.row] ?? 0) - r.h - vMargin(ks, cw);
+        if (r.deco && stretches(p.k, align)) r.deco.h = r.h + room;
+        place(ops, r, colX[p.col] + lenPx(ks.margin[3], cw), rowY[p.row] + lenPx(ks.margin[0], cw) + crossOffset(align, room));
+      }
+    }
+    return { h: clampH(s, h + vPad(s, cb), cb), base: rowBase[0] !== undefined && rowBase[0] !== null ? top + rowBase[0] : null, ops };
   }
 
   // --- tables -------------------------------------------------------------------
@@ -880,16 +1028,31 @@ export class Layout {
     } else widths = this.share(cols, inner, sumMin, sumMax);
     let h = 0;
     let base: number | null = null;
+    const ops: PaintOp[] | undefined = this.painting ? [] : undefined;
+    const top = lenPx(s.padding[0], cb) + s.border[0];
+    const left = lenPx(s.padding[3], cb) + s.border[3];
     for (const row of b.rows) {
       let rh = 0;
-      row.forEach((c, i) => {
+      const rs = row.map((c, i) => {
         const r = this.layout(c, widths[i] ?? 0, widths[i] ?? 0);
         rh = Math.max(rh, r.h);
         if (base === null && r.base !== null) base = r.base;
+        return r;
       });
+      if (ops) {
+        // Cells are as tall as their row; their content sits in the middle unless told otherwise.
+        let x = left;
+        rs.forEach((r, i) => {
+          const va = row[i].s.verticalAlign;
+          const off = va === "top" ? 0 : va === "bottom" ? rh - r.h : (rh - r.h) / 2;
+          if (r.deco) r.deco.h = rh;
+          place(ops, r, x, top + h + off, top + h);
+          x += widths[i] ?? 0;
+        });
+      }
       h += rh;
     }
-    return { h: clampH(s, h + vPad(s, cb), cb), base: base === null ? null : base + lenPx(s.padding[0], cb) + s.border[0] };
+    return { h: clampH(s, h + vPad(s, cb), cb), base: base === null ? null : base + top, ops };
   }
 
   private share(cols: { min: number; max: number }[], inner: number, sumMin: number, sumMax: number): number[] {
@@ -899,10 +1062,13 @@ export class Layout {
   }
 }
 
+/** `wholeLines`: lay out as WebKit (Safari) does, line heights floored to whole pixels; else as Chrome does. */
+export type LayoutOptions = { wholeLines?: boolean };
+
 /** A layout engine for some CSS (the app's stylesheets, joined). */
-export function createLayout(css: string): Layout {
+export function createLayout(css: string, opts: LayoutOptions = {}): Layout {
   const sheet = parseCss(UA_CSS, undefined, 0);
   parseCss(css, sheet, 1);
-  return new Layout(sheet);
+  return new Layout(sheet, opts);
 }
 

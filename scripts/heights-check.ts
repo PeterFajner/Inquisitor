@@ -1,7 +1,9 @@
 // Checks the worked-out card heights (src/client/rules/card-height.tsx,
 // src/shared/layout) against Chrome: every card of data/rules rendered for
 // real in headless Chrome, at a desktop and a phone viewport, next to the
-// height worked out for it. Run it after changing the cards' markup or CSS:
+// height worked out for it, and every text node's line boxes next to the
+// geometry worked out for it (src/shared/layout/paint.ts: the drawings of
+// cards too small to read). Run it after changing the cards' markup or CSS:
 //
 //   npm run heights:check [-- --url http://127.0.0.1:3000] [--out report.json] [--show 15]
 //
@@ -10,7 +12,8 @@
 // (CHROME=/path/to/chrome, else the usual places); talks to it over the
 // DevTools protocol, no dependencies. Exits 1 when a card is taller than
 // worked out by more than half a pixel (it would overflow its slot until
-// mounted and measured).
+// mounted and measured), or when a card's text is more than a pixel from
+// where its geometry puts it (its drawing wouldn't line up with it).
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -29,7 +32,9 @@ if (!args.url) {
 }
 const { clientOptions, cssTextPlugin, layoutBuild } = await import("./client.ts");
 
-type Row = { key: string; w: number; real: number; calc: number };
+type Row = { key: string; w: number; real: number; calc: number; geo: { x: number; r: number; y: number; unpaired: number; approx: boolean } };
+/** How far (px) a card's text may be from its geometry. */
+const GEO_TOLERANCE = 1;
 
 const CHROMES = [
   process.env.CHROME,
@@ -188,6 +193,19 @@ try {
     for (const x of [...under.slice(0, show), ...over.slice(0, show)])
       console.log(`  ${x.d > 0 ? "taller" : "shorter"} ${Math.abs(x.d).toFixed(2).padStart(7)}  real ${x.real.toFixed(2).padStart(8)}  calc ${x.calc.toFixed(2).padStart(8)}  w ${x.w}  ${x.key}`);
     if (under.length) failed = true;
+    // Text against geometry.
+    const off = r.rows.map((x) => ({ ...x, worst: Math.max(x.geo.x, x.geo.r, x.geo.y) })).sort((a, b) => b.worst - a.worst || b.geo.unpaired - a.geo.unpaired);
+    // A card with a character the fonts lack (drawn by a system font) is only as close as that guess.
+    const bad = off.filter((x) => !x.geo.approx && (x.worst > GEO_TOLERANCE || x.geo.unpaired));
+    const approx = off.filter((x) => x.geo.approx && (x.worst > GEO_TOLERANCE || x.geo.unpaired));
+    const q = (k: "x" | "r" | "y") => Math.max(0, ...r.rows.filter((x) => !x.geo.approx).map((x) => x.geo[k])).toFixed(2);
+    console.log(
+      `  text vs geometry: ${r.rows.length - bad.length - approx.length} cards within ${GEO_TOLERANCE} px (max left ${q("x")}, right ${q("r")}, baseline ${q("y")} px), ${bad.length} not` +
+        (approx.length ? `, ${approx.length} with a character the fonts lack (${approx.map((x) => x.key).join(", ")})` : ""),
+    );
+    for (const x of bad.slice(0, show))
+      console.log(`    left ${x.geo.x.toFixed(2)}  right ${x.geo.r.toFixed(2)}  baseline ${x.geo.y.toFixed(2)}  unpaired ${x.geo.unpaired}  ${x.key}`);
+    if (bad.length) failed = true;
   }
 } finally {
   browser.close();

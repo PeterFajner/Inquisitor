@@ -2,6 +2,7 @@
 //   GET  /api/v1/rules                 every pack, its entries and their git meta (ETag = version)
 //   GET  /api/v1/rules/heights         every card's size on the rules canvas (ETag = version + layout build;
 //                                      202 while being worked out, 404 when this server can't)
+//   GET  /api/v1/rules/geometry        every card's geometry (src/shared/layout/paint.ts; as /heights)
 //   GET  /api/v1/rules/events          Server-Sent Events: one per commit
 //   GET  /api/v1/rules/history         ?pack&kind&id: the entry's commits
 //   GET  /api/v1/balance               ?version&archetype&subtype: the power-score distribution
@@ -85,19 +86,22 @@ export function rulesRoutes(router: Router): void {
     ctx.res.end(ctx.req.method === "HEAD" ? undefined : body);
   });
 
-  router.get(`${API}/rules/heights`, async (ctx) => {
-    const h = await currentHeights();
-    if (h === "unavailable") return sendJson(ctx, { error: "not_found" }, 404);
-    if (h === "pending") return sendJson(ctx, { pending: true }, 202, { "retry-after": "1" });
-    const etag = h.etag;
-    if (ctx.req.headers["if-none-match"] === etag) {
-      ctx.res.writeHead(304, { etag });
-      ctx.res.end();
-      return;
-    }
-    ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
-    ctx.res.end(ctx.req.method === "HEAD" ? undefined : h.body);
-  });
+  // The cards' heights, and their geometry: the same bake, served apart (the heights are wanted first).
+  for (const [path, geometry] of [["heights", false], ["geometry", true]] as const) {
+    router.get(`${API}/rules/${path}`, async (ctx) => {
+      const h = await currentHeights(geometry);
+      if (h === "unavailable") return sendJson(ctx, { error: "not_found" }, 404);
+      if (h === "pending") return sendJson(ctx, { pending: true }, 202, { "retry-after": "1" });
+      const etag = h.etag;
+      if (ctx.req.headers["if-none-match"] === etag) {
+        ctx.res.writeHead(304, { etag });
+        ctx.res.end();
+        return;
+      }
+      ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
+      ctx.res.end(ctx.req.method === "HEAD" ? undefined : h.body);
+    });
+  }
 
   router.get(`${API}/rules/events`, (ctx) => {
     rulesEvents.subscribe(ctx);

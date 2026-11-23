@@ -1,8 +1,11 @@
 // A small CSS engine for the card layout (./box.ts): parses the app's own
 // stylesheets, matches their selectors against a DOM-like tree and works out
-// the computed values that decide a box's size. Only what sizes boxes is
-// kept (display, box model, flex, grid, fonts, white-space…); colours and
-// the rest are dropped. Rules inside @media, and selectors with pseudo
+// the computed values that decide a box's size (display, box model, flex,
+// grid, fonts, white-space…), and the few that decide what a card looks like
+// from afar (./paint.ts): colours, backgrounds, border colours and styles,
+// radii, shadows. Colours are kept as the app's tokens ("var(--ink-2)"), not
+// their values, so the browser draws them in its own theme. The rest is
+// dropped. Rules inside @media, and selectors with pseudo
 // classes it can't know statically (:hover, :focus, :has…), never match:
 // the cards' size must not depend on them.
 
@@ -210,8 +213,8 @@ export function parseCss(text: string, sheet: Sheet = { byKey: new Map(), vars: 
       if (c < 0) continue;
       const prop = d.slice(0, c).trim().toLowerCase();
       const value = d.slice(c + 1).replace(/!important/, "").trim();
-      if (prop.startsWith("--")) {
-        if (sel === ":root") sheet.vars.set(prop, value);
+      if (prop.startsWith("--") && sel === ":root") {
+        sheet.vars.set(prop, value);
         continue;
       }
       decls.push([prop, value]);
@@ -314,9 +317,22 @@ export type Style = {
   lineHeightIsNumber: boolean;
   whiteSpace: string;
   textAlign: string;
+  // What it looks like (./paint.ts): colours as tokens ("var(--ink)") or literals.
+  /** Inherited. */
+  color: string;
+  /** Inherited: custom properties set below :root (e.g. a card kind's --kc). */
+  vars: Map<string, string> | null;
+  background: string | null;
+  /** Per side (top, right, bottom, left); null = currentColor. */
+  borderColor: [string | null, string | null, string | null, string | null];
+  borderStyle: [string, string, string, string];
+  /** The top-left radius (the cards round every corner alike). */
+  radius: number;
+  /** "x y colour" (no blur), or a token holding one. */
+  shadow: string | null;
 };
 
-const INHERITED = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "lineHeightIsNumber", "whiteSpace", "textAlign"] as const;
+const INHERITED = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "lineHeightIsNumber", "whiteSpace", "textAlign", "color", "vars"] as const;
 
 export const ROOT_STYLE: Style = {
   display: "block", position: "static", boxSizing: "content-box",
@@ -328,6 +344,7 @@ export const ROOT_STYLE: Style = {
   overflowX: "visible", overflowY: "visible", verticalAlign: "baseline", borderCollapse: "separate",
   fontFamily: "serif", fontSize: 16, fontWeight: 400, fontStyle: "normal", lineHeight: "normal", lineHeightIsNumber: false,
   whiteSpace: "normal", textAlign: "start",
+  color: "black", vars: null, background: null, borderColor: [null, null, null, null], borderStyle: ["none", "none", "none", "none"], radius: 0, shadow: null,
 };
 
 function px(n: number): Len {
@@ -341,6 +358,34 @@ function resolveVars(v: string, vars: Map<string, string>, depth = 0): string {
     vars,
     depth + 1,
   );
+}
+
+/** A paint value with custom properties set below :root substituted, the app's tokens (:root's) kept as var(): the browser resolves those in its theme. */
+function resolvePaint(v: string, own: Map<string, string> | null, root: Map<string, string>, depth = 0): string {
+  if (depth > 8 || !v.includes("var(")) return v.trim();
+  let again = false;
+  const out = v.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g, (all, name: string, fb?: string) => {
+    const mine = own?.get(name);
+    if (mine !== undefined) return (again = true), mine;
+    if (root.has(name)) return `var(${name})`;
+    return fb === undefined ? "" : ((again = true), fb);
+  });
+  return again ? resolvePaint(out, own, root, depth + 1) : out.trim();
+}
+
+const COLOUR_WORD = /^(var\(--[\w-]+\)|#[\da-f]{3,8}|(?:rgba?|hsla?)\([^)]*\)|transparent|currentcolor|[a-z]+)$/i;
+const BORDER_STYLES = /^(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/;
+
+/** A border shorthand's style and colour (width: borderWidth). */
+function borderLook(v: string): { style: string | null; color: string | null | undefined } {
+  let style: string | null = null;
+  let color: string | null | undefined;
+  for (const p of splitTop(v.trim(), " ").filter(Boolean)) {
+    if (BORDER_STYLES.test(p)) style = p;
+    else if (/^[\d.]+(px)?$|^(thin|medium|thick)$/.test(p)) continue;
+    else if (COLOUR_WORD.test(p)) color = p.toLowerCase() === "currentcolor" ? null : p;
+  }
+  return { style, color };
 }
 
 function length(v: string, fontSize: number): Len | null {
@@ -468,7 +513,16 @@ export function computeStyle(sheet: Sheet, n: LNode, parent: Style): Style {
   s.margin = [...ROOT_STYLE.margin];
   s.padding = [...ROOT_STYLE.padding];
   s.border = [...ROOT_STYLE.border];
+  s.borderColor = [...ROOT_STYLE.borderColor];
+  s.borderStyle = [...ROOT_STYLE.borderStyle];
   const decls = declarationsFor(sheet, n);
+  // Custom properties first: the paint values below may use them.
+  for (const [p, raw] of decls)
+    if (p.startsWith("--")) {
+      if (s.vars === parent.vars) s.vars = new Map(parent.vars);
+      s.vars!.set(p, resolvePaint(raw, parent.vars, sheet.vars));
+    }
+  const paint = (raw: string) => resolvePaint(raw, s.vars, sheet.vars);
   // Font size first: em lengths depend on it.
   for (const [p, raw] of decls) {
     const v = resolveVars(raw, sheet.vars);
@@ -530,19 +584,58 @@ export function computeStyle(sheet: Sheet, n: LNode, parent: Style): Style {
       case "border": {
         const w = borderWidth(v);
         if (w !== null) s.border = [w, w, w, w];
+        const look = borderLook(paint(raw));
+        s.borderStyle = four([look.style ?? "none"]);
+        s.borderColor = four([look.color ?? null]);
         break;
       }
       case "border-top": case "border-right": case "border-bottom": case "border-left": {
         const w = borderWidth(v);
-        if (w !== null) s.border[borderSides.indexOf(p.slice(7))] = w;
+        const i = borderSides.indexOf(p.slice(7));
+        if (w !== null) s.border[i] = w;
+        const look = borderLook(paint(raw));
+        s.borderStyle[i] = look.style ?? "none";
+        s.borderColor[i] = look.color ?? null;
+        break;
+      }
+      case "border-color": {
+        const cs = splitTop(paint(raw), " ").filter(Boolean).map((c) => (c.toLowerCase() === "currentcolor" ? null : c));
+        if (cs.length) s.borderColor = four(cs);
+        break;
+      }
+      case "border-top-color": case "border-right-color": case "border-bottom-color": case "border-left-color": {
+        const c = paint(raw);
+        s.borderColor[borderSides.indexOf(p.split("-")[1])] = c.toLowerCase() === "currentcolor" ? null : c;
+        break;
+      }
+      case "color": {
+        const c = paint(raw);
+        if (c && c !== "inherit" && c.toLowerCase() !== "currentcolor") s.color = c;
+        break;
+      }
+      case "background":
+      case "background-color": {
+        const c = paint(raw);
+        s.background = !c || c === "none" || c === "transparent" ? null : c.split(/\s+/).find((x) => COLOUR_WORD.test(x)) ?? null;
+        break;
+      }
+      case "border-radius":
+        s.radius = pxOf(v.split(/\s+/)[0], fs);
+        break;
+      case "box-shadow": {
+        const c = paint(raw);
+        s.shadow = c === "none" ? null : c;
         break;
       }
       case "border-width":
         s.border = four(v.split(/\s+/).map((x) => pxOf(x, fs)));
         break;
-      case "border-style":
+      case "border-style": {
         if (v === "none" || v === "hidden") s.border = [0, 0, 0, 0];
+        const st = v.split(/\s+/).filter((x) => BORDER_STYLES.test(x));
+        if (st.length) s.borderStyle = four(st);
         break;
+      }
       case "flex-direction":
         s.flexDirection = v;
         break;

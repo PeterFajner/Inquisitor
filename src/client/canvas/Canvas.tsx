@@ -12,6 +12,7 @@ import {
   type Point, type Rect, type Side, type Size, type View, type ZoomLimits,
 } from "./geometry.ts";
 import { Minimap, type MinimapHandle } from "./Minimap.tsx";
+import { tileLevel, Tiles } from "./tiles.ts";
 import "./canvas.css";
 
 // Every face the cards use, loaded before anything is measured: fonts load
@@ -112,8 +113,17 @@ export type CanvasProps = {
   onViewChange?: (v: View) => void;
   minZoom?: number;
   maxZoom?: number;
-  /** Below this zoom cards are drawn as empty boxes. */
+  /** Below this zoom cards aren't mounted: they're drawn (drawCard), else empty boxes. Once mounted, they stay until the zoom is 10% below it. */
   placeholderBelow?: number;
+  /**
+   * Draws a card that isn't mounted, on the placeholder canvas: in world
+   * units from its top-left corner, `scale` device pixels a world unit (draw
+   * less when it's small). Cards are drawn ahead into tiles (./tiles.ts) a
+   * few at a time; keep it stable: a new function redraws every card, and a
+   * card is redrawn when its object, position or size changes. A card mounted
+   * over its drawing fades in.
+   */
+  drawCard?: (g: CanvasRenderingContext2D, card: CanvasCard, scale: number) => void;
   /** Screen pixels around the viewport whose cards stay mounted. */
   overscan?: number;
   minimap?: boolean;
@@ -235,6 +245,25 @@ export function Canvas(props: CanvasProps) {
   const phIds = useRef<string[]>([]);
   const phSelected = useRef(-1);
   const phColors = useRef<{ box: string; sel: string; ink: string; font: string } | null>(null);
+  // Cards drawn by the caller (drawCard), into tiles drawn when the main thread is idle.
+  const tiles = useRef<Tiles | null>(null);
+  if (props.drawCard && !tiles.current)
+    tiles.current = new Tiles((g, id, scale) => {
+      const c = byIdRef.current.get(id);
+      if (c) P.current.drawCard?.(g, c, scale);
+    });
+  const drawnBy = useRef(props.drawCard);
+  if (drawnBy.current !== props.drawCard) {
+    drawnBy.current = props.drawCard;
+    tiles.current?.invalidate();
+  }
+  const tileWork = useRef(0);
+  const farRef = useRef(false);
+  const setFar = (far: boolean) => {
+    if (far === farRef.current) return;
+    farRef.current = far;
+    worldRef.current?.classList.toggle("is-far", far);
+  };
   const phLabels = useRef<(string | undefined)[]>([]);
 
   // Wires are drawn on the same canvas, under the boxes; each one styled as an SVG path with its class and style would be.
@@ -279,7 +308,7 @@ export function Canvas(props: CanvasProps) {
     if (!phColors.current) {
       const cs = getComputedStyle(cv);
       phColors.current = {
-        box: cs.getPropertyValue("--line").trim() || "#444",
+        box: cs.getPropertyValue("--cv-ph").trim() || cs.getPropertyValue("--line").trim() || "#444",
         sel: cs.getPropertyValue("--accent").trim() || "#c33",
         ink: cs.getPropertyValue("--ink-2").trim() || "#aaa",
         font: cs.getPropertyValue("--font").trim() || "sans-serif",
@@ -302,24 +331,53 @@ export function Canvas(props: CanvasProps) {
     g.globalAlpha = 1;
     g.setLineDash([]);
     const r = 12, round = r * v.k >= 1.5 && typeof g.roundRect === "function";
-    g.fillStyle = phColors.current.box;
-    g.beginPath();
-    phList.current.forEach((b, i) => {
-      if (i === phSelected.current || !intersects(b, vis)) return;
-      if (round) g.roundRect(b.x, b.y, b.w, b.h, r);
-      else g.rect(b.x, b.y, b.w, b.h);
-    });
-    g.fill();
+    const t = tiles.current;
+    // Drawn cards: their tiles; plain boxes only where no tile is drawn yet.
+    let clip: Rect[] | null = null;
+    if (t) {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      const T = P.current.placeholderBelow ?? 0.32;
+      const { missing, pending } = t.paint(g, v, vis, dpr, tileLevel(T * dpr, 8) + 1);
+      g.setTransform(v.k * dpr, 0, 0, v.k * dpr, v.x * dpr, v.y * dpr);
+      clip = missing;
+      if (pending) scheduleTiles();
+    }
+    if (!clip || clip.length) {
+      g.save();
+      if (clip) {
+        g.beginPath();
+        for (const c of clip) g.rect(c.x, c.y, c.w, c.h);
+        g.clip();
+      }
+      g.fillStyle = phColors.current.box;
+      g.beginPath();
+      phList.current.forEach((b, i) => {
+        if ((!t && i === phSelected.current) || !intersects(b, vis) || (clip && !clip.some((c) => intersects(c, b)))) return;
+        if (round) g.roundRect(b.x, b.y, b.w, b.h, r);
+        else g.rect(b.x, b.y, b.w, b.h);
+      });
+      g.fill();
+      g.restore();
+    }
     const sel = phList.current[phSelected.current];
-    if (sel) {
+    if (sel && t) {
+      // As a mounted card's outline (canvas.css): 3px, 3px out.
+      const px = 1 / v.k;
+      g.strokeStyle = phColors.current.sel;
+      g.lineWidth = 3 * px;
+      g.beginPath();
+      if (round) g.roundRect(sel.x - 4.5 * px, sel.y - 4.5 * px, sel.w + 9 * px, sel.h + 9 * px, r + 4.5 * px);
+      else g.rect(sel.x - 4.5 * px, sel.y - 4.5 * px, sel.w + 9 * px, sel.h + 9 * px);
+      g.stroke();
+    } else if (sel) {
       g.fillStyle = phColors.current.sel;
       g.beginPath();
       if (round) g.roundRect(sel.x, sel.y, sel.w, sel.h, r);
       else g.rect(sel.x, sel.y, sel.w, sel.h);
       g.fill();
     }
-    // Card names once they'd be legible (LABEL_PX world pixels, at least 7 on screen).
-    if (LABEL_PX * v.k >= 7) {
+    // Card names once they'd be legible (LABEL_PX world pixels, at least 7 on screen), unless the cards are drawn.
+    if (!t && LABEL_PX * v.k >= 7) {
       g.fillStyle = phColors.current.ink;
       g.font = `600 ${LABEL_PX}px ${phColors.current.font}`;
       g.textBaseline = "top";
@@ -333,6 +391,22 @@ export function Canvas(props: CanvasProps) {
     if (!drawFrame.current) drawFrame.current = requestAnimationFrame(drawPh);
   }, [drawPh]);
   useEffect(() => () => cancelAnimationFrame(drawFrame.current), []);
+  // Tiles are drawn when the main thread is idle, a few milliseconds at a time.
+  function scheduleTiles() {
+    if (tileWork.current) return;
+    tileWork.current = 1;
+    const run = (deadline?: IdleDeadline) => {
+      tileWork.current = 0;
+      const t = tiles.current, s = sizeRef.current;
+      if (!t || !s) return;
+      const ms = deadline ? clamp(deadline.timeRemaining(), 3, 12) : 4;
+      const r = t.work(ms, toWorld(viewRef.current, { x: s.w / 2, y: s.h / 2 }));
+      if (r.ready) requestDraw();
+      else if (r.more) scheduleTiles();
+    };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 100 });
+    else setTimeout(run, 16);
+  }
   /** The placeholder under a screen point, topmost first. */
   const placeholderAt = (p: Point): { id: string; x: number; y: number } | null => {
     const w = toWorld(viewRef.current, p);
@@ -384,9 +458,11 @@ export function Canvas(props: CanvasProps) {
   const updateWin = useCallback((v: View) => {
     const s = sizeRef.current;
     if (!s) return;
-    const lod = v.k < (P.current.placeholderBelow ?? 0.32);
-    const need = visibleRect(v, s, (P.current.overscan ?? 700) / 3);
     const w = winRef.current;
+    const T = P.current.placeholderBelow ?? 0.32;
+    // (Mounted cards stay a little below the threshold: no flapping around it.)
+    const lod = v.k < (w && !w.lod ? 0.9 * T : T);
+    const need = visibleRect(v, s, (P.current.overscan ?? 700) / 3);
     if (!w || w.lod !== lod || !contains(w.rect, need) || v.k > w.k * 2) {
       const next = { rect: visibleRect(v, s, lod ? 2 * (P.current.overscan ?? 700) : P.current.overscan ?? 700), k: v.k, lod };
       winRef.current = next;
@@ -425,11 +501,17 @@ export function Canvas(props: CanvasProps) {
     // step is what made zooming slow. The window catches up once the zoom rests.
     const zooming = Math.abs(v.k - lastK.current) > 1e-9;
     lastK.current = v.k;
+    // Drawn cards: mounted ones zoomed in a gesture below where they'd be
+    // unmounted are hidden over their drawings, their layer's content not
+    // rendered (one element's style, not every card's): scaled far down, the
+    // browser repaints them at every step. Unmounted once the zoom rests.
+    setFar((zooming || zoomingRef.current) && !!winRef.current && !!tiles.current && v.k < 0.9 * (P.current.placeholderBelow ?? 0.32));
     if (zooming && winRef.current) {
       zoomingRef.current = true;
       clearTimeout(zoomTimer.current);
       zoomTimer.current = window.setTimeout(() => {
         zoomingRef.current = false;
+        setFar(false);
         setInv(viewRef.current.k);
         updateWin(viewRef.current);
         requestPump();
@@ -981,6 +1063,10 @@ export function Canvas(props: CanvasProps) {
     phSelected.current = drawn.findIndex((c) => c.id === selected);
 
   }
+  // What the tiles draw: every card but the one being dragged, where it is now.
+  useMemo(() => {
+    tiles.current?.setItems(cards.filter((c) => c.id !== drag?.id).map((c) => ({ id: c.id, rect: rectOf(c.id)!, version: c })));
+  }, [cards, sizeTick, drag?.id, !!props.drawCard]);
   wireList.current = useMemo(() => {
     const list: typeof wireList.current = [];
     if (!win) return list;
@@ -1051,6 +1137,7 @@ export function Canvas(props: CanvasProps) {
               size={level === 1 ? sizes.current.get(c.id)! : null}
               selected={c.id === selected}
               dragging={!!d}
+              fade={!!props.drawCard}
               render={renderCard}
               renderCheap={props.renderCheap}
               observer={observer}
@@ -1126,6 +1213,8 @@ type SlotProps = {
   size: Size | null;
   selected: boolean;
   dragging: boolean;
+  /** Fade in when mounted (over its drawing). */
+  fade: boolean;
   render: CanvasProps["renderCard"];
   renderCheap: CanvasProps["renderCheap"];
   observer: ResizeObserver | null;
@@ -1154,12 +1243,14 @@ class CardSlot extends Component<SlotProps> {
   setEl = (el: HTMLDivElement | null) => {
     this.el = el;
   };
+  // Fades in when first mounted only.
+  fadeIn = this.props.fade;
   render() {
     const { card, x, y, level, size, selected, dragging, render, renderCheap, onClick } = this.props;
     return (
       <div
         ref={this.setEl}
-        class={`cv-card${dragging ? " is-drag" : ""}`}
+        class={`cv-card${dragging ? " is-drag" : ""}${this.fadeIn ? " cv-in" : ""}`}
         data-id={card.id}
         data-level={level}
         data-selected={selected ? "" : undefined}

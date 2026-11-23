@@ -1,5 +1,7 @@
 // Card heights for the rules canvas, worked out on the server so a first
-// visit lays out every card at once (src/client/rules/sizes.ts). The work is
+// visit lays out every card at once (src/client/rules/sizes.ts), and their
+// geometry (where each word, chip and rule went: src/shared/layout/paint.ts)
+// for drawing cards too small to read. The work is
 // the browser's own card code, bundled for Node by scripts/client.ts
 // (dist/layout/bake.js): cards rendered into a tiny DOM and laid out from the
 // app's CSS and the fonts' advance widths, no browser. Done once per rules
@@ -11,7 +13,7 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fork } from "node:child_process";
 import { setPriority } from "node:os";
-import type { RulesHeights, RulesPayload } from "../shared/api.ts";
+import type { RulesGeometry, RulesHeights, RulesPayload } from "../shared/api.ts";
 import { rulesPayload } from "./rules-store.ts";
 
 const FILE = resolve(process.env.APP_ROOT || process.cwd(), process.env.LAYOUT_OUT || "dist/layout", "bake.js");
@@ -19,12 +21,13 @@ const WORKER = join(import.meta.dirname, `rules-heights-worker.${import.meta.url
 /** The child's heap: its live data is ~15 MB (~1,000 cards); a tight limit makes it collect garbage early rather than grow. */
 const HEAP_MB = 40;
 
-let done: { heights: RulesHeights; body: string } | null = null;
+type Baked = { heights: RulesHeights; geometry: RulesGeometry };
+let done: (Baked & { body: string; geoBody: string }) | null = null;
 let working: { version: string; promise: Promise<void> } | null = null;
 
 const available = () => existsSync(FILE);
 
-function bakeIn(payload: RulesPayload, prev: RulesHeights | null): Promise<RulesHeights> {
+function bakeIn(payload: RulesPayload, prev: Baked | null): Promise<Baked> {
   return new Promise((ok, fail) => {
     const proc = fork(WORKER, [], {
       execArgv: ["--disable-warning=ExperimentalWarning", `--max-old-space-size=${HEAP_MB}`, "--max-semi-space-size=1"],
@@ -34,7 +37,7 @@ function bakeIn(payload: RulesPayload, prev: RulesHeights | null): Promise<Rules
     try {
       if (proc.pid) setPriority(proc.pid, 10);
     } catch {}
-    proc.once("message", (m) => ok(m as RulesHeights));
+    proc.once("message", (m) => ok(m as Baked));
     proc.once("error", fail);
     proc.once("exit", (code) => fail(new Error(`exited (${code})`)));
     proc.send({ file: FILE, payload, prev });
@@ -49,9 +52,9 @@ export function warmHeights(): void {
   const promise = (async () => {
     if (!available()) return;
     const t0 = performance.now();
-    const heights = await bakeIn(payload, done?.heights ?? null);
+    const { heights, geometry } = await bakeIn(payload, done ? { heights: done.heights, geometry: done.geometry } : null);
     // A newer version may have started meanwhile: keep this one only if it's still current.
-    if (rulesPayload().version === version) done = { heights, body: JSON.stringify(heights) };
+    if (rulesPayload().version === version) done = { heights, geometry, body: JSON.stringify(heights), geoBody: JSON.stringify(geometry) };
     if (process.env.NODE_ENV !== "test") console.log(`rules heights: ${Object.keys(heights.cards).length} cards in ${Math.round(performance.now() - t0)} ms`);
   })()
     .catch((e: unknown) => console.error("rules heights:", e))
@@ -61,11 +64,16 @@ export function warmHeights(): void {
   working = { version, promise };
 }
 
-/** The current version's heights: ready, being worked out, or not available here. */
-export async function currentHeights(): Promise<{ etag: string; body: string } | "pending" | "unavailable"> {
+/** The current version's heights (or, `geometry`, the cards' geometry): ready, being worked out, or not available here. */
+export async function currentHeights(geometry = false): Promise<{ etag: string; body: string } | "pending" | "unavailable"> {
   if (!available()) return "unavailable";
   const version = rulesPayload().version;
-  const ready = () => (done?.heights.version === version ? { etag: `"${version}.${done.heights.build}"`, body: done.body } : null);
+  const ready = () =>
+    done?.heights.version === version
+      ? geometry
+        ? { etag: `"g.${version}.${done.heights.build}"`, body: done.geoBody }
+        : { etag: `"${version}.${done.heights.build}"`, body: done.body }
+      : null;
   const now = ready();
   if (now) return now;
   warmHeights();

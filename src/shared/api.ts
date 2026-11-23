@@ -194,6 +194,15 @@ export type RulesHeights = { version: string; build: string; cards: Record<strin
 export type CardHeight = { c: string; w: number; h: number; d: string[]; dh: string };
 
 /**
+ * GET /api/v1/rules/geometry: what every card of /rules/heights looks like
+ * laid out (src/shared/layout/paint.ts), for the canvas to draw cards too
+ * small to read: per card key, its pieces as a string against the table of
+ * looks. Same version and build as the heights (a card's geometry holds
+ * whenever its height does); 202 {pending: true} while being worked out.
+ */
+export type RulesGeometry = { version: string; build: string; looks: import("./layout/paint.ts").Look[]; cards: Record<string, string> };
+
+/**
  * POST /api/v1/rules/entries: create or replace one entry (its file is
  * <pack>/<kind dir>/<entry.id>.yaml). base = meta.commit as last seen, or
  * null for an entry that doesn't exist yet. 404 {error: "unknown_pack"};

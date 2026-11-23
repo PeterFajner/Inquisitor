@@ -44,6 +44,8 @@ test("text widths are the fonts' advances; weights match as CSS does", () => {
 test("line breaks: spaces, hyphens, dashes, never a slash", () => {
   assert.equal(breakBetween("a", "-"), false);
   assert.equal(breakBetween("-", "a"), true);
+  assert.equal(breakBetween("-", "3", " "), false);
+  assert.equal(breakBetween("-", "3", "4"), true);
   assert.equal(breakBetween("–", "1"), true);
   assert.equal(breakBetween("a", "—"), true);
   assert.equal(breakBetween("/", "a"), false);
