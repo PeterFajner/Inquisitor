@@ -14,7 +14,9 @@
     "build": "tsc -p tsconfig.build.json && node --disable-warning=ExperimentalWarning scripts/client.ts",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "rules:check": "node --disable-warning=ExperimentalWarning scripts/rules-check.ts",
-    "simulate": "node --disable-warning=ExperimentalWarning scripts/simulate.ts"
+    "simulate": "node --disable-warning=ExperimentalWarning scripts/simulate.ts",
+    "heights:check": "node --disable-warning=ExperimentalWarning scripts/heights-check.ts",
+    "fonts:metrics": "node --disable-warning=ExperimentalWarning scripts/font-metrics.ts"
   },
   "dependencies": {
     "@passwordless-id/webauthn": "2.4.1",

@@ -10,9 +10,11 @@ npm ci --no-audit --no-fund
 npm run typecheck
 npm test
 # The server (tsc, into dist/) and the browser bundle (esbuild, into
-# dist/client/, with manifest.json naming its hashed files).
+# dist/client/, with manifest.json naming its hashed files), and the card
+# layout the server works out card heights with (dist/layout/bake.js).
 npm run build
 test -s dist/client/manifest.json
+test -s dist/layout/bake.js
 
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT

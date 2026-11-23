@@ -42,6 +42,9 @@
   background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); border-top: 3px solid var(--kc, var(--line));
   font: 13px/1.4 var(--font-ui); color: var(--ink); font-variant-numeric: tabular-nums; position: relative;
 }
+/* Text as wide as its characters' advances, so card heights can be worked out
+   (src/shared/layout). Important: every font shorthand below resets them. */
+.rc, .rc * { font-kerning: none !important; font-variant-ligatures: none !important; }
 .k-archetype { --kc: var(--accent); }
 .k-table { --kc: var(--ink-3); }
 .k-talent, .k-exotic, .k-power, .k-mutation { --kc: var(--wire); }
@@ -60,7 +63,8 @@
 .quote-btn { border: 0; background: none; cursor: pointer; padding: 4px 4px; border-radius: 4px; min-height: 28px; }
 .quote-btn:hover { background: var(--surface-2); color: var(--ink); }
 .quote-btn.stale, .rc .meta.stale { color: var(--warn); }
-.rc-actions { display: inline-flex; gap: 2px; margin-right: -4px; }
+/* (Negative margins: a selected card's tools don't make its header taller.) */
+.rc-actions { display: inline-flex; gap: 2px; margin: -8px -4px -8px 0; }
 .rc .body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
 .rc-cheap { overflow: hidden; }
 .rc-cheap > header { border-bottom: 0; }

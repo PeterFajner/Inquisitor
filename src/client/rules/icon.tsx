@@ -35,7 +35,8 @@ export function Icon({ icon, size, class: cls }: { icon: IconType; size: number;
   const ref = useRef<HTMLImageElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    // Not in a real document (rendered to work out a card's height: card-height.tsx).
+    if (!el || typeof Element === "undefined" || !(el instanceof Element)) return;
     const src = iconUrl(icon, size, getComputedStyle(el).color);
     if (el.getAttribute("src") !== src) el.src = src;
   });

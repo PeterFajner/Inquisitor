@@ -13,6 +13,7 @@ import { createReadStream, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startBalance } from "./lib/balance-store.ts";
+import { warmHeights } from "./lib/rules-heights.ts";
 import { db, get } from "./lib/db.ts";
 import { HttpError, parseCookies, Router, sameOrigin, sendJson, type Ctx } from "./lib/http.ts";
 import { accountRoutes } from "./views/account.ts";
@@ -162,6 +163,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const server = await startServer();
   console.log(`inquisitor on http://${HOST}:${PORT}`);
   startBalance();
+  warmHeights();
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => {
       server.close();

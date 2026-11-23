@@ -1,8 +1,9 @@
 // The rules canvas (/rules): every entry of every visible pack as a card on
 // one canvas, in the book's sections in book order, then a region per
-// extra pack. Every card is placed by layoutRegions from its height
-// (stored from an earlier visit, else measured hidden once); saved positions
-// (entry.pos) are ignored and cards aren't dragged. Wires join every
+// extra pack. Every card is placed by layoutRegions from its size, worked
+// out rather than measured (./sizes.ts: the server's, else worked out here),
+// so a first visit lays everything out at once; saved positions (entry.pos)
+// are ignored and cards aren't dragged. Wires join every
 // archetype and table to the tables it rolls on. Signed in, cards can be
 // edited, created and deleted; edits from others arrive live and the
 // changed card is highlighted.
@@ -21,7 +22,8 @@ import { ctxOf, namesOf, type RefKind } from "./ctx.ts";
 import { Editor, type EditTarget } from "./edit/Editor.tsx";
 import { HistoryPanel } from "./History.tsx";
 import { KIND_ICON, KIND_LABEL } from "./chips/index.ts";
-import { buildId, heightKey, loadHeights, saveHeights } from "./heights.ts";
+import { cardHeight, LAYOUT } from "./card-height.tsx";
+import { COL, GAP, holds, widthOf } from "./sizes.ts";
 import { L } from "./labels.ts";
 import { connect, keyOf, load, parseKey, rules, type Item, type Key } from "./model.ts";
 import { PacksMenu } from "./Packs.tsx";
@@ -29,41 +31,16 @@ import { BASE_PACK, BOOK_REGIONS, bookOrder, PACK_ICON, packRegionId, regionOf }
 import { blankEntry } from "./edit/blank.ts";
 import "./rules.css";
 
-const COL = 320;
-const GAP = 16;
-const WIDE = 2 * COL + GAP;
 const EST_H = 200;
 const CHEAP_BELOW = 0.5;
 const HIDDEN_KEY = "inquisitor:rules-hidden-packs";
 const ACTIVE_KEY = "inquisitor:rules-active-pack";
+/** Cards worked out here at once; more (no heights from the server) are worked out in slices. */
+const AT_ONCE = 40;
+const SLICE_MS = 8;
 
 type RCard = CanvasCard & { item: Item; flash: boolean; editing: boolean };
-
-const XWIDE = 3 * COL + 2 * GAP;
-const jsonCache = new WeakMap<Entry, string>();
-const jsonOf = (e: Entry) => {
-  let j = jsonCache.get(e);
-  if (j === undefined) jsonCache.set(e, (j = JSON.stringify(e)));
-  return j;
-};
-// Very long entries (Cherubim) get a third column rather than a very tall card.
-const big = (e: Entry) => jsonOf(e).length > 14000;
-
-function widthOf(e: Entry): number {
-  switch (e.kind) {
-    case "archetype":
-      return big(e) ? XWIDE : WIDE;
-    case "rule":
-      return WIDE;
-    case "table":
-      if ((e.columns?.length ?? 0) > 5) return XWIDE;
-      return e.columns?.length || e.rows.some((r) => r.label.length > 48 || r.effects.length > 2) ? WIDE : COL;
-    case "item":
-      return e.profile && Object.keys(e.profile).length > 4 ? WIDE : COL;
-    default:
-      return COL;
-  }
-}
+type Sized = { w: number; h: number };
 
 function readLocal(k: string): string | null {
   try {
@@ -164,47 +141,69 @@ export function RulesCanvas({ data }: { data: PageData }) {
     return list.sort((a, b) => (rank.get(a.region) ?? 0) - (rank.get(b.region) ?? 0) || bookOrder(a.it.entry, b.it.entry));
   }, [visible, regionDefs]);
 
-  // Card heights (heights.ts): stored from an earlier visit, else measured
-  // hidden once by the canvas (then stored).
-  const build = useMemo(buildId, []);
-  const stored = useMemo(() => loadHeights(build), [build]);
-  const hkeys = useMemo(
-    () => new Map(ordered.map(({ key, it }) => [key, heightKey(jsonOf(it.entry), widthOf(it.entry), !!it.meta?.edited)])),
-    [ordered],
-  );
+  // Card sizes: the server's while they hold (same content, same names
+  // looked up), else worked out here, at once for a few (an edit), in slices
+  // for many (no heights from the server).
+  const worked = useRef(new Map<Key, { item: Item; names: unknown; size: Sized }>());
+  const [workedTick, setWorkedTick] = useState(0);
+  const computed = useMemo(() => {
+    const out = new Map<Key, Sized>();
+    const todo: { key: Key; it: Item }[] = [];
+    const server = s.heights?.build === LAYOUT ? s.heights.cards : null;
+    for (const { key, it } of ordered) {
+      const rec = server?.[key];
+      if (holds(rec, it.entry, !!it.meta?.edited, names)) {
+        out.set(key, { w: rec.w, h: rec.h });
+        continue;
+      }
+      const w = worked.current.get(key);
+      if (w && w.item === it && w.names === names) out.set(key, w.size);
+      else todo.push({ key, it });
+    }
+    if (todo.length <= AT_ONCE)
+      for (const { key, it } of todo) {
+        const r = cardHeight(key, it.entry, it.meta, names);
+        const size = { w: r.w, h: r.h };
+        worked.current.set(key, { item: it, names, size });
+        out.set(key, size);
+      }
+    return out;
+  }, [ordered, names, s.heights, workedTick]);
+  useEffect(() => {
+    const todo = ordered.filter(({ key }) => !computed.has(key));
+    if (!todo.length) return;
+    let stop = false;
+    const ch = new MessageChannel();
+    let last = performance.now();
+    ch.port1.onmessage = () => {
+      if (stop) return;
+      const t0 = performance.now();
+      while (todo.length && performance.now() - t0 < SLICE_MS) {
+        const { key, it } = todo.shift()!;
+        const r = cardHeight(key, it.entry, it.meta, names);
+        worked.current.set(key, { item: it, names, size: { w: r.w, h: r.h } });
+      }
+      if (!todo.length || performance.now() - last > 1000) {
+        last = performance.now();
+        setWorkedTick((n) => n + 1);
+      }
+      if (todo.length) ch.port2.postMessage(0);
+    };
+    ch.port2.postMessage(0);
+    return () => {
+      stop = true;
+      ch.port1.close();
+    };
+  }, [computed]);
 
-  // Measured heights (the canvas measures, hidden, every card it isn't given a size for).
-  const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(new Map());
-  const saveTimer = useRef(0);
-  const onMeasure = useCallback(
-    (m: ReadonlyMap<string, Size>) => {
-      setSizes(new Map(m));
-      clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => {
-        for (const [key, sz] of m) {
-          const k = hkeys.get(key);
-          if (k) stored.set(k, Math.round(sz.h * 100) / 100);
-        }
-        // Only what the current cards show.
-        const live = new Set(hkeys.values());
-        for (const k of stored.keys()) if (!live.has(k)) stored.delete(k);
-        saveHeights(build, stored);
-      }, 1500);
-    },
-    [hkeys, stored, build],
-  );
-  useEffect(() => () => clearTimeout(saveTimer.current), []);
-  const heightOf = (key: string): number | undefined => sizes.get(key)?.h ?? stored.get(hkeys.get(key)!);
-  // What the canvas starts from (it measures the rest).
+  const widthFor = (key: string, e: Entry) => computed.get(key)?.w ?? widthOf(e);
+  const heightOf = (key: string): number | undefined => computed.get(key)?.h;
+  // What the canvas starts from.
   const known = useMemo(() => {
     const m = new Map<string, Size>();
-    for (const { key, it } of ordered) {
-      const h = stored.get(hkeys.get(key)!);
-      if (h !== undefined) m.set(key, { w: widthOf(it.entry), h });
-    }
+    for (const [key, sz] of computed) m.set(key, sz);
     return m;
-  }, [ordered, hkeys, stored]);
-
+  }, [computed]);
 
   // Laid out again only when a card's slot changes (not on every measurement).
   const lastLayout = useRef<{ regionDefs: unknown; ordered: unknown; hs: number[]; layout: ReturnType<typeof layoutRegions> } | null>(null);
@@ -215,12 +214,12 @@ export function RulesCanvas({ data }: { data: PageData }) {
       return last.layout;
     const l = layoutRegions(
       regionDefs.map((r) => ({ id: r.id, columns: r.columns })),
-      ordered.map(({ key, it, region }, i) => ({ id: key, region, w: widthOf(it.entry), h: hs[i] })),
+      ordered.map(({ key, it, region }, i) => ({ id: key, region, w: widthFor(key, it.entry), h: hs[i] })),
       { columnWidth: COL, gap: GAP, padding: 32, regionGap: 240, rowWidth: 16000, aspect: 1.5 },
     );
     lastLayout.current = { regionDefs, ordered, hs, layout: l };
     return l;
-  }, [regionDefs, ordered, sizes, known]);
+  }, [regionDefs, ordered, computed]);
 
   const [selected, setSelected] = useState<Key | null>(null);
   const [panel, setPanel] = useState<{ mode: "edit"; target: EditTarget } | { mode: "history"; key: Key } | null>(null);
@@ -233,20 +232,21 @@ export function RulesCanvas({ data }: { data: PageData }) {
     const out: RCard[] = [];
     for (const { key, it } of ordered) {
       const pos = layout.positions.get(key) ?? { x: 0, y: 0 };
-      const w = widthOf(it.entry);
+      const w = widthFor(key, it.entry);
+      const h = computed.get(key)?.h;
       const flash = s.flash.has(key);
       const editing = editingKey === key;
       const old = cache.current.get(key);
       const c =
-        old && old.item === it && old.x === pos.x && old.y === pos.y && old.w === w && old.flash === flash && old.editing === editing
+        old && old.item === it && old.x === pos.x && old.y === pos.y && old.w === w && old.h === (h ?? EST_H) && old.flash === flash && old.editing === editing
           ? old
-          : { id: key, x: pos.x, y: pos.y, w, h: heightOf(key) ?? EST_H, label: it.entry.name, item: it, flash, editing };
+          : { id: key, x: pos.x, y: pos.y, w, h: h ?? EST_H, label: it.entry.name, item: it, flash, editing };
       next.set(key, c);
       out.push(c);
     }
     cache.current = next;
     return out;
-  }, [ordered, layout, s.flash, editingKey]);
+  }, [ordered, layout, computed, s.flash, editingKey]);
 
   // Regions are where the layout puts their cards; a card moved elsewhere stays where it was put.
   const regions: CanvasRegion[] = useMemo(
@@ -327,6 +327,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
           signedIn={signedIn}
           editing={rc.editing}
           flash={rc.flash}
+          minHeight={c.h}
           actions={stableActions}
         />
       );
@@ -336,7 +337,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
   const renderCheap = useCallback((c: CanvasCard, sz: Size) => <CheapCard entry={(c as RCard).item.entry} h={sz.h} flash={(c as RCard).flash} />, []);
 
 
-  // A card named in the address (#<pack>:<kind>/<id>) is shown once every card is measured (the layout has settled).
+  // A card named in the address (#<pack>:<kind>/<id>) is shown once every card has its size (the layout has settled).
   const flewHash = useRef(false);
   const measured = cards.length > 0 && cards.every((c) => heightOf(c.id) !== undefined);
   useEffect(() => {
@@ -430,9 +431,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
             regions={regions}
             selected={selected}
             onSelect={setSelected}
-            measure
             initialSizes={known}
-            onMeasure={onMeasure}
             apiRef={api}
             labels={labels}
             barStart={barStart}

@@ -1,5 +1,7 @@
 // The rules API (types and rules in src/shared/api.ts):
 //   GET  /api/v1/rules                 every pack, its entries and their git meta (ETag = version)
+//   GET  /api/v1/rules/heights         every card's size on the rules canvas (ETag = version + layout build;
+//                                      202 while being worked out, 404 when this server can't)
 //   GET  /api/v1/rules/events          Server-Sent Events: one per commit
 //   GET  /api/v1/rules/history         ?pack&kind&id: the entry's commits
 //   GET  /api/v1/balance               ?version&archetype&subtype: the power-score distribution
@@ -12,6 +14,7 @@
 // Writes need a signed-in account and are rate limited per account.
 import { currentViewer } from "../lib/accounts.ts";
 import { balanceFor } from "../lib/balance-store.ts";
+import { currentHeights } from "../lib/rules-heights.ts";
 import { HttpError, readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
 import { RateWindow } from "../lib/limits.ts";
 import {
@@ -78,6 +81,20 @@ export function rulesRoutes(router: Router): void {
     }
     ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
     ctx.res.end(ctx.req.method === "HEAD" ? undefined : body);
+  });
+
+  router.get(`${API}/rules/heights`, async (ctx) => {
+    const h = await currentHeights();
+    if (h === "unavailable") return sendJson(ctx, { error: "not_found" }, 404);
+    if (h === "pending") return sendJson(ctx, { pending: true }, 202, { "retry-after": "1" });
+    const etag = h.etag;
+    if (ctx.req.headers["if-none-match"] === etag) {
+      ctx.res.writeHead(304, { etag });
+      ctx.res.end();
+      return;
+    }
+    ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
+    ctx.res.end(ctx.req.method === "HEAD" ? undefined : h.body);
   });
 
   router.get(`${API}/rules/events`, (ctx) => {

@@ -186,6 +186,17 @@ export type RulesPayload = {
 };
 
 /**
+ * GET /api/v1/rules/heights: every card's height on the rules canvas at the
+ * current rules version, worked out on the server (src/lib/rules-heights.ts,
+ * src/client/rules/sizes.ts), by card key ("<pack>:<kind>/<id>"). `build`
+ * names the card layout code that worked them out; the browser uses them
+ * only when it runs the same. 202 {pending: true} while being worked out.
+ */
+export type RulesHeights = { version: string; build: string; cards: Record<string, CardHeight> };
+/** A card's width and height (px), its content key, the names it looked up (deps) and their values' hash. */
+export type CardHeight = { c: string; w: number; h: number; d: string[]; dh: string };
+
+/**
  * POST /api/v1/rules/entries: create or replace one entry (its file is
  * <pack>/<kind dir>/<entry.id>.yaml). base = meta.commit as last seen, or
  * null for an entry that doesn't exist yet. 404 {error: "unknown_pack"};

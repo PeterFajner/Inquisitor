@@ -3,7 +3,7 @@
 // writes (src/shared/api.ts: SaveEntry, DeleteEntry, MoveEntry, RevertEntry,
 // NewPack). Keys are "<pack>:<kind>/<id>".
 import {
-  API, type EntryMeta, type NewPackResult, type RulesConflict, type RulesEvent, type RulesHistory,
+  API, type EntryMeta, type NewPackResult, type RulesConflict, type RulesEvent, type RulesHeights, type RulesHistory,
   type RulesIssue, type RulesPayload, type RulesWriteResult,
 } from "../../shared/api.ts";
 import type { Entry, Pack } from "../../shared/rules/schema.ts";
@@ -30,9 +30,26 @@ export type RulesState = {
   items: ReadonlyMap<Key, Item>;
   /** Cards just changed by someone (live): key → time, for a brief highlight. */
   flash: ReadonlyMap<Key, number>;
+  /** Card sizes the server worked out (./sizes.ts), as of when the rules loaded; null if it couldn't. */
+  heights: RulesHeights | null;
 };
 
-export const rules = store<RulesState>({ loaded: false, failed: false, version: "", packs: [], items: new Map(), flash: new Map() });
+export const rules = store<RulesState>({ loaded: false, failed: false, version: "", packs: [], items: new Map(), flash: new Map(), heights: null });
+
+/** The server's card sizes; it may still be working them out (202) for a moment. */
+async function loadHeights(): Promise<RulesHeights | null> {
+  for (let i = 0; i < 4; i++) {
+    try {
+      const res = await fetch(`${API}/rules/heights`, { credentials: "same-origin" });
+      if (res.status === 200) return (await res.json()) as RulesHeights;
+      if (res.status !== 202) return null;
+    } catch {
+      return null;
+    }
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  return null;
+}
 
 function fromPayload(p: RulesPayload): Pick<RulesState, "version" | "packs" | "items"> {
   const items = new Map<Key, Item>();
@@ -42,6 +59,7 @@ function fromPayload(p: RulesPayload): Pick<RulesState, "version" | "packs" | "i
 }
 
 export async function load(fresh = false): Promise<void> {
+  const heights = loadHeights();
   try {
     let payload: RulesPayload;
     if (fresh) {
@@ -49,7 +67,7 @@ export async function load(fresh = false): Promise<void> {
       if (!res.ok) throw new Error(`http_${res.status}`);
       payload = (await res.json()) as RulesPayload;
     } else payload = (await loadRules()).payload;
-    rules.set({ loaded: true, failed: false, ...fromPayload(payload) });
+    rules.set({ loaded: true, failed: false, ...fromPayload(payload), heights: await heights });
   } catch {
     rules.set({ loaded: true, failed: true });
   }

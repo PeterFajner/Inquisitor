@@ -5,10 +5,11 @@
 // edited). Selected, it offers edit (signed in) and history.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { Coins, FilePenLine, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
+import { ArrowDown, ArrowUp, Coins, FilePenLine, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
 import type { EntryMeta } from "../../shared/api.ts";
 import { STATS, type Archetype, type Effect, type Entry, type Item, type Table } from "../../shared/rules/schema.ts";
 import { Chip, condText, Effects, EffectChip, Ic, KIND_ICON, KIND_LABEL } from "./chips/index.ts";
+import { Arrow } from "./chips/ui.tsx";
 import { cap, type Ctx } from "./ctx.ts";
 import { Icon } from "./icon.tsx";
 import { L } from "./labels.ts";
@@ -28,6 +29,8 @@ export type CardProps = {
   signedIn: boolean;
   editing?: boolean;
   flash?: boolean;
+  /** At least this tall (px): its worked-out height (./sizes.ts), which its slot on the canvas has. */
+  minHeight?: number;
   actions: CardActions;
 };
 
@@ -36,7 +39,7 @@ export function Card(p: CardProps) {
   const [quote, setQuote] = useState(false);
   const KindIcon = KIND_ICON[e.kind];
   return (
-    <article class={`rc k-${e.kind}${p.flash ? " flash" : ""}${p.editing ? " editing" : ""}`}>
+    <article class={`rc k-${e.kind}${p.flash ? " flash" : ""}${p.editing ? " editing" : ""}`} style={p.minHeight ? { minHeight: `${p.minHeight}px` } : undefined}>
       <header>
         <span class="rc-handle" role="img" aria-label={KIND_LABEL[e.kind]} title={KIND_LABEL[e.kind]}>
           <Icon icon={KindIcon} size={16} />
@@ -142,10 +145,10 @@ export function Body({ e, ctx }: { e: Entry; ctx: Ctx }): ComponentChildren {
               <Chip>
                 <Ic icon={Play} label={L.apply} />
                 {e.apply !== true && (e.apply.after ?? e.apply.before) && (
-                  <span class="v" title={e.apply.after ? L.after : L.before}>
-                    {e.apply.after ? "↓ " : "↑ "}
-                    {e.apply.after ?? e.apply.before}
-                  </span>
+                  <>
+                    {e.apply.after ? <Ic icon={ArrowDown} label={L.after} /> : <Ic icon={ArrowUp} label={L.before} />}
+                    <span class="v">{e.apply.after ?? e.apply.before}</span>
+                  </>
                 )}
               </Chip>
             </div>
@@ -265,7 +268,7 @@ function TableBody({ e, ctx }: { e: Table; ctx: Ctx }) {
                   {r.quality &&
                     Object.entries(r.quality).map(([a, q]) => (
                       <span class="note" title={L.quality}>
-                        {a} → {q}
+                        {a} <Arrow /> {q}
                       </span>
                     ))}
                 </div>
@@ -307,7 +310,9 @@ function ItemBody({ e, ctx }: { e: Item; ctx: Ctx }) {
         {e.availabilityWhen && (
           <Chip>
             <Ic icon={Split} label={L.if} />
-            {condText(e.availabilityWhen.when, ctx)} → <span class="v">{e.availabilityWhen.then ?? e.availability ?? "–"}</span> · <Ic icon={Split} label={L.otherwise} />
+            {condText(e.availabilityWhen.when, ctx)}
+            <Arrow />
+            <span class="v">{e.availabilityWhen.then ?? e.availability ?? "–"}</span> · <Ic icon={Split} label={L.otherwise} />
             <span class="v">{e.availabilityWhen.else === "gm" ? "GM" : e.availabilityWhen.else}</span>
           </Chip>
         )}
@@ -336,7 +341,8 @@ function ItemBody({ e, ctx }: { e: Item; ctx: Ctx }) {
         <div class="flow">
           <Chip>
             <Ic icon={Split} label={L.if} />
-            {condText(pw.when, ctx)} →{" "}
+            {condText(pw.when, ctx)}
+            <Arrow />
             {Object.entries(pw.profile).map(([k, v], i) => (
               <>
                 {i ? " · " : ""}
