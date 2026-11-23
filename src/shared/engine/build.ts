@@ -267,7 +267,18 @@ const thingOf = (e: Effect): { kind: ThingKind; id: string } | undefined => {
 
 const statList = (s: Stat | Stat[] | "all"): Stat[] => (s === "all" ? [...STATS] : Array.isArray(s) ? s : [s]);
 
-const norm = (s: string) =>
+// Names come from a small fixed set (the rules' groups, categories, tags) but
+// are compared thousands of times per character, so each is normalised once.
+const memo = (f: (s: string) => string) => {
+  const cache = new Map<string, string>();
+  return (s: string) => {
+    let v = cache.get(s);
+    if (v === undefined) cache.set(s, (v = f(s)));
+    return v;
+  };
+};
+
+const norm = memo((s: string) =>
   s
     .toLowerCase()
     .replace(/armour/g, "armor")
@@ -275,11 +286,12 @@ const norm = (s: string) =>
     .trim()
     .split(" ")
     .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w))
-    .join(" ");
+    .join(" "),
+);
 
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 // a name for matching: kebab-case, armour = armor, singular
-const nm = (s: string) => norm(s).replace(/ /g, "-");
+const nm = memo((s: string) => norm(s).replace(/ /g, "-"));
 
 /** Core rulebook rounding: fractions of a half or more round up. */
 export const roundOff = (x: number) => Math.floor(x + 0.5);
@@ -299,9 +311,10 @@ export function expandLocations(l: LocationSet | LocationSet[] | undefined): Loc
 }
 
 /** The availability named in a table row label ("Exotic*" → Exotic). */
+const AVAILABILITY_RE = AVAILABILITIES.map((a) => [a, new RegExp(`\\b${a.toLowerCase()}\\b`)] as const);
 export function availabilityOf(label: string): Availability | undefined {
   const l = label.toLowerCase();
-  return AVAILABILITIES.find((a) => new RegExp(`\\b${a.toLowerCase()}\\b`).test(l));
+  return AVAILABILITY_RE.find(([, re]) => re.test(l))?.[0];
 }
 
 /** Whether `row` is on `table`'s `column` (single-column tables: always). */
@@ -316,8 +329,12 @@ export function findRow(table: Table, totalRolled: number, column?: string): Tab
 }
 
 /** The names an entry matches in filters and restrictions (PickFilter.tag). */
+const names = new WeakMap<Ability | Item, Set<string>>();
 export function namesOf(e: Ability | Item): Set<string> {
-  const s = new Set<string>([e.id]);
+  let s = names.get(e);
+  if (s) return s;
+  s = new Set<string>([e.id]);
+  names.set(e, s);
   if (e.group) s.add(nm(e.group));
   if (e.kind === "item") {
     if (e.category) s.add(nm(e.category));
