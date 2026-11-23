@@ -198,3 +198,5 @@
   .topbar, .char-list, .balance-line, .new-char, .ccard, .add-char { display: none !important; }
   .builder-body { display: block; }
 }
+/* an ability's text keeps its own line breaks (lists of prayers, options) */
+.csec-list li, .boon-thing { white-space: pre-line; }

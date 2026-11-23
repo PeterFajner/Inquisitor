@@ -57,11 +57,11 @@ function entryName(c: Compendium, id: string): string {
   return "";
 }
 
-/** An ability's book text (its effect), for the card lists. */
+/** An ability's book text (its effect), for the card lists: its lines kept (a list of prayers stays a list), blank lines dropped. */
 function abilityText(c: Compendium, kind: ThingKind, id: string): string {
   const map = { talent: c.talents, exotic: c.exotics, mutation: c.mutations, power: c.powers, item: c.items }[kind];
   const e = map.get(id) as { text?: string; source: { text?: string } } | undefined;
-  return (e?.text ?? e?.source.text ?? "").replace(/\s*\n+\s*/g, " ").trim();
+  return (e?.text ?? e?.source.text ?? "").split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
 }
 
 const BOON = /^(.*\/boons)(#\d+|:count)$/;
