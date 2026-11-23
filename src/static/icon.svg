@@ -1,4 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#c026d3"/>
-  <text x="32" y="32" dy="0.35em" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="32" font-weight="600" fill="#ffffff">I</text>
+  <rect width="64" height="64" rx="14" fill="#1d1a16"/>
+  <g fill="#c9a46a">
+    <path d="M17 7h30l-3 6H20z"/>
+    <path d="M17 57h30l-3-6H20z"/>
+    <rect x="27" y="12" width="10" height="40"/>
+    <path d="M6 30l6-4h40l6 4-6 4H12z"/>
+  </g>
+  <g fill="#ece6da" stroke="#1d1a16" stroke-width="1.5">
+    <path d="M32 18c-7 0-11 4.5-11 10.5 0 3.5 1.6 5.8 3.6 7v4.5h14.8v-4.5c2-1.2 3.6-3.5 3.6-7C43 22.5 39 18 32 18z"/>
+  </g>
+  <g fill="#1d1a16">
+    <ellipse cx="27.6" cy="29" rx="3" ry="3.3"/>
+    <ellipse cx="36.4" cy="29" rx="3" ry="3.3"/>
+    <path d="M32 32.5l-1.8 3.2h3.6z"/>
+    <rect x="28.6" y="37.5" width="1.2" height="3"/>
+    <rect x="31.4" y="37.5" width="1.2" height="3"/>
+    <rect x="34.2" y="37.5" width="1.2" height="3"/>
+  </g>
 </svg>

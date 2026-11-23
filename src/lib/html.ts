@@ -56,7 +56,7 @@ export function page(opts: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 ${noindex ? raw('<meta name="robots" content="noindex, nofollow">') : ""}
-<link rel="icon" href="/static/favicon.ico" sizes="16x16 24x24 32x32 64x64">
+<link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 ${raw("<script>window.PublicKeyCredential||document.documentElement.classList.add('no-passkeys')</script>")}
