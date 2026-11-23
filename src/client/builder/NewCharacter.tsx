@@ -8,6 +8,8 @@ import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 
 const LAST = "inquisitor:new-archetype";
+/** The archetype a new character starts on until one has been used. */
+const DEFAULT = "inquisitor";
 
 /** An archetype as one character ("Inquisitor", not the book's heading "Inquisitors"). */
 export const archetypeName = (a: { name: string; characters?: string }): string => a.characters ?? a.name;
@@ -33,7 +35,9 @@ export function NewCharacter({
     try {
       last = localStorage.getItem(LAST);
     } catch {}
-    return last && c.archetypes.has(last) ? last : archetypes[0]?.id ?? "";
+    if (last && c.archetypes.has(last)) return last;
+    // Until one has been used: an Inquisitor (else the first).
+    return archetypes.find((a) => a.id === DEFAULT)?.id ?? archetypes[0]?.id ?? "";
   });
   const subs = c.archetypes.get(arch)?.subtypes ?? [];
   const [sub, setSub] = useState(subs[0]?.id ?? "");

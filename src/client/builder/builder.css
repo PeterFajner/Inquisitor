@@ -38,10 +38,19 @@
 /* With the history open, the page is the screen's height and the canvas fills what the bar leaves. */
 .builder:has(.builder-history) { height: 100vh; height: 100dvh; min-height: 0; }
 .builder:has(.builder-history) .builder-body { grid-template-rows: minmax(0, 1fr); }
-.balance { display: inline-block; font: 600 13px/1.2 var(--font-ui); padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor; }
-.balance-balanced { color: var(--good); background: var(--good-bg); }
+/* The balance label: the word, then an (i) with the full label in a popover.
+   Balanced is the goal and stays quiet (muted text, no fill); underpowered
+   is --bad (blue, darker) and overpowered --warn, each with its word. */
+.balance { position: relative; display: inline-flex; align-items: center; gap: 2px; font: 600 13px/1.2 var(--font-ui); padding: 2px 2px 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.balance-balanced { color: var(--ink-3); border-color: transparent; font-weight: 400; }
 .balance-underpowered { color: var(--bad); background: var(--bad-bg); }
 .balance-overpowered { color: var(--warn); background: var(--warn-bg); }
+.balance-info { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; }
+@media (hover: hover) { .balance-info:hover { background: var(--surface-2); } }
+.balance-info[aria-expanded="true"] { background: var(--surface-2); }
+.balance-pop { position: absolute; z-index: 20; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(360px, calc(100vw - 32px)); padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); color: var(--ink); font: 400 13px/1.35 var(--font-ui); text-align: center; box-shadow: var(--shadow); }
+.balance-pop[hidden] { display: none; }
+@media (pointer: coarse) { .balance-info { width: 32px; height: 32px; } }
 
 /* The character's card, as the 2023 site's: a dark card, a header band
    with the name line, sections in two columns, a footer band. */
@@ -84,6 +93,7 @@
 .add-char { display: flex; justify-content: center; }
 .csec-source { padding: 6px; }
 .csec-log { padding: 8px; overflow-x: auto; }
+.csec-log.collapsed { padding: 6px; }
 .note-icon { vertical-align: -2px; margin-right: 4px; color: var(--ink-2); }
 .note-unfit .note-icon { color: var(--warn); }
 .b-note + .b-note { margin-top: 6px; }

@@ -39,6 +39,8 @@ export const L = {
   unfit: "Not built by the rules: by hand",
   rules: "Rules",
   rerolled: "Rolled again",
+  rolls: "Rolls",
+  balanceDetail: "Balance details",
 } as const;
 
 // Visible text the owner approved from the 2023 site (AGENTS.md), so the

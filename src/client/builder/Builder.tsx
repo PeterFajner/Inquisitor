@@ -3,7 +3,7 @@
 // version tree in src/client/lib/characters.ts); undo/redo move the head
 // along the branch. Signed out, characters live in this browser; signed in,
 // in the account, and the browser's ones move there on sign-in.
-import { CircleArrowUp, Copy, History, Menu, Plus, Redo2, ScrollText, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
+import { CircleArrowUp, Copy, History, Info, Menu, Plus, Redo2, ScrollText, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
@@ -116,9 +116,65 @@ export function BalanceLabel({ rules, built }: { rules: Rules; built: ReturnType
   }, [rules.version, ch.archetype.id, ch.subtype.id]);
   if (!dist) return null;
   const b = balanceText(powerScore(ch, rules.compendium), dist, ch.archetype.name, ch.subtype.name);
+  return <BalanceChip word={b.word} text={b.text} />;
+}
+
+let chipIds = 0;
+
+/**
+ * The word alone, then an (i) that shows the full label: on hover with a
+ * mouse, or on a tap/click (kept until a tap elsewhere or Escape).
+ */
+function BalanceChip({ word, text }: { word: string; text: string }) {
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const id = useMemo(() => `balance-detail-${++chipIds}`, []);
+  const open = hover || pinned;
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) {
+        setPinned(false);
+        setHover(false);
+      }
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setPinned(false);
+      setHover(false);
+      btn.current?.focus();
+    };
+    document.addEventListener("pointerdown", down);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", down);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open]);
+  const mouse = (on: boolean) => (e: PointerEvent) => e.pointerType === "mouse" && setHover(on);
   return (
-    <span class={`balance balance-${b.word}`} role="status" aria-label={`${L.balance}: ${b.text}`}>
-      {b.text}
+    <span ref={root} class={`balance balance-${word}`} role="status" aria-label={`${L.balance}: ${text}`} onPointerEnter={mouse(true)} onPointerLeave={mouse(false)}>
+      <span class="balance-word">{word}</span>
+      <button
+        ref={btn}
+        type="button"
+        class="balance-info"
+        aria-label={L.balanceDetail}
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          // Open on hover: a click keeps it open; a second click closes it.
+          if (pinned) setHover(false);
+          setPinned(!pinned);
+        }}
+      >
+        <Info size={14} aria-hidden="true" />
+      </button>
+      <span id={id} class="balance-pop" hidden={!open}>
+        {text}
+      </span>
     </span>
   );
 }

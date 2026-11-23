@@ -29,8 +29,9 @@ Word sheet. See PLAN.md for the design and its decisions.
   book's own wording (spelling, grammar and punctuation fixed). Controls are icons with an
   `aria-label` (and the same text as a hover tooltip). Approved exceptions,
   and only these: "Sign in", "Sign out", "Create account"; the balance
-  label ("overpowered (+2.5σ vs a median Inquisitor Psyker)", with
-  "underpowered"/"balanced"); the GM sheet's own headings (Kbk, BIV, SS,
+  label: the word alone ("overpowered", "underpowered", "balanced") with
+  an (i) whose popover (hover, or tap) gives the full form "overpowered
+  (+2.5σ vs a median Inquisitor Psyker)"; the GM sheet's own headings (Kbk, BIV, SS,
   Cnc, Spd, Game Notes, Starting, Progress, Current, Location, L. Leg, R.
   Leg, Groin, L. Arm, R. Arm, Abdomen, Chest, Head, Injury Total, Armour /
   Injury Lvl, Firearm, Type, Rng, Mode, Acc, Damage, Shots, Rld, Enc, #

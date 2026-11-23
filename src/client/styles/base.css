@@ -26,8 +26,8 @@
   --bad: #6f9be0;           /* darker than --good */
   --bad-bg: #142443;
   --neutral-bg: #262626;
-  /* the balance label: balanced (the goal) is --good; underpowered uses --bad
-     (blue, darker) and overpowered --warn, each with its word */
+  /* the balance label: balanced (the goal) is muted --ink-3; underpowered
+     uses --bad (blue, darker) and overpowered --warn, each with its word */
   --warn: #e2c27a;
   --warn-bg: #3a3019;
   --wire: #6d6d6d;

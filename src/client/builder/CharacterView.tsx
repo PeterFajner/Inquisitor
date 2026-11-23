@@ -2,7 +2,7 @@
 // sections (Occupation, Stats, Talents, Boons, the rest of what the
 // character has, what built it), and below it the GM's sheet. With `edit`
 // every part is editable; without, it's the read-only view of a share link.
-import { BookOpen, Info, TriangleAlert } from "lucide-preact";
+import { BookOpen, Dices, Info, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useMemo, useState } from "preact/hooks";
 import type { BuildResult, Owned } from "../../shared/engine/build.ts";
@@ -310,6 +310,7 @@ export function CharacterView({
   const parts = useMemo(() => sheetParts(ch, c), [ch, c]);
   const hints = useMemo(() => (edit ? optionalHints(c, record, built) : new Map<string, string>()), [c, record, built, !!edit]);
   const [showSource, setShowSource] = useState(false);
+  const [showRolls, setShowRolls] = useState(false);
   const arch = c.archetypes.get(ch.archetype.id);
   const prose = ch.notes.filter((n) => n.kind !== "gameplay");
   const talents = ch.talents.filter((t) => !fromBoons(t));
@@ -369,8 +370,11 @@ export function CharacterView({
             </Section>
           )}
 
-          <Section wide class="csec-log">
-            <Decisions log={built.log} rolls={ch.rolls} record={record} edit={edit} alias={arch ? { [arch.name]: ch.archetype.name } : undefined} />
+          <Section wide class={`csec-log${showRolls ? "" : " collapsed"}`}>
+            <IconButton label={L.rolls} pressed={showRolls} onClick={() => setShowRolls(!showRolls)}>
+              <Dices size={ICON} />
+            </IconButton>
+            {showRolls && <Decisions log={built.log} rolls={ch.rolls} record={record} edit={edit} alias={arch ? { [arch.name]: ch.archetype.name } : undefined} />}
           </Section>
 
           {prose.length > 0 && (
