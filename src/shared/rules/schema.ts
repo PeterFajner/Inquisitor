@@ -781,7 +781,7 @@ export const Item = z.strictObject({
   alien: z.boolean().optional(),
   // "Chaos Product.", "Radical Product." (matched as "Chaos", "Radical", "Xenos")
   product: z.enum(["Chaos", "Radical", "Xenos"]).optional(),
-  // names for filters and restrictions (power-weapon, bolt-weapon, bladed, anti-psychic…)
+  // names for filters and restrictions, matched exactly (none in the book's items yet)
   tags: z.array(z.string()).optional(),
   // the book's table columns, verbatim: { Type: "Pistol", Rng: "…", … }
   profile: z.record(z.string(), z.string()).optional(),

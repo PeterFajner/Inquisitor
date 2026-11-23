@@ -139,7 +139,7 @@ effects: []                 # what having it does: armour, stats, picks into it�
 Optional item fields:
 
 ```yaml
-tags: [power-weapon, bladed]   # names for filters and restrictions (not shown)
+tags: [power-weapon, bladed]   # names for filters and restrictions (not shown; no book item has tags yet, so these are illustrations)
 product: Chaos                 # "Chaos Product." / Radical / Xenos (matched as Chaos, Radical, Xenos)
 unrestricted: true             # "Combat Stimms don't have availability restrictions"
 availabilityWhen:              # "only counts as Rare for characters that are part of … the Ecclesiarchy.
@@ -315,8 +315,8 @@ counts while the character has them; abilities' always.
 - { restrict: { pool: item, group: [Armour], maxAV: 3 } }                 # "Flak Armour or lighter"
 - { restrict: { pool: item, alien: false } }                               # "can never use alien technology"
 - { restrict: { pool: item, except: [combat-stimms] } }                    # Kroot: "never use combat drugs"
-- { restrict: { pool: item, tag: [power-weapon, bolt-weapon], only: [power-maul] } }  # Enforcers
-- { restrict: { pool: power, only: [telepathy] } }                         # Puppetmaster (a discipline is a power's group)
+- { restrict: { pool: item, tag: [power-axe, power-sword, …, bolt-pistol, storm-bolter, …], only: [] } }  # Enforcers: no power or bolt weapons (ids are names too)
+- { restrict: { pool: power, only: [Telepathy] } }                         # Puppetmaster (a discipline is a power's group, spelled exactly)
 - { restrict: { pool: power, only: [the-lidless-stare, warp-gaze, temporal-distortion, inertia] } }  # The Third Eye
 - { exclusive: { pool: talent, group: [Psyker Talents] } }                 # Natural Psyker
 - when: { not: { alignment: [Radical] } }                                  # "Only radical Inquisitors can wield heretical crafts."
