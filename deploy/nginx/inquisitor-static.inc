@@ -1,5 +1,5 @@
 # For Inquisitor's /static/ locations (included from
-# inquisitor.pfaj.ca.conf): the icons. Paths aren't versioned, so a day's
+# inquisitor-app.inc): the icons. Paths aren't versioned, so a day's
 # cache, revalidated by ETag after that. (/static/client/ has hashed names
 # and its own, longer cache.)
 types { text/javascript js mjs; text/css css; application/json json map; image/svg+xml svg; image/png png; image/x-icon ico; }

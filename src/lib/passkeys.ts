@@ -16,8 +16,17 @@ export type AuthenticationResponse = AuthenticationJSON;
 
 const TIMEOUT_MS = 120_000;
 
+/** The RP ID: PASSKEY_RP_ID (the origin's host or a parent of it, so a
+ * preview at preview.inquisitor.pfaj.ca makes passkeys that keep working on
+ * inquisitor.pfaj.ca), else the origin's hostname. */
+export function rpId(origin: URL): string {
+  const id = process.env.PASSKEY_RP_ID || origin.hostname;
+  if (origin.hostname !== id && !origin.hostname.endsWith(`.${id}`)) throw new Error(`PASSKEY_RP_ID ${id} doesn't cover ${origin.hostname}`);
+  return id;
+}
+
 export type Relying = {
-  /** e.g. https://inquisitor.pfaj.ca; its hostname is the RP ID. */
+  /** e.g. https://inquisitor.pfaj.ca; its hostname is the RP ID unless PASSKEY_RP_ID says otherwise (rpId). */
   origin: URL;
   /** Single-use challenge check: true once for a challenge we issued. */
   isChallenge: (challenge: string) => boolean | Promise<boolean>;
@@ -58,7 +67,7 @@ export function registerOptions(o: {
 }): RegisterOptionsJSON {
   return {
     challenge: o.challenge,
-    domain: o.origin.hostname,
+    domain: rpId(o.origin),
     user: o.user,
     timeout: TIMEOUT_MS,
     userVerification: "required",
@@ -70,7 +79,7 @@ export function registerOptions(o: {
 
 // A discoverable passkey: no allow list, the browser offers what it has.
 export function signInOptions(o: { origin: URL; challenge: string }): SignInOptionsJSON {
-  return { challenge: o.challenge, domain: o.origin.hostname, timeout: TIMEOUT_MS, userVerification: "required" };
+  return { challenge: o.challenge, domain: rpId(o.origin), timeout: TIMEOUT_MS, userVerification: "required" };
 }
 
 // Verifies a new passkey; null when anything doesn't check out.
@@ -78,7 +87,7 @@ export async function verifyNewPasskey(response: RegistrationResponse, rp: Relyi
   try {
     const info = await server.verifyRegistration(
       { ...response, user: { name: "inquisitor" } },
-      { challenge: rp.isChallenge, origin: rp.origin.origin, domain: rp.origin.hostname, userVerified: true },
+      { challenge: rp.isChallenge, origin: rp.origin.origin, domain: rpId(rp.origin), userVerified: true },
     );
     const { credential, authenticator } = info;
     if (!credential.publicKey || !credential.algorithm) return null;
@@ -113,7 +122,7 @@ export async function verifySignIn(
       {
         challenge: rp.isChallenge,
         origin: rp.origin.origin,
-        domain: rp.origin.hostname,
+        domain: rpId(rp.origin),
         userVerified: true,
         // Rejects a counter that didn't go up; 0 means the authenticator
         // doesn't count (most synced passkeys).

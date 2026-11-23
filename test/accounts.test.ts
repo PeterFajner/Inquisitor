@@ -6,6 +6,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { Browser, db, ORIGIN, server } from "./support/server.ts";
 import { SoftAuthenticator, UP } from "./support/soft-authenticator.ts";
+import { rpId } from "../src/lib/passkeys.ts";
 
 after(() => {
   server.closeAllConnections();
@@ -201,4 +202,19 @@ test("deleting the account takes its passkeys, sessions and characters; its shar
   assert.equal((await b.get(`/api/v1/share/${snapshot.body.token}`)).status, 200);
   // The passkey is gone with it.
   assert.equal((await signIn(new Browser(), phone)).status, 400);
+});
+
+test("PASSKEY_RP_ID: a preview host may use its parent as the RP ID, nothing else", () => {
+  const was = process.env.PASSKEY_RP_ID;
+  try {
+    process.env.PASSKEY_RP_ID = "inquisitor.pfaj.ca";
+    assert.equal(rpId(new URL("https://preview.inquisitor.pfaj.ca")), "inquisitor.pfaj.ca");
+    assert.equal(rpId(new URL("https://inquisitor.pfaj.ca")), "inquisitor.pfaj.ca");
+    assert.throws(() => rpId(new URL("https://evilinquisitor.pfaj.ca")));
+    delete process.env.PASSKEY_RP_ID;
+    assert.equal(rpId(new URL("https://preview.inquisitor.pfaj.ca")), "preview.inquisitor.pfaj.ca");
+  } finally {
+    if (was === undefined) delete process.env.PASSKEY_RP_ID;
+    else process.env.PASSKEY_RP_ID = was;
+  }
 });
