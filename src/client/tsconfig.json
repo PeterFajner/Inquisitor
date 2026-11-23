@@ -1,0 +1,21 @@
+// The browser code: TSX for Preact, bundled by esbuild (scripts/client.ts),
+// which only strips types, so this config is for `npm run typecheck` alone.
+// Same rules as the server: erasable syntax, imports name the .ts/.tsx file.
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["./**/*.ts", "./**/*.tsx", "../shared/**/*.ts"]
+}

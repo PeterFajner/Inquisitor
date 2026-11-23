@@ -1,3 +1,11 @@
 bin/
 obj/
 .DS_Store
+/node_modules
+/dist
+*.tsbuildinfo
+.env*
+!.env.example
+# Rules data, the SQLite database and the source PDF stay out of the public
+# repo: rules are their own git repo (data/rules), backed up like speci.
+/data/

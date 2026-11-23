@@ -1,14 +1,7 @@
-# Inquisitor
+@AGENTS.md
 
-Warhammer 40k Inquisitor character generator. Two parts:
+## Old hosting history (legacy app)
 
-- `InquisitorCharGen/` — original C# console generator.
-- `inquisitor-web/` — Create React App port, deployed as a static site at
-  **https://inquisitor.pfaj.ca**.
-
-Fork of `Xwi3/Inquisitor` (`upstream` remote); our fork is `PeterFajner/Inquisitor`.
-
-## Hosting history
 
 - 2023: `inquisitor-web/build` was uploaded to the **one.com** shared webspace
   for pfaj.ca (Apache; the `.htaccess` there just disabled caching on

@@ -1,0 +1,13 @@
+// Emits plain JavaScript into dist/ for production, so the server doesn't
+// pay for type stripping at runtime (~30 MB). `npm run build`.
+{
+  "extends": "./tsconfig.json",
+  // The client build and dev runner need esbuild, a dev dependency.
+  "exclude": ["src/client", "scripts/client.ts", "scripts/dev.ts"],
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "sourceMap": false
+  }
+}
