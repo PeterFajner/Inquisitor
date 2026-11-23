@@ -12,6 +12,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createReadStream, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startBalance } from "./lib/balance-store.ts";
 import { db, get } from "./lib/db.ts";
 import { HttpError, parseCookies, Router, sameOrigin, sendJson, type Ctx } from "./lib/http.ts";
 import { accountRoutes } from "./views/account.ts";
@@ -160,6 +161,7 @@ export function startServer(port = PORT, host = HOST): Promise<Server> {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const server = await startServer();
   console.log(`inquisitor on http://${HOST}:${PORT}`);
+  startBalance();
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => {
       server.close();

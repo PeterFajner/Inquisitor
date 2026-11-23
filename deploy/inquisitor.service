@@ -15,7 +15,7 @@ Environment=NODE_ENV=production PORT=3010 HOST=127.0.0.1
 Environment=DATABASE_PATH=/opt/inquisitor/data/inquisitor.db
 # The rules database: a git repo, its own (never mirrored to GitHub).
 Environment=RULES_DIR=/opt/inquisitor/data/rules
-# Forward-only migrations, then the server. The heap cap keeps the process
+# Forward-only migrations, then the server. The heap cap keeps the server
 # well under 100 MB (~57 MB at start); systemd kills it at 140 MB if
 # something runs away.
 ExecStartPre=/usr/bin/node --disable-warning=ExperimentalWarning dist/scripts/migrate.js

@@ -2,6 +2,8 @@
 //   GET  /api/v1/rules                 every pack, its entries and their git meta (ETag = version)
 //   GET  /api/v1/rules/events          Server-Sent Events: one per commit
 //   GET  /api/v1/rules/history         ?pack&kind&id: the entry's commits
+//   GET  /api/v1/balance               ?version&archetype&subtype: the power-score distribution
+//                                      (202 while it's being worked out, 409 for other rules)
 //   POST /api/v1/rules/entries         create or replace an entry
 //   POST /api/v1/rules/entries/delete
 //   POST /api/v1/rules/move            canvas position only
@@ -9,6 +11,7 @@
 //   POST /api/v1/rules/packs           a new pack
 // Writes need a signed-in account and are rate limited per account.
 import { currentViewer } from "../lib/accounts.ts";
+import { balanceFor } from "../lib/balance-store.ts";
 import { HttpError, readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
 import { RateWindow } from "../lib/limits.ts";
 import {
@@ -79,6 +82,15 @@ export function rulesRoutes(router: Router): void {
 
   router.get(`${API}/rules/events`, (ctx) => {
     rulesEvents.subscribe(ctx);
+  });
+
+  router.get(`${API}/balance`, (ctx) => {
+    const q = ctx.url.searchParams;
+    const d = balanceFor(q.get("version") ?? "", q.get("archetype") ?? "", q.get("subtype") ?? "");
+    if (d === "pending") sendJson(ctx, { pending: true }, 202, { "retry-after": "3" });
+    else if (d === "stale") sendJson(ctx, { error: "stale" }, 409);
+    else if (d === "unknown") sendJson(ctx, { error: "not_found" }, 404);
+    else sendJson(ctx, d, 200, { "cache-control": "public, max-age=31536000, immutable" });
   });
 
   router.get(`${API}/rules/history`, async (ctx) => {

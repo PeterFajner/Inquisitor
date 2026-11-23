@@ -32,7 +32,9 @@ step below is done.
   characters; the book's warband rules are warnings, not blocks.
 - **Balance**: every character shows "underpowered / balanced /
   overpowered (±Nσ vs a median <Archetype> <Subtype>)": its power score
-  against ~10,000 simulated characters of the same archetype and subtype;
+  against 1,000 simulated characters of the same archetype and subtype
+  (worked out on the server once per rules version, warmed up after every
+  rules change);
   ±1σ is balanced. Power = stats plus points per talent, ability, item,
   mutation and power (points editable on the canvas).
 - **Luna** (shelved by the owner, November 2026; not built for now) (`gpt-6-luna`, server-side, its own OpenAI key): a one-shot

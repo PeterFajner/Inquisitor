@@ -1,18 +1,18 @@
-// The balance label: a character's power score against ≈10,000 simulated
-// characters of its archetype and subtype (src/shared/engine/balance.ts),
-// simulated in a Web Worker (balance-worker.ts) and kept in localStorage per
-// rules version, so each archetype/subtype is simulated once per version.
-// 10,000 take a few seconds, so a quick estimate from 500 (a few hundred
-// ms, on a worker of its own so it never waits behind a full run) shows
-// first and the full distribution replaces it.
+// The balance label: a character's power score against 1,000 simulated
+// characters of its archetype and subtype (src/shared/engine/balance.ts).
+// The server works those out once per rules version for everyone
+// (src/lib/balance-store.ts, GET /api/v1/balance); this browser keeps them
+// in localStorage per rules version. While the server is still at it (or
+// offline), a quick estimate from 500 characters simulated here in a Web
+// Worker (balance-worker.ts) shows instead.
 //
 // The worker is its own esbuild entry; its script URL comes from the client
 // build's manifest (/static/client/manifest.json).
 import { label, type BalanceLabel, type Distribution } from "../../shared/engine/balance.ts";
 import type { BalanceReply, BalanceRequest } from "./balance-worker.ts";
 import type { Rules } from "./rules.ts";
+import { API } from "../../shared/api.ts";
 
-export const BALANCE_N = 10_000;
 export const QUICK_N = 500;
 export const BALANCE_SEED = 1;
 const PREFIX = "inquisitor:balance:";
@@ -39,9 +39,9 @@ function keep(key: string, version: string, d: Distribution): void {
   } catch {}
 }
 
-type Lane = "full" | "quick";
-const workers: Record<Lane, Promise<Worker | null> | null> = { full: null, quick: null };
-const sentPacks: Record<Lane, Set<string>> = { full: new Set(), quick: new Set() };
+type Lane = "quick";
+const workers: Record<Lane, Promise<Worker | null> | null> = { quick: null };
+const sentPacks: Record<Lane, Set<string>> = { quick: new Set() };
 const waiting = new Map<number, (r: BalanceReply) => void>();
 let nextId = 1;
 
@@ -93,14 +93,34 @@ async function simulateIn(lane: Lane, rules: Rules, archetype: string, subtype: 
   return reply.dist ?? null;
 }
 
-/** The full distribution for an archetype/subtype under these rules (cached), or null when it can't be had. */
+/** How long to keep asking the server while it works the distribution out. */
+const SERVER_WAIT_MS = 5 * 60_000;
+
+async function fromServer(rules: Rules, archetype: string, subtype: string): Promise<Distribution | null> {
+  const q = new URLSearchParams({ version: rules.version, archetype, subtype });
+  const until = Date.now() + SERVER_WAIT_MS;
+  while (Date.now() < until) {
+    let res: Response;
+    try {
+      res = await fetch(`${API}/balance?${q}`, { credentials: "same-origin" });
+    } catch {
+      return null;
+    }
+    if (res.status === 200) return (await res.json()) as Distribution;
+    if (res.status !== 202) return null;
+    await new Promise((done) => setTimeout(done, 3000));
+  }
+  return null;
+}
+
+/** The server's distribution for an archetype/subtype under these rules (cached), or null when it can't be had. */
 export function distribution(rules: Rules, archetype: string, subtype: string): Promise<Distribution | null> {
   const key = cacheKey(rules.version, archetype, subtype);
   const have = cached(key);
   if (have) return Promise.resolve(have);
   let p = inflight.get(key);
   if (p) return p;
-  p = simulateIn("full", rules, archetype, subtype, BALANCE_N).then((d) => {
+  p = fromServer(rules, archetype, subtype).then((d) => {
     if (d) keep(key, rules.version, d);
     return d;
   });
