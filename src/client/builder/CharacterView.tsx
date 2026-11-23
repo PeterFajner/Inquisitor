@@ -11,6 +11,7 @@ import type { Compendium } from "../../shared/rules/compendium.ts";
 import { STATS, type Stat } from "../../shared/rules/schema.ts";
 import { sheetParts } from "../../shared/sheet-map.ts";
 import { InlineInput, NameLine, Sheet, type SheetEdits } from "../sheet/Sheet.tsx";
+import { abilityText } from "./ability-text.ts";
 import { Decisions, Pending } from "./Decisions.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
@@ -57,13 +58,6 @@ function entryName(c: Compendium, id: string): string {
   return "";
 }
 
-/** An ability's book text (its effect), for the card lists: its lines kept (a list of prayers stays a list), blank lines dropped. */
-function abilityText(c: Compendium, kind: ThingKind, id: string): string {
-  const map = { talent: c.talents, exotic: c.exotics, mutation: c.mutations, power: c.powers, item: c.items }[kind];
-  const e = map.get(id) as { text?: string; source: { text?: string } } | undefined;
-  return (e?.text ?? e?.source.text ?? "").split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
-}
-
 const BOON = /^(.*\/boons)(#\d+|:count)$/;
 const fromBoons = (t: Owned) => t.from.some((o) => !!o.key && BOON.test(o.key.split(">")[0]));
 
@@ -86,8 +80,8 @@ function Things({ c, list }: { c: Compendium; list: Owned[] }) {
   return (
     <ul class="csec-list">
       {list.map((t) => {
-        const text = abilityText(c, t.kind, t.id);
         const v = t.variants?.flat().filter(Boolean) ?? [];
+        const text = abilityText(c, t.kind, t.id, v);
         return (
           <li>
             <b>{t.name}</b>
@@ -270,7 +264,7 @@ function Boons({ c, built, edit }: { c: Compendium; built: BuildResult; edit?: V
             <li>
               {got.length ? (
                 got.map((t) => {
-                  const text = abilityText(c, t.kind, t.id);
+                  const text = abilityText(c, t.kind, t.id, t.variants?.flat().filter(Boolean) ?? []);
                   return (
                     <span class="boon-thing">
                       <b>{t.name}</b>
