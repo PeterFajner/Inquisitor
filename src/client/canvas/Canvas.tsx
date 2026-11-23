@@ -139,6 +139,8 @@ const idle: (f: () => void) => void =
 const KEY_PAN = 80;
 // Room around the content on "fit": region titles sit above their regions, controls float over the edges.
 const FIT_PAD = 64;
+/** How long after the last zoom step the zoom counts as resting (cards are mounted again). */
+const ZOOM_REST_MS = 150;
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const CARD = ".cv-card, .cv-ph";
 const INTERACTIVE = "button, a[href], input, select, textarea, label, summary, [contenteditable], [role=button], [data-canvas-nodrag]";
@@ -234,6 +236,7 @@ export function Canvas(props: CanvasProps) {
   const phSelected = useRef(-1);
   const phColors = useRef<{ box: string; sel: string; ink: string; font: string } | null>(null);
   const phLabels = useRef<(string | undefined)[]>([]);
+
   // Wires are drawn on the same canvas, under the boxes; each one styled as an SVG path with its class and style would be.
   const wireList = useRef<{ path: Path2D; box: Rect; look: WireLook }[]>([]);
   const looks = useRef(new Map<string, WireLook>());
@@ -374,23 +377,13 @@ export function Canvas(props: CanvasProps) {
     return hit?.id ?? null;
   };
 
-  // Moves the layers to the view; re-renders only when the mounted window must change.
-  const apply = useCallback((v: View) => {
-    viewRef.current = v;
-    const t = `translate(${v.x}px, ${v.y}px) scale(${v.k})`;
-    if (worldRef.current) worldRef.current.style.transform = t;
-    if (backRef.current) {
-      backRef.current.style.transform = t;
-      backRef.current.style.setProperty("--cv-inv", String(1 / v.k));
-    }
-    if (frontRef.current) {
-      frontRef.current.style.transform = t;
-      frontRef.current.style.setProperty("--cv-inv", String(1 / v.k));
-    }
+  // The mounted window: re-rendered only when the view leaves it, the level of detail changes, or zooming in more than doubles.
+  const lastK = useRef(NaN);
+  const zoomingRef = useRef(false);
+  const zoomTimer = useRef(0);
+  const updateWin = useCallback((v: View) => {
     const s = sizeRef.current;
     if (!s) return;
-    miniRef.current?.place();
-    requestDraw();
     const lod = v.k < (P.current.placeholderBelow ?? 0.32);
     const need = visibleRect(v, s, (P.current.overscan ?? 700) / 3);
     const w = winRef.current;
@@ -399,6 +392,50 @@ export function Canvas(props: CanvasProps) {
       winRef.current = next;
       setWin(next);
     }
+  }, []);
+  useEffect(() => () => clearTimeout(zoomTimer.current), []);
+  const invK = useRef(NaN);
+  const setInv = (k: number) => {
+    if (k === invK.current) return;
+    invK.current = k;
+    backRef.current?.style.setProperty("--cv-inv", String(1 / k));
+    frontRef.current?.style.setProperty("--cv-inv", String(1 / k));
+  };
+  const requestPump = () => {
+    if (pending.current.length && !mountFrame.current) mountFrame.current = requestAnimationFrame(pump);
+  };
+
+  // Moves the layers to the view; re-renders only when the mounted window must change.
+  const apply = useCallback((v: View) => {
+    viewRef.current = v;
+    const t = `translate(${v.x}px, ${v.y}px) scale(${v.k})`;
+    if (worldRef.current) worldRef.current.style.transform = t;
+    if (backRef.current) backRef.current.style.transform = t;
+    if (frontRef.current) frontRef.current.style.transform = t;
+    // Region borders and titles keep their screen size through --cv-inv; changing
+    // it restyles and repaints those big layers, so a zoom sets it once it rests.
+    if (Math.abs(v.k - lastK.current) <= 1e-9 || !winRef.current) setInv(v.k);
+    const s = sizeRef.current;
+    if (!s) return;
+    miniRef.current?.place();
+    requestDraw();
+    // While the zoom changes (a pinch, wheel zoom, a flight), what's mounted
+    // stays as it is (scaled with the layer; unmounted cards are drawn as
+    // placeholders wherever they are): mounting and unmounting cards at every
+    // step is what made zooming slow. The window catches up once the zoom rests.
+    const zooming = Math.abs(v.k - lastK.current) > 1e-9;
+    lastK.current = v.k;
+    if (zooming && winRef.current) {
+      zoomingRef.current = true;
+      clearTimeout(zoomTimer.current);
+      zoomTimer.current = window.setTimeout(() => {
+        zoomingRef.current = false;
+        setInv(viewRef.current.k);
+        updateWin(viewRef.current);
+        requestPump();
+        requestDraw();
+      }, ZOOM_REST_MS);
+    } else if (!zoomingRef.current) updateWin(v);
     const reg = regionAt(v, s);
     setCurrentRegion((old) => (old === reg ? old : reg));
     clearTimeout(viewTimer.current);
@@ -883,7 +920,8 @@ export function Canvas(props: CanvasProps) {
   const pump = useCallback(() => {
     mountFrame.current = 0;
     const s = sizeRef.current;
-    if (!pending.current.length || !s) return;
+    // (Resumed when the zoom rests.)
+    if (!pending.current.length || !s || zoomingRef.current) return;
     const screen = visibleRect(viewRef.current, s);
     // This frame mounts cards of one level: the level of the card most wanted.
     const [first] = nextToMount(pending.current, screen, 1);
@@ -900,7 +938,7 @@ export function Canvas(props: CanvasProps) {
       mountN.current[l] = adaptCount(mountN.current[l], performance.now() - mountT0.current, BUDGET, 40);
       mountT0.current = 0;
     }
-    if (pending.current.length && !mountFrame.current) mountFrame.current = requestAnimationFrame(pump);
+    if (pending.current.length && !mountFrame.current && !zoomingRef.current) mountFrame.current = requestAnimationFrame(pump);
     requestDraw();
   });
   useEffect(() => () => cancelAnimationFrame(mountFrame.current), []);
@@ -931,13 +969,17 @@ export function Canvas(props: CanvasProps) {
     }
     levels.current = next;
     pending.current = waiting;
-    phIds.current = placeholders.map((c) => c.id);
-    phList.current = placeholders.map((c) => {
+    // Every card not mounted is drawn, not only the window's: while a zoom
+    // leaves the window behind (see apply), the rest of the board still shows.
+    const drawn = cards.filter((c) => !next.has(c.id));
+    phIds.current = drawn.map((c) => c.id);
+    phList.current = drawn.map((c) => {
       const r = rectOf(c.id)!;
       return drag?.id === c.id ? { ...r, x: drag.x, y: drag.y } : r;
     });
-    phLabels.current = placeholders.map((c) => c.label);
-    phSelected.current = placeholders.findIndex((c) => c.id === selected);
+    phLabels.current = drawn.map((c) => c.label);
+    phSelected.current = drawn.findIndex((c) => c.id === selected);
+
   }
   wireList.current = useMemo(() => {
     const list: typeof wireList.current = [];
@@ -947,7 +989,7 @@ export function Canvas(props: CanvasProps) {
       if (!a || !b) continue;
       const p = wirePath(a, b, [w.fromSide, w.toSide]);
       const box = { x: p.box.x - 1, y: p.box.y - 1, w: p.box.w + 2, h: p.box.h + 2 };
-      if (intersects(box, win.rect)) list.push({ path: new Path2D(p.d), box, look: lookOf(w) });
+      list.push({ path: new Path2D(p.d), box, look: lookOf(w) });
     }
     return list;
   }, [win, wires, sizeTick, drag, cards]);

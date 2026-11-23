@@ -14,7 +14,10 @@
 .cv:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
 .cv.is-panning { cursor: grabbing; }
 .cv-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
-.cv.is-moving .cv-layer { will-change: transform; }
+/* Always their own composited layers: toggling will-change for each gesture
+   repainted every mounted card at its start and end; Chrome re-rasters them
+   sharp once a zoom rests. */
+.cv-layer { will-change: transform; }
 .cv.is-moving .cv-card, .cv.is-moving .cv-ph { pointer-events: none; }
 .cv.is-dragging .cv-card, .cv.is-dragging .cv-ph { pointer-events: auto; }
 .cv:not(.is-ready) .cv-layer { visibility: hidden; }

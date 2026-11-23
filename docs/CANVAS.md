@@ -164,13 +164,27 @@ more than doubles.
   budget's worth per frame (~8 ms, adapted per level from how long the
   last frame's took), those on screen first, then nearest the centre
   (`nextToMount`). Selected and dragged cards mount at once.
+- **Zooming leaves the cards alone.** While the zoom changes (a pinch,
+  ctrl/⌘+wheel, the buttons, a flight) nothing is mounted or unmounted and
+  the region borders and titles keep their size (`--cv-inv` is set once the
+  zoom rests, 150 ms after the last step): the mounted cards scale with
+  their layer, every other card is drawn on the placeholder canvas (all of
+  them, not only the mounted window's), and the window, the level of detail
+  and `--cv-inv` catch up when the zoom rests. Changing `--cv-inv` at every
+  step restyled and re-rastered the big region layers and was most of what
+  made zooming slow. The layers keep `will-change: transform` for good
+  (toggling it per gesture repainted every mounted card); Chrome re-rasters
+  them sharp once a zoom rests.
 - Callers should keep card content cheap to composite: the rules cards
   draw their icons as `<img>`s (src/client/rules/icon.tsx), not inline SVG.
 
 Measured in headless Chrome with the 964 cards of `data/rules`
 (`scratchpad` scripts, rAF frame times while wheel-panning/zooming each
 frame): at 1280×800 and 390×844, with the CPU slowed 6×, panning at fit,
-0.35, 0.6 and 1 runs at a 16.7 ms median frame. The rules canvas measures
+0.35, 0.6 and 1 runs at a 16.7 ms median frame. A 2 s trackpad-like pinch
+(ctrl+wheel every 8 ms, 1440×900 at 2×) from the whole board to readable,
+back and forth across 0.32/0.5, and around 1, runs at 16.7 ms frames at 1×
+(no frame over 33 ms) and has no long task over ~85 ms at 6×. The rules canvas measures
 nothing: every card's size is worked out from its content (below), so a
 first visit is laid out at once (ready in ~0.65 s at 6×, no background work
 after).
