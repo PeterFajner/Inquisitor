@@ -17,31 +17,28 @@ export const initCharacter = (compendium: Compendium): Character => {
     const fallbackArchetype: Archetype = {
         key: 'n/a',
         name: 'N/A',
-        roles: {},
-        subtypes: {
-            'n/a': {
-                key: 'n/a',
-                name: 'N/A',
-                stats: {
-                    BS: new DieCode('0'),
-                    I: new DieCode('0'),
-                    Ld: new DieCode('0'),
-                    Nv: new DieCode('0'),
-                    S: new DieCode('0'),
-                    Sg: new DieCode('0'),
-                    T: new DieCode('0'),
-                    WS: new DieCode('0'),
-                    Wp: new DieCode('0'),
-                },
+        roles: new Map(),
+        subtypes: new Map([['n/a', {
+            key: 'n/a',
+            name: 'N/A',
+            stats: {
+                BS: new DieCode('0'),
+                I: new DieCode('0'),
+                Ld: new DieCode('0'),
+                Nv: new DieCode('0'),
+                S: new DieCode('0'),
+                Sg: new DieCode('0'),
+                T: new DieCode('0'),
+                WS: new DieCode('0'),
+                Wp: new DieCode('0'),
             },
-        },
+        }]]),
         talents: [],
         talentChoices: [],
     };
-    const archetype =
-        Object.values(compendium.archetypes)?.[0] ?? fallbackArchetype;
-    const subtype = Object.values(archetype.subtypes)[0];
-    const role = Object.values(archetype.roles)?.[0];
+    const [archetype = fallbackArchetype] = compendium.archetypes.values();
+    const [subtype] = archetype.subtypes.values();
+    const [role] = archetype.roles.values();
     const stats = rollStats(subtype);
 
     return {

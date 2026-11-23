@@ -1,14 +1,20 @@
+export type Key = Lowercase<string>;
+export type ArchetypeKey = Key;
+export type TalentKey = Key;
+export type SubtypeKey = Key;
+export type RoleKey = Key;
+export type ExoticAbilityKey = Key;
+
 export interface Compendium {
-    // compendium keys should always be lowercase, as there's some inconsistency in capitalization throughout the spreadsheet
-    archetypes: { [key: string]: Archetype };
-    talents: { [key: string]: Talent };
-    boons: { [key: string]: Boon[] }; // key is subtype key
-    exoticAbilities: { [key: string]: ExoticAbility };
+    archetypes: Map<ArchetypeKey, Archetype>;
+    talents: Map<TalentKey, Talent>;
+    boons: Map<SubtypeKey, Boon[]>;
+    exoticAbilities: Map<ExoticAbilityKey, ExoticAbility>;
     randomExoticAbilities: RandomExoticAbility[]; // ordered by lowroll
 }
 
 export interface ExoticAbility {
-    key: string; // lowercase
+    key: ExoticAbilityKey; // lowercase
     name: string;
     description: string;
 }
@@ -20,12 +26,10 @@ export interface RandomExoticAbility {
 }
 
 export interface Talent {
-    key: string;
+    key: TalentKey;
     name: string;
     description: string;
 }
-
-export interface Talent {}
 
 export type Stat = 'BS' | 'I' | 'Ld' | 'Nv' | 'S' | 'Sg' | 'T' | 'WS' | 'Wp';
 
@@ -58,7 +62,7 @@ export interface PsychicBoon extends Boon {
 
 export interface RerollBoon extends Boon {
     type: 'Reroll';
-    subtypeKey: string;
+    subtype: Subtype;
 }
 
 export interface RolledExoticBoon extends ExoticBoon {
@@ -159,7 +163,7 @@ export const STAT_NAMES = {
 };
 
 export interface Subtype {
-    key: string; // lowercase name
+    key: SubtypeKey; // lowercase name
     name: string;
     stats: {
         BS: DieCode;
@@ -175,7 +179,7 @@ export interface Subtype {
 }
 
 export interface Role {
-    key: string; // lowercase name
+    key: RoleKey; // lowercase name
     name: string;
 }
 
@@ -187,10 +191,10 @@ export interface TalentChoiceList {
 }
 
 export interface Archetype {
-    key: string; // lowercase name
+    key: ArchetypeKey;
     name: string;
-    roles: { [key: string]: Role };
-    subtypes: { [key: string]: Subtype };
+    roles: Map<RoleKey, Role>;
+    subtypes: Map<SubtypeKey, Subtype>;
     // null subtype/role = all subtypes/roles have this talent
     // a talent available to multiple subtypes/roles appears multiple times
     talents: { talent: Talent; subtype: Subtype | null; role: Role | null }[];
