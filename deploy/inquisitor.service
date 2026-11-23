@@ -17,14 +17,15 @@ Environment=DATABASE_PATH=/opt/inquisitor/data/inquisitor.db
 Environment=RULES_DIR=/opt/inquisitor/data/rules
 # Forward-only migrations, then the server. The heap cap keeps the server
 # well under 100 MB (~65 MB running). The balance warm-up child (after a
-# rules change, ~4 min at the lowest priority) peaks at ~130 MB on top;
-# systemd kills the lot at 256 MB if
+# rules change, ~4 min at the lowest priority) peaks at ~130 MB on top,
+# and the rules-heights child (~12 s after start or an edit) ~60 MB;
+# systemd kills the lot at 320 MB if
 # something runs away.
 ExecStartPre=/usr/bin/node --disable-warning=ExperimentalWarning dist/scripts/migrate.js
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --max-old-space-size=48 --max-semi-space-size=1 dist/src/server.js
 Restart=on-failure
 RestartSec=5
-MemoryLimit=256M
+MemoryLimit=320M
 
 NoNewPrivileges=true
 PrivateTmp=true

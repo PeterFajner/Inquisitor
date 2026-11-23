@@ -61,8 +61,9 @@ Word sheet. See PLAN.md for the design and its decisions.
 - **Rules are data.** Never hard-code a rule in the engine or UI; express
   it in the format, or extend the format (schema + engine + docs together).
 - Memory budget on asterix (1.2 GB shared): keep the server well under
-  100 MB like speci (the balance warm-up runs as a short-lived child, ~130
-  MB, after rules changes). Measure before adding a server dependency.
+  100 MB like speci (the balance warm-up, ~130 MB, and the rules-heights
+  bake, ~60 MB, run as short-lived children
+  after rules changes). Measure before adding a server dependency.
 - Node runs the TypeScript directly (type stripping): erasable syntax only,
   imports name the `.ts`/`.tsx` file.
 
