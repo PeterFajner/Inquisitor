@@ -14,6 +14,13 @@ import {
 import { Minimap, type MinimapHandle } from "./Minimap.tsx";
 import "./canvas.css";
 
+// Every face the cards use, loaded before anything is measured: fonts load
+// only when first used, so `document.fonts.ready` alone can resolve before
+// the bold or italic faces arrive and the heights would be the fallback's.
+const FACES = ["400 16px Ubuntu", "500 16px Ubuntu", "700 16px Ubuntu", "italic 400 16px Ubuntu", "italic 700 16px Ubuntu", "400 16px 'Ubuntu Mono'"];
+const fontsLoaded = (): Promise<unknown> =>
+  document.fonts ? Promise.all(FACES.map((f) => document.fonts.load(f).catch(() => []))).then(() => document.fonts.ready) : Promise.resolve();
+
 export type CanvasCard = {
   id: string;
   /** World position of the card's top-left corner. */
@@ -602,7 +609,7 @@ export function Canvas(props: CanvasProps) {
       if (flushTimer.current) flush();
     };
     if (ch) ch.port1.onmessage = slice;
-    (document.fonts?.ready ?? Promise.resolve()).then(() => {
+    fontsLoaded().then(() => {
       if (stop || !measureRef.current) return;
       measureRef.current.setAttribute("data-busy", "");
       slice();

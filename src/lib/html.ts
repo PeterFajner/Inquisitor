@@ -56,6 +56,8 @@ export function page(opts: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 ${noindex ? raw('<meta name="robots" content="noindex, nofollow">') : ""}
+<link rel="preload" href="/static/fonts/ubuntu-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/ubuntu-700-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
