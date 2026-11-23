@@ -16,7 +16,8 @@ import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const OUT = join(ROOT, "dist/client");
+// CLIENT_OUT lets parallel checkouts/agents build side by side (the server reads the same variable).
+const OUT = resolve(ROOT, process.env.CLIENT_OUT || "dist/client");
 const PUBLIC = "/static/client/";
 // Entries the server names in manifest.json.
 export const ENTRIES: Record<string, string> = {

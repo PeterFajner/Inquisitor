@@ -12,7 +12,7 @@ import { sendHtml, type Ctx } from "../lib/http.ts";
 export type Entry = { js: string; css: string[]; preload: string[] };
 export type Manifest = Record<string, Entry>;
 
-const MANIFEST = join(resolve(process.env.APP_ROOT || process.cwd()), "dist/client/manifest.json");
+const MANIFEST = join(resolve(process.env.APP_ROOT || process.cwd(), process.env.CLIENT_OUT || "dist/client"), "manifest.json");
 let cached: { mtime: number; manifest: Manifest } | null = null;
 let warned = false;
 

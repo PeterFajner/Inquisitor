@@ -41,7 +41,7 @@ pageRoutes(router);
 const CLIENT_PREFIX = "/static/client/";
 const STATIC_DIRS: Record<string, string> = {
   // The browser code and CSS (scripts/client.ts), content-hashed names.
-  [CLIENT_PREFIX]: join(ROOT, "dist/client/"),
+  [CLIENT_PREFIX]: join(resolve(ROOT, process.env.CLIENT_OUT || "dist/client"), "/"),
   // The icons.
   "/static/": join(ROOT, "src/static/"),
 };
