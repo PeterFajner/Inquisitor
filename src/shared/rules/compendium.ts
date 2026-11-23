@@ -35,8 +35,28 @@ export interface Compendium {
 
 export const entryKey = (kind: string, id: string) => `${kind}/${id}`;
 
-// Later packs override earlier ones entry by entry.
-export function buildCompendium(stack: PackEntries[]): Compendium {
+// A pack comes after the packs it extends (otherwise the given order is kept).
+export function packOrder(stack: PackEntries[]): PackEntries[] {
+  const byId = new Map(stack.map((p) => [p.pack.id, p]));
+  const out: PackEntries[] = [];
+  const seen = new Set<string>();
+  const visit = (p: PackEntries) => {
+    if (seen.has(p.pack.id)) return;
+    seen.add(p.pack.id);
+    for (const x of p.pack.extends ?? []) {
+      const dep = byId.get(x);
+      if (dep) visit(dep);
+    }
+    out.push(p);
+  };
+  stack.forEach(visit);
+  return out;
+}
+
+// Later packs override earlier ones entry by entry; a pack always comes after
+// the packs it extends.
+export function buildCompendium(given: PackEntries[]): Compendium {
+  const stack = packOrder(given);
   const c: Compendium = {
     packs: stack.map((p) => p.pack),
     archetypes: new Map(),

@@ -19,6 +19,15 @@ explains it). `npm run rules:check` validates every file and every
 cross-reference. `data/rules` is its own git repository (the rules
 database), not part of the code repo.
 
+`pack.yaml` names the pack (`id`, `name`) and the packs it builds on
+(`extends: [loyalist]`). Every pack applies to every character; a pack is
+stacked after the packs it extends, and its entries replace theirs with the
+same kind and id. The book is `loyalist`; each article the book defers to is
+its own pack (`data/source/articles/<pack>.pdf`, its `source.page` counting
+the article's pages). An article pack overrides a book entry only to fill in
+what the book defers to the article; anything else it adds has new ids, and
+optional rules it offers are options, not replacements.
+
 ## Principles
 
 1. **Book text is sacred.** Every visible word in the app comes from the

@@ -105,7 +105,15 @@ test('renderSheetDocx: four characters fill two pages, each value in its own blo
 
   const bs = blocks(xml);
   assert.equal(bs.length, 6, 'two pages of three blocks');
-  assert.deepEqual(bs.map((b) => b.pageBreak), [false, false, false, true, false, false], 'the second page starts on a new page');
+  // No forced page breaks: each block keeps together (rows never split, every
+  // paragraph but the last row's keeps with the next), so pages fill with whole blocks.
+  assert.deepEqual(bs.map((b) => b.pageBreak), [false, false, false, false, false, false], 'pages flow');
+  for (const t of xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) ?? []) {
+    const rows = t.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) ?? [];
+    assert.ok(rows.every((r) => r.includes('<w:cantSplit/>')), 'no row splits across pages');
+    const paras = (r: string) => r.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+    assert.ok(rows.slice(0, -1).every((r) => paras(r).every((q) => q.includes('<w:keepNext/>'))), 'a block keeps with its last row');
+  }
 
   characters.forEach((c, i) => {
     const b = bs[i];

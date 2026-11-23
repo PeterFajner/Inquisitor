@@ -1066,3 +1066,14 @@ test("a restriction met inside an option keeps the build's odds and replays exac
   }
   assert.ok(zealots > N * 0.4 && zealots < N * 0.6, `Zealot ${zealots} of ${N}`);
 });
+
+test("packs: a pack stacks after the packs it extends, whatever the given order", () => {
+  const talent = (name: string) => ({ id: "t", kind: "talent", name, source: { page: 1 } }) as never;
+  const c = buildCompendium([
+    { pack: { id: "article", name: "Article", extends: ["book"] }, entries: [talent("Article's")] },
+    { pack: { id: "book", name: "Book" }, entries: [talent("Book's")] },
+  ]);
+  assert.deepEqual(c.packs.map((p) => p.id), ["book", "article"]);
+  assert.equal(c.talents.get("t")?.name, "Article's");
+  assert.equal(c.origin.get("talent/t"), "article");
+});

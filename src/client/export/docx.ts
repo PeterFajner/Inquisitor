@@ -1,6 +1,7 @@
 // Word export of the GM's sheet: fills sheet-template.docx (the GM's
 // BETTER_3_CHARACTERSPER_PAGE.doc with docx-templates commands, served at
-// /static/sheet-template.docx) with SheetCharacters, three blocks per page.
+// /static/sheet-template.docx) with SheetCharacters, three blocks per page;
+// a block never splits across pages (scripts/sheet-keep-together.py).
 //
 // Uses docx-templates' browser bundle, which carries its own polyfills, so
 // the app needs no Node Buffer polyfill; it also runs under Node (tests).
