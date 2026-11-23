@@ -7,8 +7,7 @@ import type { Compendium } from "../../shared/rules/compendium.ts";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 
-const LAST = "inquisitor:new-archetype";
-/** The archetype a new character starts on until one has been used. */
+/** The archetype a new character always starts on. */
 const DEFAULT = "inquisitor";
 
 /** An archetype as one character ("Inquisitor", not the book's heading "Inquisitors"). */
@@ -30,15 +29,7 @@ export function NewCharacter({
     () => [...c.archetypes.values()].sort((a, b) => a.source.page - b.source.page || a.name.localeCompare(b.name)),
     [c],
   );
-  const [arch, setArch] = useState(() => {
-    let last: string | null = null;
-    try {
-      last = localStorage.getItem(LAST);
-    } catch {}
-    if (last && c.archetypes.has(last)) return last;
-    // Until one has been used: an Inquisitor (else the first).
-    return archetypes.find((a) => a.id === DEFAULT)?.id ?? archetypes[0]?.id ?? "";
-  });
+  const [arch, setArch] = useState(() => archetypes.find((a) => a.id === DEFAULT)?.id ?? archetypes[0]?.id ?? "");
   const subs = c.archetypes.get(arch)?.subtypes ?? [];
   const [sub, setSub] = useState(subs[0]?.id ?? "");
   const subtype = subs.some((s) => s.id === sub) ? sub : subs[0]?.id ?? "";
@@ -46,12 +37,7 @@ export function NewCharacter({
     if (arch && subtype) onPreview?.(arch, subtype);
   }, [arch, subtype]);
 
-  const go = (mode: "random" | "freeform") => {
-    try {
-      localStorage.setItem(LAST, arch);
-    } catch {}
-    onCreate(arch, subtype, mode);
-  };
+  const go = (mode: "random" | "freeform") => onCreate(arch, subtype, mode);
 
   return (
     <section class="csec new-char" role="group" aria-label={L.newCharacter}>

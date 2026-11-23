@@ -47,7 +47,8 @@ Word sheet. See PLAN.md for the design and its decisions.
   "Reroll", "Download Docx", "Add character" ("Role" labels a pick the
   book names after the archetype itself, e.g. an Inquisitor's faction);
   "–" in the alignment when there is none; "lost" on gear lost to a
-  downgrade.
+  downgrade; the labels "Rolls" (the rolls section's toggle) and "Balance
+  details" (the balance chip's (i)).
   The look is the 2023 site's (dark cards on a dark-red mosaic, red for
   what can be changed, the Inquisitor title face): keep it.
   Anything else needs the owner's approval first: don't add
