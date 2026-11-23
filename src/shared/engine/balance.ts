@@ -105,7 +105,7 @@ const bound = (sorted: number[], x: number, upper: boolean): number => {
 
 /** Where a score falls among the simulated ones: in the top or bottom BALANCE_TAIL it's over- or underpowered. */
 export function label(score: number, dist: Pick<Distribution, "scores">): BalanceLabel {
-  const s = dist.scores;
+  const s = dist.scores ?? []; // none (an old summary-only distribution): balanced
   const n = s.length;
   // the character is one more random character: (others at least as good + itself) / (n + 1)
   const top = (n - bound(s, score, false) + 1) / (n + 1);

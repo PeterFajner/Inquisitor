@@ -14,18 +14,24 @@ import type { Rules } from "./rules.ts";
 import { API } from "../../shared/api.ts";
 
 export const QUICK_N = 500;
+/** The shape of a distribution: 2 = with every score (percentile labels). */
+export const BALANCE_FORMAT = 2;
 export const BALANCE_SEED = 1;
 const PREFIX = "inquisitor:balance2:"; // 2: with the scores (percentile labels)
 
 const cacheKey = (version: string, archetype: string, subtype: string) => `${PREFIX}${version}:${archetype}/${subtype}`;
 
+/** A distribution this code can use: one with its scores (older ones only had a summary). */
+const usable = (d: unknown): d is Distribution => !!d && typeof d === "object" && Array.isArray((d as Distribution).scores) && (d as Distribution).scores.length > 0;
+
 function cached(key: string): Distribution | null {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as Distribution) : null;
-  } catch {
-    return null;
-  }
+    const d: unknown = raw ? JSON.parse(raw) : null;
+    if (usable(d)) return d;
+    if (raw) localStorage.removeItem(key);
+  } catch {}
+  return null;
 }
 
 function keep(key: string, version: string, d: Distribution): void {
@@ -97,7 +103,8 @@ async function simulateIn(lane: Lane, rules: Rules, archetype: string, subtype: 
 const SERVER_WAIT_MS = 5 * 60_000;
 
 async function fromServer(rules: Rules, archetype: string, subtype: string): Promise<Distribution | null> {
-  const q = new URLSearchParams({ version: rules.version, archetype, subtype });
+  // `format` changes with the distribution's shape, so a response cached for the same rules version in the old shape isn't reused
+  const q = new URLSearchParams({ version: rules.version, archetype, subtype, format: String(BALANCE_FORMAT) });
   const until = Date.now() + SERVER_WAIT_MS;
   while (Date.now() < until) {
     let res: Response;
@@ -106,7 +113,10 @@ async function fromServer(rules: Rules, archetype: string, subtype: string): Pro
     } catch {
       return null;
     }
-    if (res.status === 200) return (await res.json()) as Distribution;
+    if (res.status === 200) {
+      const d: unknown = await res.json();
+      return usable(d) ? d : null;
+    }
     if (res.status !== 202) return null;
     await new Promise((done) => setTimeout(done, 3000));
   }

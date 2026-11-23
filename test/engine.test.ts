@@ -619,6 +619,8 @@ test("balance labels: the top and bottom 5% of the simulated scores, the charact
   assert.deepEqual(label(4, { scores }), { word: "underpowered", end: "bottom", share: 0.05 });
   assert.equal(label(5, { scores }).word, "balanced");
   assert.deepEqual(label(50, { scores }), { word: "balanced", end: "top", share: 0.51 });
+  // an old summary-only distribution (no scores) never throws
+  assert.equal(label(50, {} as never).word, "balanced");
   // every random character the same (a fixed stat line): always balanced
   assert.equal(label(10, { scores: Array(1000).fill(10) }).word, "balanced");
   assert.equal(percent(0.015), "1.5%");
