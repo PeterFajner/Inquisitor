@@ -247,6 +247,23 @@ test("pick from effects (cherub): grants and stat options by derived ids", () =>
   assert.deepEqual(ids(t.character.talents), ["awareness", "dodge"]);
 });
 
+test("caps: the human 100 applies to the roll, not to later bonuses", () => {
+  const pack = {
+    pack: { id: "cap", name: "cap" },
+    entries: [
+      {
+        id: "brute", kind: "archetype", name: "Brute", source: { page: 1 },
+        subtypes: [{ id: "b", name: "B", stats: { WS: "95+2D10", BS: 1, S: 1, T: 1, I: 1, Wp: 1, Sg: 1, Nv: 1, Ld: 1 } }],
+        sections: [{ name: "Boons", effects: [{ stat: "WS", add: 10 }] }],
+      },
+    ],
+  } as const;
+  const c = buildCompendium([pack as never]);
+  const b = build(c, { ...newRecord(["cap"], "brute", "b"), dice: { "brute/@stats:WS": [10, 10] } }, { mode: "random", roll: noRolls });
+  assert.equal(b.character.stats.WS.base, 115, "the roll itself");
+  assert.equal(b.character.stats.WS.final, 110, "rolled 115 → 100, then +10");
+});
+
 test("caps: human 100, non-human uncapped, max average", () => {
   const cherub = build(C, rec("cherub", "cherub"), { mode: "random", roll: ones });
   assert.equal(cherub.character.stats.WS.base, 120);

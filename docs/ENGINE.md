@@ -99,11 +99,13 @@ own and those the last pass met.
    item whose effects decide something (a pick, roll, chance or optional)
    runs them for every grant (each Bionic Organs rolls its own organ), and
    so does a grant with `covers`.
-3. Stats: base → adds/sets in order → formula adds (`{ stat: S, divide:
-   10 }`, worked out from the stats after their adds/sets) → caps (`max`, `min`,
-   `max: average` = the subtype's stat line with every die at its mean,
-   rounded down) → the human cap of 100 (unless `archetype.human ===
-   false`) → multiplies (Power Armor's ×1.2, rounded off) = `modified`.
+3. Stats: base (the rolled stat line, capped at 100 unless
+   `archetype.human === false`: the book's cap applies to the roll, and
+   later bonuses may pass it) → adds/sets in order → formula adds (`{ stat:
+   S, divide: 10 }`, worked out from the stats after their adds/sets) → caps
+   (`max`, `min`, `max: average` = the subtype's stat line with every die at
+   its mean, rounded down) → multiplies (Power Armor's ×1.2, rounded off) =
+   `modified`.
 4. `remove` effects (Warp Disruptor) take things away.
 5. Overrides last (they don't re-trigger rules) = `final`, flagged.
 6. From the final stats: derived values (`deriveStats` with any `counts`,

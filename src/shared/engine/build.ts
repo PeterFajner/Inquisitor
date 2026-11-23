@@ -703,7 +703,7 @@ class Pass {
       this.caps[s] = [];
       this.base[s] = d === undefined ? 0 : this.dice(`${this.arch.id}/@stats:${s}`, d, s).total;
       if (d === undefined) this.warn(`${this.arch.id}/${this.sub.id}: no ${s} in the stat line`);
-      this.cur[s] = this.base[s];
+      this.cur[s] = this.rolled(s);
     }
     if (this.arch.subtypeDie && this.rec.dice[subtypeKey(this.arch)]) {
       const { total: t } = this.dice(subtypeKey(this.arch), this.arch.subtypeDie, this.arch.name);
@@ -957,10 +957,17 @@ class Pass {
     return this.psykerFlag.length > 0 || this.owned.power.size > 0 || this.sub.id === "psyker";
   }
 
+  // The rolled stat line, capped for humans: p3 "Human characters' stats
+  // can't surpass 100" applies to the roll (step A); bonuses afterwards
+  // (boons, equipment, multipliers) may take a stat past 100.
+  rolled(s: Stat): number {
+    return this.arch.human !== false ? Math.min(this.base[s], 100) : this.base[s];
+  }
+
   // The stat's value from its base and mods (adds and sets in order; formulas
   // and multiplies come at the end).
   fold(s: Stat): number {
-    let v = this.base[s];
+    let v = this.rolled(s);
     for (const m of this.mods[s]) {
       if (m.formula || m.multiply !== undefined) continue;
       if (m.set !== undefined) v = m.set;
@@ -1966,7 +1973,6 @@ class Pass {
   }
 
   character(record: CharacterRecord): Character {
-    const human = this.arch.human !== false;
     const stats = {} as Record<Stat, StatLine>;
     const phase1 = {} as Record<Stat, number>;
     for (const s of STATS) phase1[s] = this.fold(s);
@@ -1981,7 +1987,6 @@ class Pass {
         if (cap.max !== undefined) v = Math.min(v, cap.max);
         if (cap.min !== undefined) v = Math.max(v, cap.min);
       }
-      if (human) v = Math.min(v, 100);
       for (const m of this.mods[s]) if (m.multiply !== undefined) v = roundOff(v * m.multiply);
       stats[s] = { base: this.base[s], modified: v, final: v, overridden: false, mods: this.mods[s], caps: this.caps[s] };
     }

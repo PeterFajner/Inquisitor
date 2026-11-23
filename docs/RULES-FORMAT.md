@@ -51,7 +51,7 @@ id: adeptus-astartes
 kind: archetype
 name: Adeptus Astartes
 gmApproval: true            # asterisked in the book
-human: false                # stats may exceed 100 (default true: "Human characters' stats can't surpass 100")
+human: false                # rolled stats may exceed 100 (default true: "Human characters' stats can't surpass 100" caps the roll; later bonuses may exceed it)
 source: { page: 6, text: "…" }
 subtypes:                    # the stat table rows; one row → one subtype
   - id: space-marine
