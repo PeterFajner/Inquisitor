@@ -353,6 +353,9 @@ export function RulesCanvas({ data }: { data: PageData }) {
           />
         )}
         <div class="rules-tools cv-ui">
+        <a class="icon-btn rules-home" href="/" aria-label="Inquisitor" title="Inquisitor">
+          <img src="/static/icon.svg" alt="" width={26} height={26} />
+        </a>
         <PacksMenu
           packs={s.packs}
           hidden={hidden}

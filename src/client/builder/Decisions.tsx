@@ -2,16 +2,16 @@
 // nested under the decision that led to it, with its book label, the dice
 // faces and the result. Each one can be rolled again; a choice can be
 // changed. Open choices (freeform) come first, as pickers.
-import { Check, Dices, PenLine, X } from "lucide-preact";
+import { Check, Dices, PenLine, RotateCw, X } from "lucide-preact";
 import { useMemo, useState } from "preact/hooks";
 import type { CharacterRecord } from "../../shared/engine/record.ts";
-import type { LogEntry, PendingChoice } from "../../shared/engine/build.ts";
+import type { LogEntry, PendingChoice, RollResult } from "../../shared/engine/build.ts";
 import { ICON_SM, IconButton } from "./Icon.tsx";
 import { L } from "./labels.ts";
 import { Picker } from "./Picker.tsx";
 
 type Edit = {
-  reroll(key: string): void;
+  reroll(key: string | string[]): void;
   /** Opens the options of a made choice (to change it). */
   change(key: string): void;
   choose(key: string, ids: string[]): void;
@@ -35,40 +35,60 @@ function Faces({ faces, total }: { faces: number[]; total?: number }) {
   );
 }
 
-export function Decisions({ log, record, edit }: { log: LogEntry[]; record: CharacterRecord; edit?: Edit }) {
+/**
+ * Every roll and choice as a table: what was rolled or chosen (indented
+ * under what led to it), the dice, the result. A result the engine rolled
+ * again (a duplicate, gear the character can't have) is dimmed with the
+ * re-roll mark; gear that was lost (a Common item downgraded) says so.
+ */
+export function Decisions({ log, rolls, record, edit, alias }: { log: LogEntry[]; rolls?: RollResult[]; record: CharacterRecord; edit?: Edit; alias?: Record<string, string> }) {
   const depth = useMemo(() => depths(log), [log]);
+  const lost = useMemo(() => new Set((rolls ?? []).filter((r) => r.lost).map((r) => r.key)), [rolls]);
   return (
-    <ol class="log">
-      {log.map((e) => {
-        const c = e.type === "choice" ? record.choices[e.key]?.[0] : undefined;
-        const yesNo = c === "yes" || c === "no" ? c : null;
-        const result = e.result.filter(Boolean).join(", ");
-        return (
-          <li class={`log-row${e.rerolled ? " rerolled" : ""}${e.forced ? " forced" : ""}`} style={{ "--depth": depth.get(e.key) ?? 0 }}>
-            <span class="log-label">{e.label}</span>
-            {e.faces && e.faces.length > 0 && <Faces faces={e.faces} total={e.total} />}
-            {yesNo && (
-              <span class="yn" role="img" aria-label={yesNo === "yes" ? L.yes : L.no} title={yesNo === "yes" ? L.yes : L.no}>
-                {yesNo === "yes" ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}
-              </span>
-            )}
-            {result && !(e.type === "dice" && result === String(e.total)) && <span class="log-result">{result}</span>}
-            {edit && (
-              <span class="log-ctl">
-                {e.type === "choice" && (
-                  <IconButton small label={`${L.change}: ${e.label}`} onClick={() => edit.change(e.key)}>
-                    <PenLine size={ICON_SM} />
-                  </IconButton>
+    <table class="log">
+      <tbody>
+        {log.map((e) => {
+          const c = e.type === "choice" ? record.choices[e.key]?.[0] : undefined;
+          const yesNo = c === "yes" || c === "no" ? c : null;
+          const result = e.result.filter(Boolean).join(", ");
+          const showResult = result && !(e.type === "dice" && result === String(e.total));
+          return (
+            <tr class={`log-row${e.rerolled ? " rerolled" : ""}${e.forced ? " forced" : ""}${lost.has(e.key) ? " lost" : ""}`} style={{ "--depth": depth.get(e.key) ?? 0 }}>
+              <th scope="row" class="log-label">
+                {alias?.[e.label] ?? e.label}
+              </th>
+              <td class="log-dice">{e.faces && e.faces.length > 0 && <Faces faces={e.faces} total={e.total} />}</td>
+              <td class="log-result">
+                {yesNo && (
+                  <span class="yn" role="img" aria-label={yesNo === "yes" ? L.yes : L.no} title={yesNo === "yes" ? L.yes : L.no}>
+                    {yesNo === "yes" ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}
+                  </span>
                 )}
-                <IconButton small label={`${L.reroll}: ${e.label}`} onClick={() => edit.reroll(e.key)}>
-                  <Dices size={ICON_SM} />
-                </IconButton>
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+                {showResult && <span class="log-value">{result}</span>}
+                {e.rerolled && (
+                  <span class="log-mark" role="img" aria-label={L.rerolled} title={L.rerolled}>
+                    <RotateCw size={13} aria-hidden="true" />
+                  </span>
+                )}
+                {lost.has(e.key) && <span class="log-lost">lost</span>}
+              </td>
+              {edit && (
+                <td class="log-ctl">
+                  {e.type === "choice" && (
+                    <IconButton small label={`${L.change}: ${e.label}`} onClick={() => edit.change(e.key)}>
+                      <PenLine size={ICON_SM} />
+                    </IconButton>
+                  )}
+                  <IconButton small label={`${L.reroll}: ${e.label}`} onClick={() => edit.reroll(e.key)}>
+                    <Dices size={ICON_SM} />
+                  </IconButton>
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

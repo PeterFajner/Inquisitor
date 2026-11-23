@@ -38,4 +38,25 @@ export const L = {
   gm: "GM",
   unfit: "Not built by the rules: by hand",
   rules: "Rules",
+  rerolled: "Rolled again",
+} as const;
+
+// Visible text the owner approved from the 2023 site (AGENTS.md), so the
+// builder reads as the GM knows it. Everything else on screen is the book's.
+export const T = {
+  title: "Inquisitor Character Generator",
+  characterName: "Character name",
+  occupation: "Occupation",
+  archetype: "Archetype",
+  subtype: "Subtype",
+  role: "Role",
+  stats: "Stats",
+  base: "Base",
+  boon: "Boon",
+  total: "Total",
+  talents: "Talents",
+  boons: "Boons",
+  reroll: "Reroll",
+  downloadDocx: "Download Docx",
+  addCharacter: "Add character",
 } as const;

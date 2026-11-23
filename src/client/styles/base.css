@@ -4,58 +4,81 @@
    (bad) to green (good) with a lightness ramp, so they read without hue.
    Never red/green pairs. */
 :root {
-  color-scheme: light dark;
-  --bg: #f4f1ea;            /* parchment */
-  --surface: #fffdf8;
-  --surface-2: #ece7dc;
-  --ink: #1d1a16;
-  --ink-2: #5a544a;
-  --ink-3: #665f53;         /* AA on --surface-2 */
-  --line: #d6cfc1;
-  --accent: #6b4f2a;        /* brass */
-  --focus: #2f6fd6;
+  /* The 2023 site's look (legacy/inquisitor-web/src/variables.css): dark
+     cards on a mosaic of dark reds, red (#ff5e5e) for what can be changed,
+     the Inquisitor face for the title. Dark only; print uses the light
+     tokens below (data-theme="light"). */
+  color-scheme: dark;
+  --bg: #000;
+  --card: #121212;          /* the character's card */
+  --surface: #1d1d1d;       /* its sections */
+  --surface-2: #2a2a2a;
+  --ink: #e1e1e1;
+  --ink-2: #b4b4b4;
+  --ink-3: #8c8c8c;         /* the old header grey, lifted to AA on --surface */
+  --line: #333;
+  --accent: #ff5e5e;        /* the old primary */
+  --on-accent: #121212;
+  --focus: #7aa7f0;
   /* good/bad: green = good, blue = bad, lightness differs too */
+  --good: #6fd29c;
+  --good-bg: #173827;
+  --bad: #6f9be0;           /* darker than --good */
+  --bad-bg: #142443;
+  --neutral-bg: #262626;
+  /* the balance label: balanced (the goal) is --good; underpowered uses --bad
+     (blue, darker) and overpowered --warn, each with its word */
+  --warn: #e2c27a;
+  --warn-bg: #3a3019;
+  --wire: #6d6d6d;
+  --shadow: 2px 2px #0d0d0d;
+  --radius: 5px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-ui: var(--font);
+  --font-title: "Inquisitor", "Iowan Old Style", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+/* Printing (src/client/print/open.tsx sets it): ink on paper. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #fff;
+  --card: #fff;
+  --surface: #fff;
+  --surface-2: #ececec;
+  --ink: #111;
+  --ink-2: #444;
+  --ink-3: #555;
+  --line: #bbb;
+  --accent: #b3261e;
+  --on-accent: #fff;
   --good: #1a6e44;
   --good-bg: #d9f0e2;
   --bad: #1f4f99;
-  --bad-bg: #c9d8f2;        /* darker than --good-bg */
-  --neutral-bg: #eee9df;
-  /* the balance label: balanced (the goal) is --good; underpowered uses --bad
-     (blue, darker) and overpowered --warn, each with its word */
+  --bad-bg: #c9d8f2;
+  --neutral-bg: #eee;
   --warn: #7a5a12;
   --warn-bg: #f6ecd2;
-  --wire: #9a8f7c;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.06);
-  --radius: 6px;
-  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --wire: #999;
+  --shadow: none;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16140f;
-    --surface: #1f1c16;
-    --surface-2: #2a261e;
-    --ink: #ece6da;
-    --ink-2: #b8b0a2;
-    --ink-3: #9a9384;
-    --line: #3a352b;
-    --accent: #c9a46a;
-    --focus: #7aa7f0;
-    --good: #6fd29c;
-    --good-bg: #173827;
-    --bad: #6f9be0;         /* darker than --good */
-    --bad-bg: #142443;
-    --neutral-bg: #2a261e;
-    --warn: #e2c27a;
-    --warn-bg: #3a3019;
-    --wire: #6d6555;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
-  }
+@font-face {
+  font-family: "Inquisitor";
+  src: url("/static/fonts/inquisitor-bold.otf") format("opentype");
+  font-weight: 400 900;
+  font-display: swap;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font); -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font); -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+/* The mosaic behind every page (src/client/components/Mosaic.tsx). */
+.mosaic { position: fixed; top: 0; left: 0; z-index: -1; pointer-events: none; }
+@media print { .mosaic { display: none; } }
+/* The old site's title: the Inquisitor face, grey to white to red. */
+.site-title { margin: 0; font: 400 clamp(20px, 3.4vw, 40px)/1.1 var(--font-title); letter-spacing: 0.02em; color: transparent; background: linear-gradient(#7e7e7e 47%, #fff, var(--accent) 54%); -webkit-background-clip: text; background-clip: text; text-align: center; white-space: nowrap; }
+/* A text button, as the old site's: red, dark bold text. */
+.text-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--on-accent); font: 700 15px/1 var(--font); padding: 7px 10px; min-height: 34px; cursor: pointer; text-decoration: none; }
+.text-btn:hover { filter: brightness(1.1); }
+.text-btn:disabled { opacity: 0.5; cursor: default; }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* An icon-only control: 40px target, the icon centred. Label via aria-label + title. */

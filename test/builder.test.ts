@@ -151,3 +151,22 @@ test("ops: engineRecord rejects what isn't a record", () => {
   const r = ops.create(C, "hero", "fighter", "random", { roll: seededRoller(8) });
   assert.deepEqual(ops.engineRecord(JSON.parse(JSON.stringify(r))), r);
 });
+
+test("ops: re-rolling several decisions at once (the Stats card's Reroll) leaves the rest alone", () => {
+  const r = ops.create(C, "hero", "fighter", "random", { roll: seededRoller(3) });
+  const log = ops.view(C, r).log;
+  const stats = log.filter((e) => e.type === "dice" && /\/@stats:/.test(e.key)).map((e) => e.key);
+  assert.ok(stats.length > 1);
+  const next = ops.rerollDecision(C, r, stats, { roll: seededRoller(11) });
+  const others = Object.keys(r.dice).filter((k) => !stats.includes(k));
+  for (const k of others) assert.deepEqual(next.dice[k], r.dice[k], k);
+  assert.notDeepEqual(stats.map((k) => next.dice[k]), stats.map((k) => r.dice[k]));
+  assert.doesNotThrow(() => build(C, next, { mode: "freeform", roll: noRolls }));
+});
+
+test("engine: a character's archetype is named as one character when the archetype says so", () => {
+  const a = C.archetypes.get("hero")!;
+  const named: Compendium = { ...C, archetypes: new Map([...C.archetypes, ["hero", { ...a, name: "Heroes", characters: "Hero" }]]) };
+  const r = ops.create(named, "hero", "fighter", "random", { roll: seededRoller(3) });
+  assert.equal(ops.view(named, r).character.archetype.name, "Hero");
+});

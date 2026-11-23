@@ -2,17 +2,28 @@
 // of two icons: random (the book's method, built at once) or freeform (the
 // engine's choices left open as pickers; stats set by overriding them).
 import { Dices, PenLine, X } from "lucide-preact";
-import { useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { ICON, IconButton } from "./Icon.tsx";
-import { L } from "./labels.ts";
+import { L, T } from "./labels.ts";
 
 const LAST = "inquisitor:new-archetype";
 
 /** An archetype as one character ("Inquisitor", not the book's heading "Inquisitors"). */
 export const archetypeName = (a: { name: string; characters?: string }): string => a.characters ?? a.name;
 
-export function NewCharacter({ c, onCreate, onClose }: { c: Compendium; onCreate: (a: string, s: string, mode: "random" | "freeform") => void; onClose?: () => void }) {
+export function NewCharacter({
+  c,
+  onCreate,
+  onClose,
+  onPreview,
+}: {
+  c: Compendium;
+  onCreate: (a: string, s: string, mode: "random" | "freeform") => void;
+  onClose?: () => void;
+  /** The archetype/subtype on show (to get its balance ready before the roll). */
+  onPreview?: (a: string, s: string) => void;
+}) {
   const archetypes = useMemo(
     () => [...c.archetypes.values()].sort((a, b) => a.source.page - b.source.page || a.name.localeCompare(b.name)),
     [c],
@@ -27,6 +38,9 @@ export function NewCharacter({ c, onCreate, onClose }: { c: Compendium; onCreate
   const subs = c.archetypes.get(arch)?.subtypes ?? [];
   const [sub, setSub] = useState(subs[0]?.id ?? "");
   const subtype = subs.some((s) => s.id === sub) ? sub : subs[0]?.id ?? "";
+  useEffect(() => {
+    if (arch && subtype) onPreview?.(arch, subtype);
+  }, [arch, subtype]);
 
   const go = (mode: "random" | "freeform") => {
     try {
@@ -36,35 +50,46 @@ export function NewCharacter({ c, onCreate, onClose }: { c: Compendium; onCreate
   };
 
   return (
-    <div class="new-char" role="group" aria-label={L.newCharacter}>
-      <select aria-label={L.archetype} title={L.archetype} value={arch} onChange={(e) => setArch(e.currentTarget.value)}>
-        {archetypes.map((a) => (
-          <option value={a.id}>
-            {archetypeName(a)}
-            {a.gmApproval ? "*" : ""}
-          </option>
-        ))}
-      </select>
-      {subs.length > 1 && (
-        <select aria-label={L.subtype} title={L.subtype} value={subtype} onChange={(e) => setSub(e.currentTarget.value)}>
-          {subs.map((s) => (
-            <option value={s.id}>{s.name}</option>
-          ))}
-        </select>
-      )}
-      <span class="new-char-go">
+    <section class="csec new-char" role="group" aria-label={L.newCharacter}>
+      <h3 class="csec-title">
+        <span>{T.occupation}</span>
+        {onClose && (
+          <IconButton label={L.close} onClick={onClose}>
+            <X size={ICON} />
+          </IconButton>
+        )}
+      </h3>
+      <div class="occ">
+        <div class="occ-row">
+          <span class="occ-label">{T.archetype}</span>
+          <select class="occ-select" aria-label={T.archetype} value={arch} onChange={(e) => setArch(e.currentTarget.value)}>
+            {archetypes.map((a) => (
+              <option value={a.id}>
+                {archetypeName(a)}
+                {a.gmApproval ? "*" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        {subs.length > 1 && (
+          <div class="occ-row">
+            <span class="occ-label">{T.subtype}</span>
+            <select class="occ-select" aria-label={T.subtype} value={subtype} onChange={(e) => setSub(e.currentTarget.value)}>
+              {subs.map((s) => (
+                <option value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+      <div class="new-char-go">
         <IconButton label={L.random} class="primary" onClick={() => go("random")}>
           <Dices size={ICON} />
         </IconButton>
         <IconButton label={L.freeform} onClick={() => go("freeform")}>
           <PenLine size={ICON} />
         </IconButton>
-        {onClose && (
-          <IconButton label={L.close} onClick={onClose}>
-            <X size={ICON} />
-          </IconButton>
-        )}
-      </span>
-    </div>
+      </div>
+    </section>
   );
 }

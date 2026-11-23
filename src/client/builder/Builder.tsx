@@ -3,7 +3,7 @@
 // version tree in src/client/lib/characters.ts); undo/redo move the head
 // along the branch. Signed out, characters live in this browser; signed in,
 // in the account, and the browser's ones move there on sign-in.
-import { CircleArrowUp, Copy, History, Menu, Plus, Redo2, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
+import { CircleArrowUp, Copy, History, Menu, Plus, Redo2, ScrollText, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
@@ -12,7 +12,7 @@ import type { ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { AccountButton } from "../components/account/AccountButton.tsx";
 import { account, importCharacters, type SignedIn } from "../lib/account.ts";
-import { balanceText, distribution } from "../lib/balance.ts";
+import { balanceText, distribution, quickDistribution } from "../lib/balance.ts";
 import {
   backendFor,
   clearImported,
@@ -26,12 +26,13 @@ import { loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 import { useStore } from "../lib/store.ts";
 import { CharacterView, type ViewEdits } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
-import { L } from "./labels.ts";
+import { L, T } from "./labels.ts";
 import { archetypeName, NewCharacter } from "./NewCharacter.tsx";
 import * as ops from "./ops.ts";
 import { Picker, type PickerOption } from "./Picker.tsx";
 import { RulesUpdate } from "./RulesUpdate.tsx";
 import { ExportButtons } from "../export/ExportButtons.tsx";
+import { exportWord } from "../export/sheets.ts";
 import { ShareButton } from "../warband/ShareButton.tsx";
 import { shareCharacter } from "../warband/share.ts";
 import { warbandsFor } from "../warband/store.ts";
@@ -106,7 +107,9 @@ export function BalanceLabel({ rules, built }: { rules: Rules; built: ReturnType
   useEffect(() => {
     let live = true;
     setDist(null);
-    void distribution(rules, ch.archetype.id, ch.subtype.id).then((d) => live && setDist(d));
+    // A quick estimate first (or the kept full one), then the full one.
+    void quickDistribution(rules, ch.archetype.id, ch.subtype.id).then((d) => live && d && setDist((cur) => (cur && cur.n >= d.n ? cur : d)));
+    void distribution(rules, ch.archetype.id, ch.subtype.id).then((d) => live && d && setDist(d));
     return () => {
       live = false;
     };
@@ -394,6 +397,7 @@ export function Builder({ data }: { data: PageData }) {
           remove: (ref) => void commit(ops.removeThing(record, ref.kind, ref.id, v), "override"),
           add: (what) => setPicker(what === "abilities" ? { what, tab: "talent" } : { what }),
           reroll: (key) => void commit(ops.rerollDecision(c, record, key, { version: v }), "reroll"),
+          rebuild: (archetype, subtype) => void commit(ops.create(c, archetype, subtype, "random", { name: record.name, version: v }), "roll"),
           choose: (key, ids) => void commit(ops.choose(c, record, key, ids, { version: v }), "choice"),
           randomFill: (keys) => void commit(ops.fillPending(c, record, { keys, version: v }), "roll"),
           change: (key) => {
@@ -530,7 +534,10 @@ export function Builder({ data }: { data: PageData }) {
           }} disabled={!rules}>
           <Plus size={ICON} />
         </IconButton>
-        <span class="topbar-gap" />
+        <IconButton label={L.rules} href="/rules" class="rules-link">
+          <ScrollText size={ICON} />
+        </IconButton>
+        <h1 class="site-title topbar-title">{T.title}</h1>
         {char && built && !wb && (
           <span class="char-tools">
             <IconButton label={L.undo} disabled={!undoTo || busy} onClick={() => char && void moveHead(undoTo, char.head_id)}>
@@ -591,7 +598,12 @@ export function Builder({ data }: { data: PageData }) {
         </nav>
 
         <main class="builder-main">
-          {creating && c && <NewCharacter c={c} onCreate={create} onClose={char ? () => setCreating(false) : undefined} />}
+          {creating && c && rules && (
+            <NewCharacter c={c} onCreate={create} onClose={char ? () => setCreating(false) : undefined} onPreview={(a, s) => {
+              void quickDistribution(rules, a, s);
+              void distribution(rules, a, s);
+            }} />
+          )}
           {update && <RulesUpdate d={update.d} onClose={() => setUpdate(null)} onApply={() => {
             if (!c || !record || !rules) return;
             const next = ops.updateRules(c, record, rules.version, update.randomChoices);
@@ -639,10 +651,33 @@ export function Builder({ data }: { data: PageData }) {
           )}
           {!wb && !historyOpen && rules && built && record && char && (
             <>
-              <div class="balance-line">
-                <BalanceLabel rules={shown ?? rules} built={built} />
+              <CharacterView
+                key={char.id}
+                c={(shown ?? rules).compendium}
+                record={record}
+                built={built}
+                edit={edits}
+                balance={<BalanceLabel rules={shown ?? rules} built={built} />}
+                footer={
+                  <button type="button" class="text-btn" disabled={busy} onClick={() => void exportWord([{ name: char.name, head: headVersion(char) }]).catch(() => {})}>
+                    {T.downloadDocx}
+                  </button>
+                }
+              />
+              <div class="add-char">
+                <button
+                  type="button"
+                  class="text-btn"
+                  disabled={!rules}
+                  onClick={() => {
+                    setCreating(true);
+                    setHistoryOpen(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  {T.addCharacter}
+                </button>
               </div>
-              <CharacterView key={char.id} c={(shown ?? rules).compendium} record={record} built={built} edit={edits} />
             </>
           )}
         </main>

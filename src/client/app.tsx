@@ -7,6 +7,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { PageData } from "../shared/api.ts";
 import { account } from "./lib/account.ts";
 import { pageData } from "./lib/api.ts";
+import { Mosaic } from "./components/Mosaic.tsx";
 import "./styles/base.css";
 
 const data = pageData<PageData>() ?? { account: { signed_in: false, public_id: null } };
@@ -27,7 +28,12 @@ function App() {
   useEffect(() => {
     load().then((p) => setPage(() => p));
   }, []);
-  return Page ? <Page data={data} /> : <main class="loading" aria-busy="true" />;
+  return (
+    <>
+      <Mosaic />
+      {Page ? <Page data={data} /> : <main class="loading" aria-busy="true" />}
+    </>
+  );
 }
 
 render(<App />, document.getElementById("app")!);

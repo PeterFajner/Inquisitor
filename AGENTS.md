@@ -38,7 +38,14 @@ Word sheet. See PLAN.md for the design and its decisions.
   Abilities); "–" for an unnamed character or warband; "×N" quantities;
   brackets around chosen variants ("Bionic sense (Right eye, Average)");
   "/" in the sheet's # Rld and Injury Total cells; relative times in
-  history ("5 minutes ago", "yesterday", via Intl.RelativeTimeFormat).
+  history ("5 minutes ago", "yesterday", via Intl.RelativeTimeFormat);
+  the 2023 site's text, so the builder reads as the GM knows it (owner,
+  November 2026; `T` in src/client/builder/labels.ts): "Inquisitor
+  Character Generator", "Character name", "Occupation", "Archetype",
+  "Subtype", "Role", "Stats", "Base", "Boon", "Total", "Talents", "Boons",
+  "Reroll", "Download Docx", "Add character".
+  The look is the 2023 site's (dark cards on a dark-red mosaic, red for
+  what can be changed, the Inquisitor title face): keep it.
   Anything else needs the owner's approval first: don't add
   placeholder text, empty-state messages, headings or button captions.
 - **Characters store dice, not seeds.** Every roll and choice is recorded

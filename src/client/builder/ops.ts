@@ -73,10 +73,10 @@ const pendingKeys = (c: Compendium, rec: CharacterRecord): Set<string> => new Se
  * then rolls the dice and makes the cleared choices at random (choices that
  * were already left open stay open).
  */
-export function rerollDecision(c: Compendium, rec: CharacterRecord, key: string, opts: { version?: string; roll?: RollFn } = {}): CharacterRecord {
+export function rerollDecision(c: Compendium, rec: CharacterRecord, key: string | string[], opts: { version?: string; roll?: RollFn } = {}): CharacterRecord {
   const roll = opts.roll ?? cryptoRoller();
   const open = pendingKeys(c, rec);
-  const cleared = reroll(c, rec, key);
+  const cleared = (typeof key === "string" ? [key] : key).reduce((r, k) => reroll(c, r, k), rec);
   const r = build(c, cleared, { mode: "freeform", roll, pick: (p) => (open.has(p.key) ? undefined : randomPick(p, roll)) }).record;
   return stamp(r, opts.version);
 }

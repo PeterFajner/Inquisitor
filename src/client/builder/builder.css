@@ -2,38 +2,38 @@
    screens, a drawer on narrow ones), and the character: the sheet with the
    log and the book's prose beside it (below it on narrow screens). */
 .builder { min-height: 100vh; display: flex; flex-direction: column; }
-.topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 2px; padding: 4px 8px; background: var(--bg); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 2px; padding: 4px 8px; background: rgb(18 18 18 / 0.92); border-bottom: 1px solid var(--line); flex-wrap: wrap; backdrop-filter: blur(4px); }
+.topbar-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; }
 .topbar .home { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius); }
 .topbar .home img { display: block; }
 .topbar-gap { flex: 1; }
 .char-tools { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 .icon-btn { color: var(--ink); text-decoration: none; }
-.icon-btn.primary { background: var(--accent); color: var(--surface); }
+.icon-btn.primary { background: var(--accent); color: var(--on-accent); }
 .icon-btn.primary:hover { background: var(--accent); filter: brightness(1.1); }
 .icon-btn.attention { color: var(--warn); background: var(--warn-bg); }
-.icon-btn.armed { color: var(--surface); background: var(--bad); }
+.icon-btn.armed { color: var(--on-accent); background: var(--bad); }
 .icon-btn.armed:hover { background: var(--bad); filter: brightness(1.15); }
 
 .builder-body { flex: 1; display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; }
-.char-list { border-right: 1px solid var(--line); overflow-y: auto; max-height: calc(100vh - var(--topbar-h, 49px)); position: sticky; top: var(--topbar-h, 49px); }
+.char-list { background: rgb(18 18 18 / 0.85); border-right: 1px solid var(--line); overflow-y: auto; max-height: calc(100vh - var(--topbar-h, 49px)); position: sticky; top: var(--topbar-h, 49px); }
 .list-backdrop { display: none; }
 .char-list ul { list-style: none; margin: 0; padding: 6px; }
 .char-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; border: 1px solid transparent; background: none; padding: 6px 8px; border-radius: var(--radius); cursor: pointer; min-height: 44px; }
 .char-row:hover { background: var(--surface-2); }
-.char-row[aria-current="true"] { background: var(--surface); border-color: var(--line); }
+.char-row[aria-current="true"] { background: var(--surface); border-color: var(--accent); }
 .char-row-name { font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
 .char-row-tag { font: 12px/1.3 var(--font-ui); color: var(--ink-2); }
 .list-toggle { display: none !important; }
 
-.builder-main { padding: 12px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.builder-main { padding: 20px 12px 50px; min-width: 0; display: flex; flex-direction: column; gap: 20px; align-items: center; }
+.builder-main > * { width: 100%; max-width: 1100px; }
 .builder.shared .builder-main { max-width: 1400px; width: 100%; margin: 0 auto; }
 .shared-char + .shared-char { margin-top: 24px; }
 
-.new-char { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.new-char select { font: 15px var(--font); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 8px; min-height: 40px; max-width: 100%; flex: 1 1 200px; }
-.new-char-go { display: inline-flex; gap: 4px; }
-
-.balance-line { min-height: 24px; }
+.new-char { margin: 0 auto; }
+.new-char-go { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.balance-line { min-height: 28px; margin-top: 8px; }
 .builder-history { flex: 1; min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
 /* With the history open, the page is the screen's height and the canvas fills what the bar leaves. */
 .builder:has(.builder-history) { height: 100vh; height: 100dvh; min-height: 0; }
@@ -43,39 +43,71 @@
 .balance-underpowered { color: var(--bad); background: var(--bad-bg); }
 .balance-overpowered { color: var(--warn); background: var(--warn-bg); }
 
-.char-view { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; }
-.char-sheet { min-width: 0; }
-.char-side { min-width: 0; display: flex; flex-direction: column; gap: 10px; font: 13px/1.4 var(--font-ui); }
-.side-block { margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.side-block.options { list-style: none; }
-.side-block.options li + li { margin-top: 4px; }
-.b-prose { color: var(--ink-2); }
-.rolls-row { display: flex; gap: 6px; }
-.rolls-row + .rolls-row { margin-top: 4px; }
-.rolls dt { font-weight: 700; white-space: nowrap; }
-.rolls dd { margin: 0; }
-.rolls .lost { text-decoration: line-through; color: var(--ink-3); }
-.notes { list-style: none; }
-.b-note + .b-note { margin-top: 6px; }
+/* The character's card, as the 2023 site's: a dark card, a header band
+   with the name line, sections in two columns, a footer band. */
+.char-view { display: flex; flex-direction: column; gap: 20px; }
+.ccard { color: var(--ink); background: var(--card); border-radius: 10px; overflow: hidden; }
+.ccard-head, .ccard-foot { background: var(--surface); text-align: center; padding: 14px 16px; }
+.ccard-head { box-shadow: var(--shadow); }
+.ccard-foot { box-shadow: -2px -2px #0d0d0d; display: flex; justify-content: center; gap: 10px; }
+.ccard-head .sheet-nameline { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 10px; margin: 0; font: 700 clamp(19px, 2.4vw, 26px)/1.3 var(--font); color: var(--ink-3); }
+.ccard-head .sheet-tag { color: var(--ink-3); font-weight: 700; }
+.ccard-inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 20px; padding: 20px; }
+.csec { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px; flex: 1 1 380px; max-width: 500px; min-width: 0; }
+.csec.wide { flex-basis: 100%; max-width: 1020px; }
+.csec-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 20px/1.2 var(--font); color: var(--ink-3); }
+.csec-list { margin: 0; padding-left: 22px; line-height: 1.45; }
+.csec-list li + li { margin-top: 4px; }
+.csec-list.notes { list-style: none; padding-left: 0; font-size: 14px; }
+.boon-thing { display: block; }
+.boon-thing + .boon-thing { margin-top: 2px; }
+
+/* Occupation: label left, a red dotted select right. */
+.occ { display: flex; flex-direction: column; gap: 6px; }
+.occ-row { display: grid; grid-template-columns: minmax(7em, 35%) minmax(0, 1fr); align-items: center; gap: 8px; }
+.occ-label { color: var(--ink); }
+.occ-select { font: inherit; color: var(--accent); background: transparent; border: 1px dotted var(--accent); border-radius: 1px; padding: 2px 4px; min-height: 30px; min-width: 0; width: 100%; }
+.occ-select option { color: var(--ink); background: var(--surface); }
+
+/* Stats: Base (red, dotted: tap to change), Boon, Total. Fixed columns, so
+   editing a value never moves them. */
+.cstats { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.cstats .cstats-stat { width: 22%; }
+.cstats th, .cstats td { padding: 3px 4px; text-align: center; height: 34px; }
+.cstats thead th { color: var(--ink); font-weight: 700; }
+.cstats tbody th { font-weight: 700; }
+.cstats-edit { font: inherit; color: var(--accent); background: none; border: 0; border-bottom: 1px dotted var(--accent); padding: 0 6px; min-width: 3.2em; cursor: pointer; }
+.cstats-edit:hover { background: var(--surface-2); }
+.cstats-base .sheet-input.num { width: 3.6em; color: var(--accent); background: var(--surface-2); border: 0; border-bottom: 1px solid var(--accent); }
+.cstats tr.ovr .cstats-total::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 3px; vertical-align: super; }
+
+.add-char { display: flex; justify-content: center; }
+.csec-source { padding: 6px; }
+.csec-log { padding: 8px; overflow-x: auto; }
 .note-icon { vertical-align: -2px; margin-right: 4px; color: var(--ink-2); }
 .note-unfit .note-icon { color: var(--warn); }
-.source { padding: 4px; }
-.source-text { margin: 4px 6px 6px; white-space: pre-wrap; font: 13px/1.45 var(--font); color: var(--ink-2); max-height: 50vh; overflow-y: auto; }
+.b-note + .b-note { margin-top: 6px; }
+.b-prose { color: var(--ink-2); }
+.source-text { margin: 4px 6px 6px; white-space: pre-wrap; font: 14px/1.45 var(--font); color: var(--ink-2); max-height: 50vh; overflow-y: auto; }
 
-/* The log */
-.log { list-style: none; margin: 0; padding: 4px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); max-height: 70vh; overflow-y: auto; }
-.log-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 1px 4px 1px calc(8px + var(--depth, 0) * 14px); min-height: 34px; border-left: 2px solid transparent; }
+/* The rolls and choices: one aligned table. */
+.log { width: 100%; border-collapse: collapse; font-size: 14px; }
 .log-row:hover { background: var(--surface-2); }
-.log-row.rerolled .log-result { text-decoration: line-through; color: var(--ink-3); }
-.log-row.forced { border-left-color: var(--warn); }
-.log-label { color: var(--ink-2); }
-.log-result { font-weight: 600; }
-.log-ctl { margin-left: auto; display: inline-flex; }
+.log-row > * { padding: 3px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.log-label { text-align: left; font-weight: 400; color: var(--ink-2); padding-left: calc(6px + var(--depth, 0) * 16px) !important; width: 34%; }
+.log-dice { white-space: nowrap; width: 1%; }
+.log-result { text-align: left; }
+.log-value { font-weight: 600; }
+.log-ctl { text-align: right; white-space: nowrap; width: 1%; }
+.log-row.rerolled .log-value { color: var(--ink-3); font-weight: 400; }
+.log-row.forced .log-label { box-shadow: inset 2px 0 var(--warn); }
+.log-mark { display: inline-grid; place-items: center; margin-left: 6px; color: var(--ink-3); vertical-align: -2px; }
+.log-lost { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--ink-3); border-radius: 999px; font: 12px/18px var(--font); color: var(--ink-2); }
 .faces { display: inline-flex; gap: 2px; align-items: center; }
-.face { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 3px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); font: 12px/1 var(--font-mono); }
-.total { font: 600 12px var(--font-mono); margin-left: 2px; }
+.face { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 3px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); font: 12px/1 var(--font-mono); }
+.total { font: 600 12px var(--font-mono); margin-left: 4px; }
 .total::before { content: "= "; color: var(--ink-3); font-weight: 400; }
-.yn { color: var(--ink-2); }
+.yn { color: var(--ink-2); margin-right: 4px; vertical-align: -2px; }
 
 /* Open choices */
 .pending { background: var(--warn-bg); border: 1px solid var(--warn); border-radius: var(--radius); padding: 4px 6px; }
@@ -116,9 +148,6 @@
 .bpick-opt-label { flex: 1; }
 .bpick-opt-detail { color: var(--ink-3); font: 12px var(--font-ui); }
 
-@media (max-width: 1180px) {
-  .char-view { grid-template-columns: minmax(0, 1fr); }
-}
 @media (max-width: 860px) {
   .builder-body { grid-template-columns: minmax(0, 1fr); }
   .list-toggle { display: inline-grid !important; }
@@ -132,19 +161,29 @@
   /* the character's tools take the second row; the account stays on the first */
   .topbar .char-tools { order: 1; }
 }
-/* Narrow: the open choices come first, above the sheet. */
-@media (max-width: 1180px) {
-  .char-view { display: flex; flex-direction: column; align-items: stretch; }
-  .char-side { display: contents; }
-  .char-view .pending { order: -1; }
+@media (max-width: 700px) {
+  .ccard-inner { padding: 10px; gap: 10px; }
+  .csec { padding: 12px; flex-basis: 100%; }
+  .topbar-title { font-size: 18px; }
+  /* Each roll on two lines: what it is, then dice, result and controls. */
+  .log, .log tbody { display: block; }
+  .log-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "label label label" "dice result ctl"; align-items: center; column-gap: 8px; padding-left: calc(var(--depth, 0) * 12px); border-bottom: 1px solid var(--line); }
+  .log-row > * { border-bottom: 0; height: auto !important; padding: 2px 4px; }
+  .log-label { grid-area: label; width: auto; padding-left: 4px !important; padding-top: 6px !important; }
+  .log-dice { grid-area: dice; width: auto; }
+  .log-result { grid-area: result; }
+  .log-ctl { grid-area: ctl; width: auto; }
 }
-/* Touch: 40px targets. */
+@media (max-width: 560px) {
+  .topbar-title { order: 3; flex-basis: 100%; padding: 2px 0 4px; font-size: 22px; }
+}/* Touch: 40px targets. */
 @media (pointer: coarse) {
   .icon-btn.icon-sm { width: 40px; height: 40px; }
   .b-chip { min-height: 40px; }
-  .log-row { min-height: 40px; }
+  .log-row > * { height: 40px; }
+  .cstats-edit { min-height: 36px; }
 }
 @media print {
-  .topbar, .char-list, .char-side, .balance-line, .new-char { display: none !important; }
+  .topbar, .char-list, .balance-line, .new-char, .ccard, .add-char { display: none !important; }
   .builder-body { display: block; }
 }

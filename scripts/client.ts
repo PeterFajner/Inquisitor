@@ -91,7 +91,8 @@ export function clientOptions(mode: "production" | "development"): BuildOptions 
     legalComments: prod ? "eof" : "inline",
     logLevel: "info",
     // docx-templates' browser bundle references readable-stream but never loads it
-    external: ["readable-stream"],
+    // /static/ is served as is (src/static): CSS url()s there stay as written.
+    external: ["readable-stream", "/static/*"],
     plugins: [manifestPlugin],
   };
 }

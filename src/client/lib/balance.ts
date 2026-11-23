@@ -2,6 +2,9 @@
 // characters of its archetype and subtype (src/shared/engine/balance.ts),
 // simulated in a Web Worker (balance-worker.ts) and kept in localStorage per
 // rules version, so each archetype/subtype is simulated once per version.
+// 10,000 take a few seconds, so a quick estimate from 500 (a few hundred
+// ms, on a worker of its own so it never waits behind a full run) shows
+// first and the full distribution replaces it.
 //
 // The worker is its own esbuild entry; its script URL comes from the client
 // build's manifest (/static/client/manifest.json).
@@ -10,6 +13,7 @@ import type { BalanceReply, BalanceRequest } from "./balance-worker.ts";
 import type { Rules } from "./rules.ts";
 
 export const BALANCE_N = 10_000;
+export const QUICK_N = 500;
 export const BALANCE_SEED = 1;
 const PREFIX = "inquisitor:balance:";
 
@@ -35,8 +39,9 @@ function keep(key: string, version: string, d: Distribution): void {
   } catch {}
 }
 
-let worker: Promise<Worker | null> | null = null;
-const sentPacks = new Set<string>();
+type Lane = "full" | "quick";
+const workers: Record<Lane, Promise<Worker | null> | null> = { full: null, quick: null };
+const sentPacks: Record<Lane, Set<string>> = { full: new Set(), quick: new Set() };
 const waiting = new Map<number, (r: BalanceReply) => void>();
 let nextId = 1;
 
@@ -50,8 +55,8 @@ async function workerUrl(): Promise<string | null> {
   }
 }
 
-function getWorker(): Promise<Worker | null> {
-  worker ??= workerUrl().then((url) => {
+function getWorker(lane: Lane): Promise<Worker | null> {
+  return (workers[lane] ??= workerUrl().then((url) => {
     if (!url || typeof Worker !== "function") return null;
     try {
       const w = new Worker(url, { type: "module" });
@@ -64,8 +69,7 @@ function getWorker(): Promise<Worker | null> {
     } catch {
       return null;
     }
-  });
-  return worker;
+  }));
 }
 
 function ask(w: Worker, q: Omit<BalanceRequest, "id">): Promise<BalanceReply> {
@@ -78,28 +82,50 @@ function ask(w: Worker, q: Omit<BalanceRequest, "id">): Promise<BalanceReply> {
 
 const inflight = new Map<string, Promise<Distribution | null>>();
 
-/** The distribution for an archetype/subtype under these rules (cached), or null when it can't be had. */
+async function simulateIn(lane: Lane, rules: Rules, archetype: string, subtype: string, n: number): Promise<Distribution | null> {
+  const w = await getWorker(lane);
+  if (!w) return null;
+  const q = { version: rules.version, archetype, subtype, n, seed: BALANCE_SEED };
+  const sent = sentPacks[lane];
+  let reply = await ask(w, sent.has(rules.version) ? q : { ...q, packs: rules.payload.packs });
+  sent.add(rules.version);
+  if (reply.need) reply = await ask(w, { ...q, packs: rules.payload.packs });
+  return reply.dist ?? null;
+}
+
+/** The full distribution for an archetype/subtype under these rules (cached), or null when it can't be had. */
 export function distribution(rules: Rules, archetype: string, subtype: string): Promise<Distribution | null> {
   const key = cacheKey(rules.version, archetype, subtype);
   const have = cached(key);
   if (have) return Promise.resolve(have);
   let p = inflight.get(key);
   if (p) return p;
-  p = (async () => {
-    const w = await getWorker();
-    if (!w) return null;
-    const q = { version: rules.version, archetype, subtype, n: BALANCE_N, seed: BALANCE_SEED };
-    let reply = await ask(w, sentPacks.has(rules.version) ? q : { ...q, packs: rules.payload.packs });
-    sentPacks.add(rules.version);
-    if (reply.need) reply = await ask(w, { ...q, packs: rules.payload.packs });
-    if (!reply.dist) return null;
-    keep(key, rules.version, reply.dist);
-    return reply.dist;
-  })();
+  p = simulateIn("full", rules, archetype, subtype, BALANCE_N).then((d) => {
+    if (d) keep(key, rules.version, d);
+    return d;
+  });
   inflight.set(key, p);
   p.finally(() => inflight.delete(key));
   return p;
 }
+
+const quick = new Map<string, Promise<Distribution | null>>();
+
+/** The full distribution when it's cached, else a quick estimate (QUICK_N characters), kept in memory. */
+export function quickDistribution(rules: Rules, archetype: string, subtype: string): Promise<Distribution | null> {
+  const key = cacheKey(rules.version, archetype, subtype);
+  const have = cached(key);
+  if (have) return Promise.resolve(have);
+  let p = quick.get(key);
+  if (!p) {
+    p = simulateIn("quick", rules, archetype, subtype, QUICK_N);
+    quick.set(key, p);
+  }
+  return p;
+}
+
+/** Whether the full distribution is already kept. */
+export const hasDistribution = (rules: Rules, archetype: string, subtype: string): boolean => !!cached(cacheKey(rules.version, archetype, subtype));
 
 export type Balance = BalanceLabel & { text: string };
 

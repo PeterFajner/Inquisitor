@@ -12,7 +12,7 @@ import type { SheetParts, SheetRef } from "../../shared/sheet-map.ts";
 import { SHEET_LOCATIONS, SHEET_STATS, type SheetStat } from "../../shared/sheet.ts";
 import { ALIGNMENTS, STATS, type Alignment, type Stat } from "../../shared/rules/schema.ts";
 import { ICON_SM, IconButton } from "../builder/Icon.tsx";
-import { L } from "../builder/labels.ts";
+import { L, T } from "../builder/labels.ts";
 import "./sheet.css";
 
 export type SheetEdits = {
@@ -29,6 +29,8 @@ type Props = {
   character: Character;
   /** Absent: read-only. */
   edit?: SheetEdits;
+  /** The name line is shown elsewhere (the builder's card). */
+  hideName?: boolean;
 };
 
 // The Location table's hit ranges (the sheet's own small print).
@@ -40,64 +42,64 @@ function Mark() {
   return <span class="ovr-mark" role="img" aria-label={L.overridden} title={L.overridden} />;
 }
 
-function NameLine({ parts, character, edit }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [alignOpen, setAlignOpen] = useState(false);
+/** The name line: the name (an input, as the 2023 site's) and the tag line
+ * "(Archetype, Subtype, Role, Alignment)", the alignment a one-tap select. */
+export function NameLine({ parts, character, edit }: Pick<Props, "parts" | "character" | "edit">) {
   const { sheet } = parts;
   const align = character.alignment;
   const pieces = sheet.tagLine ? sheet.tagLine.split(", ") : [];
   const lead = align && pieces[pieces.length - 1] === align ? pieces.slice(0, -1) : pieces;
 
-  const nameEl =
-    edit && editing ? (
-      <InlineInput
-        value={sheet.name}
-        label={L.rename}
-        onDone={(v) => {
-          setEditing(false);
-          if (v !== null && v.trim() !== sheet.name) edit.rename(v.trim());
-        }}
-      />
-    ) : edit ? (
-      <button type="button" class="sheet-name-btn" aria-label={sheet.name ? `${L.rename}: ${sheet.name}` : L.rename} title={L.rename} onClick={() => setEditing(true)}>
-        {sheet.name || <span class="sheet-name-empty" />}
-      </button>
-    ) : (
-      sheet.name
-    );
+  const nameEl = edit ? (
+    <input
+      key={sheet.name}
+      class="sheet-name-input"
+      aria-label={L.rename}
+      placeholder={T.characterName}
+      defaultValue={sheet.name}
+      maxLength={200}
+      size={Math.max(T.characterName.length, sheet.name.length) + 1}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          e.currentTarget.value = sheet.name;
+          e.currentTarget.blur();
+        }
+      }}
+      onInput={(e) => (e.currentTarget.size = Math.max(T.characterName.length, e.currentTarget.value.length) + 1)}
+      onBlur={(e) => {
+        const v = e.currentTarget.value.trim();
+        if (v !== sheet.name) edit.rename(v);
+      }}
+    />
+  ) : (
+    sheet.name
+  );
 
-  const alignEl =
-    align || edit ? (
-      edit ? (
-        alignOpen ? (
-          <select
-            class="sheet-align-select"
-            aria-label={L.alignment}
-            title={L.alignment}
-            value={align ?? ""}
-            autoFocus
-            onBlur={() => setAlignOpen(false)}
-            onChange={(e) => {
-              setAlignOpen(false);
-              const v = e.currentTarget.value;
-              edit.alignment(v === "" ? null : (v as Alignment));
-            }}
-          >
-            {character.overridden.alignment && <option value="">↺</option>}
-            {ALIGNMENTS.map((a) => (
-              <option value={a}>{a}</option>
-            ))}
-          </select>
-        ) : (
-          <button type="button" class="sheet-align-btn" aria-label={`${L.alignment}${align ? `: ${align}` : ""}`} title={L.alignment} onClick={() => setAlignOpen(true)}>
-            {align ?? "–"}
-            {character.overridden.alignment && <Mark />}
-          </button>
-        )
-      ) : (
-        align
-      )
-    ) : null;
+  // A real select, styled as the tag line's word: one tap opens it.
+  const alignEl = edit ? (
+    <span class="sheet-align">
+      <select
+        class="sheet-align-select"
+        aria-label={L.alignment}
+        title={L.alignment}
+        value={align ?? ""}
+        onChange={(e) => {
+          const v = e.currentTarget.value;
+          edit.alignment(v === "" ? null : (v as Alignment));
+        }}
+      >
+        {!align && <option value="">–</option>}
+        {character.overridden.alignment && <option value="">↺</option>}
+        {ALIGNMENTS.map((a) => (
+          <option value={a}>{a}</option>
+        ))}
+      </select>
+      {character.overridden.alignment && <Mark />}
+    </span>
+  ) : (
+    align
+  );
 
   return (
     <h2 class="sheet-nameline">
@@ -115,7 +117,7 @@ function NameLine({ parts, character, edit }: Props) {
   );
 }
 
-function InlineInput(p: { value: string; label: string; type?: "text" | "number"; onDone: (v: string | null) => void }) {
+export function InlineInput(p: { value: string; label: string; type?: "text" | "number"; onDone: (v: string | null) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const done = useRef(false);
   useEffect(() => {
@@ -274,7 +276,7 @@ export function Sheet(props: Props) {
   const melee = sheet.melee.length ? sheet.melee : [null];
   return (
     <article class={`sheet${edit ? " sheet-edit" : ""}`}>
-      <NameLine {...props} />
+      {!props.hideName && <NameLine {...props} />}
       <div class="sheet-grid">
         <div class="sheet-main">
           <StatTable {...props} stats={SHEET_STATS} cls="stats-wide" />
