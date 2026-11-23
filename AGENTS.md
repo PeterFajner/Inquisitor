@@ -26,7 +26,7 @@ Word sheet. See PLAN.md for the design and its decisions.
 ## Hard rules
 
 - **No UI text except the book's.** Every visible word in the app is the
-  book's own wording (spelling fixed). Controls are icons with an
+  book's own wording (spelling, grammar and punctuation fixed). Controls are icons with an
   `aria-label` (and the same text as a hover tooltip). Approved exceptions,
   and only these: "Sign in", "Sign out", "Create account"; the balance
   label ("overpowered (+2.5σ vs a median Inquisitor Psyker)", with

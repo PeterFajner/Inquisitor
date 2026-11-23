@@ -32,7 +32,7 @@ optional rules it offers are options, not replacements.
 
 1. **Book text is sacred.** Every visible word in the app comes from the
    book, so names, labels, option names and prose are the book's own
-   wording, verbatim, with only spelling fixed (`Exoitc` → `Exotic`,
+   wording, verbatim, with only spelling, grammar and punctuation fixed (`Exoitc` → `Exotic`, "Character’s can’t" → "Characters can’t", list dashes dropped,
    `Sorotitas` → `Sororitas`, `Engineseers` → `Enginseers`, `Repnetais` →
    `Repentias`). Never paraphrase, summarise or invent wording.
 2. **Structure what affects the character's build; prose for the rest.**
