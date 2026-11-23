@@ -31,11 +31,13 @@ step below is done.
   pick anything); any rule may be overridden, visibly. Warbands group
   characters; the book's warband rules are warnings, not blocks.
 - **Balance**: every character shows "underpowered / balanced /
-  overpowered (±Nσ vs a median <Archetype> <Subtype>)": its power score
+  overpowered", with an (i) for "This character is in the top 1.5% of
+  randomly-rolled Inquisitor Fighters.": its power score
   against 1,000 simulated characters of the same archetype and subtype
   (worked out on the server once per rules version, warmed up after every
   rules change);
-  ±1σ is balanced. Power = stats plus points per talent, ability, item,
+  the top and bottom 5% are over- and underpowered (owner, November 2026;
+  ±1σ flagged about one in four). Power = stats plus points per talent, ability, item,
   mutation and power (points editable on the canvas).
 - **Luna** (shelved by the owner, November 2026; not built for now) (`gpt-6-luna`, server-side, its own OpenAI key): a one-shot
   prompt box that makes a character, with follow-up prompts that edit it.

@@ -14,7 +14,7 @@ import { warbandWarnings } from "../src/shared/engine/warband.ts";
 import { newRecord, parseRecord, type CharacterRecord } from "../src/shared/engine/record.ts";
 import { clearDecisions, isUnder, reroll } from "../src/shared/engine/reroll.ts";
 import { diff } from "../src/shared/engine/diff.ts";
-import { label, powerScore, simulate } from "../src/shared/engine/balance.ts";
+import { label, labelText, percent, plural, powerScore, simulate } from "../src/shared/engine/balance.ts";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
 
@@ -605,11 +605,32 @@ test("balance: power score, simulation, labels", () => {
   assert.deepEqual(d1, d2);
   assert.equal(d1.n, 300);
   assert.ok(d1.sd > 0 && d1.min <= d1.median && d1.median <= d1.max && d1.p10 <= d1.p90);
-  assert.deepEqual(label(d1.median, d1), { word: "balanced", sigma: 0 });
-  assert.equal(label(d1.median + d1.sd, d1).word, "balanced");
-  assert.equal(label(d1.median + d1.sd * 1.01, d1).word, "overpowered");
-  assert.deepEqual(label(d1.median - 2.5 * d1.sd, d1), { word: "underpowered", sigma: -2.5 });
-  assert.deepEqual(label(10, { median: 10, sd: 0 }), { word: "balanced", sigma: 0 });
+  assert.equal(d1.scores.length, 300);
+  assert.equal(label(d1.median, d1).word, "balanced");
+  assert.equal(label(d1.max + 1, d1).word, "overpowered");
+  assert.equal(label(d1.min - 1, d1).word, "underpowered");
+});
+
+test("balance labels: the top and bottom 5% of the simulated scores, the character counted among them", () => {
+  const scores = Array.from({ length: 99 }, (_, i) => i + 1); // 1..99, plus the character = 100
+  assert.deepEqual(label(99, { scores }), { word: "overpowered", end: "top", share: 0.02 }); // 99 and itself
+  assert.deepEqual(label(96, { scores }), { word: "overpowered", end: "top", share: 0.05 });
+  assert.equal(label(95, { scores }).word, "balanced");
+  assert.deepEqual(label(4, { scores }), { word: "underpowered", end: "bottom", share: 0.05 });
+  assert.equal(label(5, { scores }).word, "balanced");
+  assert.deepEqual(label(50, { scores }), { word: "balanced", end: "top", share: 0.51 });
+  // every random character the same (a fixed stat line): always balanced
+  assert.equal(label(10, { scores: Array(1000).fill(10) }).word, "balanced");
+  assert.equal(percent(0.015), "1.5%");
+  assert.equal(percent(0.0004), "0.1%");
+  assert.equal(percent(0.404), "40%");
+  assert.equal(plural("Inquisitor Fighter"), "Inquisitor Fighters");
+  assert.equal(plural("Eldar Pirate Prince"), "Eldar Pirate Princes");
+  assert.equal(plural("Cultist & Fanatic Psyker"), "Cultist & Fanatic Psykers");
+  assert.equal(
+    labelText({ word: "overpowered", end: "top", share: 0.015 }, "Inquisitor Fighter"),
+    "This character is in the top 1.5% of randomly-rolled Inquisitor Fighters.",
+  );
 });
 
 // ---------------------------------------------------------------------------

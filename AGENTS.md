@@ -30,8 +30,8 @@ Word sheet. See PLAN.md for the design and its decisions.
   `aria-label` (and the same text as a hover tooltip). Approved exceptions,
   and only these: "Sign in", "Sign out", "Create account"; the balance
   label: the word alone ("overpowered", "underpowered", "balanced") with
-  an (i) whose popover (hover, or tap) gives the full form "overpowered
-  (+2.5σ vs a median Inquisitor Psyker)"; the GM sheet's own headings (Kbk, BIV, SS,
+  an (i) whose popover (hover, or tap) says "This character is in the
+  top 1.5% of randomly-rolled Inquisitor Fighters." (or "bottom"); the GM sheet's own headings (Kbk, BIV, SS,
   Cnc, Spd, Game Notes, Starting, Progress, Current, Location, L. Leg, R.
   Leg, Groin, L. Arm, R. Arm, Abdomen, Chest, Head, Injury Total, Armour /
   Injury Lvl, Firearm, Type, Rng, Mode, Acc, Damage, Shots, Rld, Enc, #

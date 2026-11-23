@@ -8,14 +8,14 @@
 //
 // The worker is its own esbuild entry; its script URL comes from the client
 // build's manifest (/static/client/manifest.json).
-import { label, type BalanceLabel, type Distribution } from "../../shared/engine/balance.ts";
+import { label, labelText, type BalanceLabel, type Distribution } from "../../shared/engine/balance.ts";
 import type { BalanceReply, BalanceRequest } from "./balance-worker.ts";
 import type { Rules } from "./rules.ts";
 import { API } from "../../shared/api.ts";
 
 export const QUICK_N = 500;
 export const BALANCE_SEED = 1;
-const PREFIX = "inquisitor:balance:";
+const PREFIX = "inquisitor:balance2:"; // 2: with the scores (percentile labels)
 
 const cacheKey = (version: string, archetype: string, subtype: string) => `${PREFIX}${version}:${archetype}/${subtype}`;
 
@@ -149,10 +149,9 @@ export const hasDistribution = (rules: Rules, archetype: string, subtype: string
 
 export type Balance = BalanceLabel & { text: string };
 
-/** "overpowered (+1.3σ vs a median Inquisitor Psyker)": the approved form (archetypeName: the archetype's `characters` name). */
+/** The word, and "This character is in the top 1.5% of randomly-rolled Inquisitor Fighters." (archetypeName: the archetype's `characters` name). */
 export function balanceText(score: number, dist: Distribution, archetypeName: string, subtypeName: string): Balance {
   const l = label(score, dist);
-  const sigma = `${l.sigma >= 0 ? "+" : "−"}${Math.abs(l.sigma).toFixed(1)}σ`;
   const who = archetypeName.toLowerCase() === subtypeName.toLowerCase() ? archetypeName : `${archetypeName} ${subtypeName}`;
-  return { ...l, text: `${l.word} (${sigma} vs a median ${who})` };
+  return { ...l, text: labelText(l, who) };
 }

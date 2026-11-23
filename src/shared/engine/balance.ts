@@ -33,6 +33,8 @@ export type Distribution = {
   p25: number;
   p75: number;
   p90: number;
+  /** Every simulated score, ascending (the label is a percentile rank among them). */
+  scores: number[];
 };
 
 const quantile = (sorted: number[], q: number): number => {
@@ -75,14 +77,58 @@ export function summarize(archetype: string, subtype: string, seed: number, scor
     p25: r(quantile(sorted, 0.25)),
     p75: r(quantile(sorted, 0.75)),
     p90: r(quantile(sorted, 0.9)),
+    scores: sorted.map(r),
   };
 }
 
-export type BalanceLabel = { word: "underpowered" | "balanced" | "overpowered"; sigma: number };
+/** The share of rolls at either end that's labelled over- or underpowered. */
+export const BALANCE_TAIL = 0.05;
 
-/** σ from the median; within ±1σ is balanced. */
-export function label(score: number, dist: Pick<Distribution, "median" | "sd">): BalanceLabel {
-  const raw = dist.sd > 0 ? (score - dist.median) / dist.sd : 0;
-  const word = raw > 1 ? "overpowered" : raw < -1 ? "underpowered" : "balanced";
-  return { word, sigma: Math.round(raw * 10) / 10 };
+export type BalanceLabel = {
+  word: "underpowered" | "balanced" | "overpowered";
+  /** The end of the distribution the character is nearer to, and the share (0–1) of random characters scoring at least (top) or at most (bottom) as much, the character counted among them. */
+  end: "top" | "bottom";
+  share: number;
+};
+
+// How many sorted scores are < x (lower) or <= x (upper).
+const bound = (sorted: number[], x: number, upper: boolean): number => {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (upper ? sorted[mid] <= x : sorted[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+/** Where a score falls among the simulated ones: in the top or bottom BALANCE_TAIL it's over- or underpowered. */
+export function label(score: number, dist: Pick<Distribution, "scores">): BalanceLabel {
+  const s = dist.scores;
+  const n = s.length;
+  // the character is one more random character: (others at least as good + itself) / (n + 1)
+  const top = (n - bound(s, score, false) + 1) / (n + 1);
+  const bottom = (bound(s, score, true) + 1) / (n + 1);
+  const word = top <= BALANCE_TAIL ? "overpowered" : bottom <= BALANCE_TAIL ? "underpowered" : "balanced";
+  return top <= bottom ? { word, end: "top", share: top } : { word, end: "bottom", share: bottom };
+}
+
+/** A share as the label prints it: one decimal under 10% ("1.5%"), whole numbers above ("40%"). */
+export function percent(share: number): string {
+  const p = share * 100;
+  if (p < 10) return `${Math.max(0.1, Math.round(p * 10) / 10)}%`;
+  return `${Math.min(100, Math.round(p))}%`;
+}
+
+/** "Inquisitor Fighters", "Chrono-gladiators": the plural of a name's last word. */
+export function plural(name: string): string {
+  return name.replace(/(\w+)$/, (w) =>
+    /(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /man$/i.test(w) ? `${w.slice(0, -3)}men` : `${w}s`,
+  );
+}
+
+/** "This character is in the top 1.5% of randomly-rolled Inquisitor Fighters." (the approved form) */
+export function labelText(l: BalanceLabel, who: string): string {
+  return `This character is in the ${l.end} ${percent(l.share)} of randomly-rolled ${plural(who)}.`;
 }

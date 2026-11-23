@@ -25,10 +25,10 @@ const canon = (x: unknown): string => {
 
 const by = <T,>(k: (x: T) => string) => (a: T, b: T) => (k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0);
 
-/** What the distributions depend on: the packs' content (not card positions or the order they were read in), N and the seed. */
+/** What the distributions depend on (v2: distributions carry their scores): the packs' content (not card positions or the order they were read in), N and the seed. */
 export function balanceKey(packs: PackEntries[]): string {
   const sorted = [...packs]
     .sort(by((p) => p.pack.id))
     .map((p) => ({ pack: p.pack, entries: [...p.entries].sort(by((e) => `${e.kind}/${e.id}`)) }));
-  return createHash("sha256").update(`${BALANCE_N}:${BALANCE_SEED}:`).update(canon(sorted)).digest("hex").slice(0, 16);
+  return createHash("sha256").update(`v2:${BALANCE_N}:${BALANCE_SEED}:`).update(canon(sorted)).digest("hex").slice(0, 16);
 }

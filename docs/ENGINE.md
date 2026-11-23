@@ -375,8 +375,12 @@ choices), dropped (record keys no longer used), warnings (new ones) }`.
 - `simulate(compendium, archetype, subtype, n, seed)`: `n` random
   characters from one seeded roller → `{ archetype, subtype, n, seed, mean,
   median, sd, min, max, p10, p25, p75, p90 }`.
-- `label(score, dist)`: `sigma = (score − median) / sd`, rounded to 0.1;
-  `balanced` within ±1σ, else `overpowered` / `underpowered`.
+- `label(score, dist)`: the character's percentile rank among the
+  distribution's sorted `scores`, counting itself as one more random
+  character: `top` = (scores ≥ it + 1) / (n + 1), `bottom` likewise. The top
+  or bottom 5% (`BALANCE_TAIL`) is `overpowered` / `underpowered`; else
+  `balanced`. `labelText` words it: "This character is in the top 1.5% of
+  randomly-rolled Inquisitor Fighters."
 - `npm run simulate [-- --n=10000 --seed=1 pack…]` loads the packs in
   `RULES_DIR` (stacked by `extends`) and writes `data/balance.json` (or
   `BALANCE_FILE`): `{ generated, packs, n, seed, distributions: {
