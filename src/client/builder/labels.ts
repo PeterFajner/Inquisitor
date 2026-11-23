@@ -49,6 +49,8 @@ export const T = {
   title: "Inquisitor Character Generator",
   characterName: "Character name",
   occupation: "Occupation",
+  /** Under an asterisked archetype: the book's sentence (p. 3, "The ones with asterixis should have GM approval before use"). */
+  gmApproval: "* Should have GM approval before use.",
   archetype: "Archetype",
   subtype: "Subtype",
   role: "Role",

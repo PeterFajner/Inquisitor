@@ -48,7 +48,8 @@ Word sheet. See PLAN.md for the design and its decisions.
   book names after the archetype itself, e.g. an Inquisitor's faction);
   "–" in the alignment when there is none; "lost" on gear lost to a
   downgrade; the labels "Rolls" (the rolls section's toggle) and "Balance
-  details" (the balance chip's (i)).
+  details" (the balance chip's (i)); "* Should have GM approval before
+  use." under an asterisked archetype's character (the book's p. 3).
   The look is the 2023 site's (dark cards on a dark-red mosaic, red for
   what can be changed, the Inquisitor title face): keep it.
   Anything else needs the owner's approval first: don't add

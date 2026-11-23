@@ -321,6 +321,7 @@ export function CharacterView({
       <article class="ccard">
         <header class="ccard-head">
           <NameLine parts={parts} character={ch} edit={edit} />
+          {arch?.gmApproval && <p class="gm-approval">{T.gmApproval}</p>}
           {balance && <div class="balance-line">{balance}</div>}
         </header>
 

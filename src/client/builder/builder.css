@@ -34,6 +34,7 @@
 .csec.new-char { margin: 0 auto; flex: 0 0 auto; align-self: center; width: min(500px, 100%); }
 .new-char-go { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
 .balance-line { min-height: 28px; margin-top: 8px; }
+.gm-approval { margin: 4px 0 0; font-size: 14px; color: var(--ink-3); }
 .builder-history { flex: 1; min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
 /* With the history open, the page is the screen's height and the canvas fills what the bar leaves. */
 .builder:has(.builder-history) { height: 100vh; height: 100dvh; min-height: 0; }
