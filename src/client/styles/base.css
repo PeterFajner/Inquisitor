@@ -1,0 +1,66 @@
+/* Shared tokens and base styles. Every component's CSS uses these
+   variables; nothing hard-codes a colour.
+   Colour rule (the owner is colourblind): scales and gradients run blue
+   (bad) to green (good) with a lightness ramp, so they read without hue.
+   Never red/green pairs. */
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ea;            /* parchment */
+  --surface: #fffdf8;
+  --surface-2: #ece7dc;
+  --ink: #1d1a16;
+  --ink-2: #5a544a;
+  --ink-3: #8b8477;
+  --line: #d6cfc1;
+  --accent: #6b4f2a;        /* brass */
+  --focus: #2f6fd6;
+  /* good/bad: green = good, blue = bad, lightness differs too */
+  --good: #1f7a4d;
+  --good-bg: #d9f0e2;
+  --bad: #1f4f99;
+  --bad-bg: #dbe6f7;
+  --neutral-bg: #eee9df;
+  /* the balance scale: underpowered (blue, dark) → balanced → overpowered (green, light) is
+     NOT good/bad; balanced is the goal, so both ends use the warning tone */
+  --warn: #7a5a12;
+  --warn-bg: #f6ecd2;
+  --wire: #9a8f7c;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.06);
+  --radius: 6px;
+  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16140f;
+    --surface: #1f1c16;
+    --surface-2: #2a261e;
+    --ink: #ece6da;
+    --ink-2: #b8b0a2;
+    --ink-3: #857e71;
+    --line: #3a352b;
+    --accent: #c9a46a;
+    --focus: #7aa7f0;
+    --good: #6fd29c;
+    --good-bg: #173827;
+    --bad: #8db4f2;
+    --bad-bg: #19284a;
+    --neutral-bg: #2a261e;
+    --warn: #e2c27a;
+    --warn-bg: #3a3019;
+    --wire: #6d6555;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font); -webkit-text-size-adjust: 100%; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* An icon-only control: 40px target, the icon centred. Label via aria-label + title. */
+.icon-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; cursor: pointer; }
+.icon-btn:hover { background: var(--surface-2); }
+.icon-btn[aria-pressed="true"] { background: var(--surface-2); border-color: var(--line); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+.loading { min-height: 100vh; }

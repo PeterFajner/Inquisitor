@@ -6,6 +6,8 @@
 //   /c/<id>      one of the viewer's characters (404 if not theirs)
 //   /w/<id>      one of the viewer's warbands
 //   /s/<token>   a share link, read-only
+//   /c/<id>/history  a character's history (its version tree)
+//   /rules       the rules canvas
 import { currentViewer } from "../lib/accounts.ts";
 import { getCharacter, getWarband, resolveShare } from "../lib/characters.ts";
 import { HttpError, type Ctx, type Router } from "../lib/http.ts";
@@ -44,6 +46,11 @@ export function pageRoutes(router: Router): void {
       const character = orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id));
       clientPage(ctx, { data: { ...base(ctx), character }, noindex: true });
     })
+    .get("/c/:id/history", (ctx) => {
+      const character = orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id));
+      clientPage(ctx, { data: { ...base(ctx), character, view: "history" }, noindex: true });
+    })
+    .get("/rules", (ctx) => clientPage(ctx, { data: { ...base(ctx), view: "rules" } }))
     .get("/w/:id", (ctx) => {
       const warband = orNotFound(() => getWarband(currentViewer(ctx), ctx.params.id));
       clientPage(ctx, { data: { ...base(ctx), warband }, noindex: true });

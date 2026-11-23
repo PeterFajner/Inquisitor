@@ -144,8 +144,13 @@ export type PageData = {
   warband?: { warband: Warband; characters: CharacterSummary[] };
   /** Set on an error page (404...). */
   status?: number;
+  /** Which view a path shows when it isn't implied by the data above. */
+  view?: "history" | "rules";
 };
 
 export const MAX_NAME = 200;
+
+/** GET /api/v1/rules: every rule pack and its entries; version = the rules repo's HEAD commit. */
+export type RulesPayload = { version: string; packs: import("./rules/compendium.ts").PackEntries[] };
 /** Bytes of JSON per record. */
 export const MAX_RECORD = 64 * 1024;

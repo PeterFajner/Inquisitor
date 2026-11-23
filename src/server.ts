@@ -17,6 +17,7 @@ import { HttpError, parseCookies, Router, sameOrigin, sendJson, type Ctx } from 
 import { accountRoutes } from "./views/account.ts";
 import { characterRoutes } from "./views/characters.ts";
 import { errorPage, pageRoutes } from "./views/pages.ts";
+import { rulesRoutes } from "./views/rules.ts";
 import { API } from "./shared/api.ts";
 
 // The project directory: static files live here whether the server runs
@@ -33,6 +34,7 @@ router.get(`${API}/health`, (ctx) => {
 });
 accountRoutes(router);
 characterRoutes(router);
+rulesRoutes(router);
 pageRoutes(router);
 
 // Static files. More specific prefixes first: the first match wins.
