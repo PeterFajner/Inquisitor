@@ -72,7 +72,7 @@ sections:                    # the profile rows, in book order, with the book's 
     effects: [ … ]
   - name: Equipment
     effects: [ … ]
-  - name: Armor
+  - name: Armour
     effects: [ … ]
   - name: Psychic Abilities
     effects: [ … ]           # an empty list for "N/A"
@@ -140,7 +140,7 @@ Optional item fields:
 
 ```yaml
 tags: [power-weapon, bladed]   # names for filters and restrictions (not shown)
-product: Chaos                 # "Chaos Product." / Radical / Xenos (matched as chaos, radical, xenos)
+product: Chaos                 # "Chaos Product." / Radical / Xenos (matched as Chaos, Radical, Xenos)
 unrestricted: true             # "Combat Stimms don't have availability restrictions"
 availabilityWhen:              # "only counts as Rare for characters that are part of … the Ecclesiarchy.
   when: { archetype: [ecclesiarchy, adepta-sororitas] }   #  Otherwise, the GM will say"
@@ -258,7 +258,7 @@ and:
 | `{ rolled: [random-armor-types] }` | the character has a result on any of these tables ("If a character generates at least one piece of armor from the table above") |
 | `{ psyker: true }` | it has powers, the psyker subtype or a `{ psyker: true }` effect |
 | `{ generates: [Rare] }` | a gear effect so far may generate any of these availabilities ("Pick a quality you can generate") |
-| `{ availability: [Common] }` | in an equipment generator row's effects: the result being made is of one of these (Armour: "Common Armor" for a Common result) |
+| `{ availability: [Common] }` | in an equipment generator row's effects: the result being made is of one of these (Armour: "Common Armour" for a Common result) |
 
 Dice: integers and `[N]D<M>` terms joined by `+`/`-`: `60+2D10`, `D3+3`,
 `-D10`, `D100`. A dice term may be multiplied: `D6x10` ("+ [D6 x 10]
@@ -268,11 +268,17 @@ Hit locations are the core rulebook's: `Head`, `Chest`, `Abdomen`,
 `Groin`, `Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, and the groups
 `all`, `non-head`, `arms`, `legs`.
 
-Names in filters, restrictions and `exclude` lists match an entry's id, its
-group or category in kebab case (`Melee Weapons` → `melee-weapons`,
-`Close combat weapon` → `close-combat-weapon`; armour = armor, plurals
-ignored), its `tags`, its `product` (`chaos`, `radical`, `xenos`) and
-`alien` for alien items.
+Names are compared exactly: every name a filter, restriction, `access`
+list or row reference uses is spelled exactly as the entries (or rows)
+spell it. `group`/`discipline` name an entry's `group` (`Melee Weapons`,
+`Telepathy`), `category` an item's `category` (`Close combat weapon`).
+The names in `tag`, `exclude`, `only` and `except` lists, a restriction's
+scope and a gear effect's `exclude` match an entry's id, its `group`, its
+`category`, its `tags`, its `product` (`Chaos`, `Radical`, `Xenos`) or
+`alien` for alien items (`exclude: [alien, Armour]`). Row references
+(`require`, `downgrade.only`, `bionics.only`, a roll's answer in `set`)
+are row labels. `npm run rules:check` reports any such name that matches
+nothing.
 
 ## The extended vocabulary
 
@@ -285,8 +291,8 @@ exact; `id` is required wherever the effect rolls or asks.
 - { armour: { av: 5, locations: [Chest, Abdomen] } }        # Breastplate: a piece
 - { armour: { av: 2, locations: non-head } }                 # Robes of Office
 - { armour: { av: 1, locations: [arms, Groin, legs] } }      # "the arms, groin, and legs"
-- { armour: { as: carapace-armor } }                         # "This counts as Carapace Armor"
-- { armour: { as: power-armor, add: 3 } }                    # Daemonic Armor: PA with +3
+- { armour: { as: carapace-armor } }                         # "This counts as Carapace Armour"
+- { armour: { as: power-armor, add: 3 } }                    # Daemonic Armour: PA with +3
 - { armour: { as: power-armor, av: 14 } }                    # Pre-Heresy Terminator: "AV of 14"
 - { id: cover, armour: { av: 2, choose: 3, locations: [Left Arm, Right Arm, Chest, Abdomen, Head] } }  # Light Shield
 - { id: av, armour: { add: D3+1 } }                          # Chitinous Hide: extra AV everywhere
@@ -304,9 +310,9 @@ counts while the character has them; abilities' always.
 ### Restrictions
 
 ```yaml
-- { restrict: { pool: item, group: [Armour], only: [power-armor] } }      # "Battle Sisters only wear Power Armor."
-- { restrict: { pool: item, group: [Armour], except: [power-armor] } }    # "any kind of armor except for Power Armor"
-- { restrict: { pool: item, group: [Armour], maxAV: 3 } }                 # "Flak Armor or lighter"
+- { restrict: { pool: item, group: [Armour], only: [power-armor] } }      # "Battle Sisters only wear Power Armour."
+- { restrict: { pool: item, group: [Armour], except: [power-armor] } }    # "any kind of armor except for Power Armour"
+- { restrict: { pool: item, group: [Armour], maxAV: 3 } }                 # "Flak Armour or lighter"
 - { restrict: { pool: item, alien: false } }                               # "can never use alien technology"
 - { restrict: { pool: item, except: [combat-stimms] } }                    # Kroot: "never use combat drugs"
 - { restrict: { pool: item, tag: [power-weapon, bolt-weapon], only: [power-maul] } }  # Enforcers
@@ -325,7 +331,7 @@ entry the effect belongs to, it can't have any other entry in that scope.
 Pools, gear, powers and table results never give what a restriction
 refuses (table results are re-rolled); anything breaking one anyway (an
 override, a fixed grant) is flagged and warned. A restriction in a later
-row (Armor after Equipment) still applies to the gear generated before it.
+row (Armour after Equipment) still applies to the gear generated before it.
 
 ### Picks
 
@@ -407,7 +413,7 @@ quality (lower-case option id: `crude`, `average`, `advanced`).
   column: { owned: { bolter: [bolt-pistol, storm-bolter, …], shotgun: [shotgun, …] }, else: other-weapons }
 - id: gear-downgraded                                                     # "downgrade the availability of all other weapons generated"
   gear: { count: D6+3, availability: [Common, Rare], downgrade: { steps: 1, only: [Close combat weapon, Pistol, Basic weapon, Heavy weapon, Grenade] } }
-- id: gear                                                                # Elucidators: "at least one melee and ranged weapon, and one piece of armor"
+- id: gear                                                                # Elucidators: "at least one melee and ranged weapon, and one piece of armour"
   gear: { count: D6+3, availability: [Common, Rare], require: [[Close combat weapon], [Pistol, Basic weapon, Heavy weapon], [Armour]] }
 ```
 
@@ -461,7 +467,7 @@ generated result N steps and chooses its item. Random mode never trades.
 - { derived: Cnc, add: 5 }                              # Piloting Suit
 - { derived: [Spd, BIV, SS, Cnc], set: [3, 7, "No", "No"] }   # Curse of Thlezzloath
 - { stat: Ld, add: { stat: S, divide: 10 } }            # Bigga Is Betta: "[Strength/10]"
-- { stat: S, multiply: 1.2 }                            # Power Armor: "increase their Strength by 1/5th"
+- { stat: S, multiply: 1.2 }                            # Power Armour: "increase their Strength by 1/5th"
 - { stat: I, multiply: 0.5 }                            # Servo-harness
 - { id: bulk, stat: T, add: D6x10 }                     # Superhuman Endurance
 - { attribute: Warp Strength, set: -50 }                # Daemonhosts

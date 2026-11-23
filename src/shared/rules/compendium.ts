@@ -1,7 +1,7 @@
 // A compendium is every entry of a stack of packs, indexed by kind and id.
 // Pure (no fs): the server loads YAML from disk (src/lib/rules-files.ts) and
 // the browser receives the compiled JSON.
-import type { Ability, Archetype, Effect, Entry, Item, Pack, Rule, Table } from "./schema.ts";
+import { POOLS, type Ability, type Archetype, type Effect, type Entry, type Item, type Pack, type PickFilter, type Pool, type Restriction, type Rule, type Table } from "./schema.ts";
 
 export const KIND_DIRS = {
   archetype: "archetypes",
@@ -129,10 +129,121 @@ export function walkEffects(effects: Effect[], visit: (e: Effect, path: string) 
   });
 }
 
+/**
+ * The names an entry answers to in filters and restrictions (`tag`,
+ * `exclude`, `only`, `except`, a restriction's scope), compared exactly:
+ * its id, group, category, tags, product, and "alien" for alien items.
+ */
+export function entryNames(e: Ability | Item): string[] {
+  const out = [e.id];
+  if (e.group) out.push(e.group);
+  if (e.kind === "item") {
+    if (e.category) out.push(e.category);
+    if (e.tags) out.push(...e.tags);
+    if (e.product) out.push(e.product);
+    if (e.alien) out.push("alien");
+  }
+  return out;
+}
+
+const POOL_KEYS = { talent: "talent", exotic: "exotic", item: "item", mutation: "mutation", power: "power" } as const satisfies Record<Pool, KindKey>;
+
+// The names filters may use, per pool: every entry's names (entryNames),
+// its groups, and items' categories.
+type Vocab = Record<Pool, { names: Set<string>; groups: Set<string> }> & { categories: Set<string> };
+function vocabulary(c: Compendium): Vocab {
+  const v = { categories: new Set<string>() } as Vocab;
+  for (const pool of POOLS) {
+    const names = new Set<string>();
+    const groups = new Set<string>();
+    for (const e of mapFor(c, POOL_KEYS[pool]).values() as Iterable<Ability | Item>) {
+      for (const n of entryNames(e)) names.add(n);
+      if (e.group) groups.add(e.group);
+      if (e.kind === "item" && e.category) v.categories.add(e.category);
+    }
+    v[pool] = { names, groups };
+  }
+  return v;
+}
+
+// Every name a filter, restriction, access list or row reference uses must be
+// spelled exactly as the entries (or rows) spell it.
+function checkNames(c: Compendium, v: Vocab, x: Effect, say: (m: string) => void): void {
+  const unknown = (what: string, list: string[] | undefined, known: Set<string>, of: string) => {
+    for (const n of list ?? []) if (!known.has(n)) say(`${what} "${n}" matches no ${of}`);
+  };
+  const filter = (f: PickFilter | undefined, pools: Pool[], what: string) => {
+    if (!f) return;
+    const groups = new Set(pools.flatMap((p) => [...v[p].groups]));
+    const names = new Set(pools.flatMap((p) => [...v[p].names]));
+    const of = pools.join("/");
+    unknown(`${what} group`, f.group, groups, `${of} group`);
+    unknown(`${what} discipline`, f.discipline, v.power.groups, "power group");
+    unknown(`${what} category`, f.category, v.categories, "item category");
+    unknown(`${what} tag`, f.tag, names, of);
+    unknown(`${what} exclude`, f.exclude, names, of);
+  };
+  const rowsOf = (id: string) => new Set((c.tables.get(id)?.rows ?? []).map((r) => r.label));
+  if ("pick" in x && x.pool) filter(x.filter, [x.pool], "filter");
+  if ("trade" in x) {
+    const lose = x.trade.give.lose;
+    filter(x.trade.give.filter, lose === undefined ? ["item"] : Array.isArray(lose) ? lose : [lose], "trade filter");
+  }
+  if ("restrict" in x || "exclusive" in x) {
+    const r: Partial<Restriction> & { pool: Pool } = "restrict" in x ? x.restrict : x.exclusive;
+    const what = "restrict" in x ? "restrict" : "exclusive";
+    unknown(`${what} group`, r.group, v[r.pool].groups, `${r.pool} group`);
+    unknown(`${what} category`, r.category, v.categories, "item category");
+    unknown(`${what} tag`, r.tag, v[r.pool].names, r.pool);
+    unknown(`${what} only`, r.only, v[r.pool].names, r.pool);
+    unknown(`${what} except`, r.except, v[r.pool].names, r.pool);
+  }
+  if ("access" in x) unknown("access group", x.access.group, v[x.access.pool].groups, `${x.access.pool} group`);
+  if ("powers" in x) unknown("discipline", x.powers.disciplines, v.power.groups, "power group");
+  if ("gear" in x) {
+    const rows = rowsOf(EQUIPMENT_GENERATOR);
+    unknown("gear exclude", x.gear.exclude, v.item.names, "item");
+    for (const list of x.gear.require ?? []) unknown("gear require", list, rows, `row of "${EQUIPMENT_GENERATOR}"`);
+    if (typeof x.gear.downgrade === "object") unknown("downgrade only", x.gear.downgrade.only, rows, `row of "${EQUIPMENT_GENERATOR}"`);
+  }
+  if ("bionics" in x) {
+    const t = x.bionics.table ?? "bionics-table";
+    unknown("bionics only", x.bionics.only, rowsOf(t), `row of "${t}"`);
+  }
+  if ("roll" in x && typeof x.column === "object") {
+    const cols = new Set(c.tables.get(x.roll)?.columns ?? []);
+    for (const [col, names] of Object.entries(x.column.owned)) {
+      if (!cols.has(col)) say(`column "${col}" isn't a column of "${x.roll}"`);
+      unknown(`column ${col}`, names, v.item.names, "item");
+    }
+  }
+  // a grant's `set` answers for the granted entry's rolls are row labels
+  const t = thingOf(x);
+  const set = t && (x as { set?: Record<string, string[]> }).set;
+  if (t && set) {
+    const target = mapFor(c, POOL_KEYS[t.kind]).get(t.id);
+    for (const { effects } of target ? effectLists(target) : []) {
+      walkEffects(effects, (y) => {
+        if ("roll" in y && set[y.id]) unknown(`set ${y.id}`, set[y.id], rowsOf(y.roll), `row of "${y.roll}"`);
+      });
+    }
+  }
+}
+
+const thingOf = (e: Effect): { kind: Pool; id: string } | undefined => {
+  if ("pick" in e) return undefined;
+  for (const k of POOLS) if (k in e) return { kind: k, id: (e as Record<string, string>)[k] };
+  return undefined;
+};
+
+// The equipment generator (docs/ENGINE.md: conventions the engine relies on).
+export const EQUIPMENT_GENERATOR = "equipment-generator";
+
 // Cross-reference and id checks the schema can't do. Returns messages.
 export function checkCompendium(c: Compendium): string[] {
   const problems: string[] = [];
   const has = (kind: KindKey, id: string) => mapFor(c, kind).has(id);
+  const vocab = vocabulary(c);
   for (const e of allEntries(c)) {
     const at = `${e.kind}/${e.id}`;
     const ids = new Set<string>();
@@ -160,6 +271,7 @@ export function checkCompendium(c: Compendium): string[] {
         }
         if ("companion" in x && !c.archetypes.has(x.companion.archetype)) problems.push(`${at} ${where}: unknown archetype "${x.companion.archetype}"`);
         if ("bionics" in x && !has("table", x.bionics.table ?? "bionics-table")) problems.push(`${at} ${where}: unknown table "${x.bionics.table ?? "bionics-table"}"`);
+        checkNames(c, vocab, x, (m) => problems.push(`${at} ${where}: ${m}`));
       });
     }
     if (e.kind === "archetype") {

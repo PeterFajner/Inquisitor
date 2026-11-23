@@ -1,8 +1,8 @@
 id: breastplate
 kind: item
 name: Breastplate
-group: Armor
-category: Armor
+group: Armour
+category: Armour
 availability: Rare
 source: { page: 9 }
 effects:

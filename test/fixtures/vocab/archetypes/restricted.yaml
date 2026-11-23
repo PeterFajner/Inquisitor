@@ -14,7 +14,7 @@ sections:
       - { id: any-pistol, pick: 1, pool: item, filter: { category: [Pistol], exclude: [laspistol] } }
       - { id: weapon, pick: 1, pool: item, filter: { tag: [power-weapon, bolt-weapon, bladed] } }
       - { id: armour, pick: 1, pool: item, filter: { group: [Armour] } }
-  - name: Armor
+  - name: Armour
     effects:
       - { restrict: { pool: item, group: [Armour], maxAV: 3 } }
   - name: Talents
@@ -25,4 +25,4 @@ sections:
     effects:
       - { id: alignment, alignment: [Puritan, Radical] }
       - when: { not: { alignment: [Radical] } }
-        then: [{ restrict: { pool: item, except: [chaos], alien: false } }]
+        then: [{ restrict: { pool: item, except: [Chaos], alien: false } }]

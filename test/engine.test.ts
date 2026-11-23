@@ -633,6 +633,40 @@ test("vocab fixtures are valid rules", () => {
   assert.deepEqual(checkCompendium(V), []);
 });
 
+test("names: filters and restrictions match exactly; a name that matches nothing is reported", () => {
+  const c = clone(V);
+  const trader = c.archetypes.get("trader")!;
+  const eq = trader.sections.find((s) => s.name === "Equipment")!.effects as Record<string, any>[];
+  const anyArmour = eq.find((e) => e.id === "any-armour")!;
+  const gear = eq.find((e) => e.id === "gear")!;
+  // the exact group: Armour's Common pieces
+  const pool = (cc: Compendium) =>
+    at(build(cc, vrec("trader", "fighter"), { mode: "freeform", roll: ones }).pending, (x) => x.key === "trader/any-armour").options.map((o) => o.id);
+  assert.deepEqual(pool(c), ["flak-armour", "light-shield"]);
+  // a misspelling (or another spelling) matches nothing, and the check says so
+  anyArmour.filter = { availability: ["Common"], group: ["Armor"] };
+  gear.gear = { ...gear.gear, require: [["Grenades"]], exclude: ["armour"] };
+  trader.sections[0].effects.push({ restrict: { pool: "item", category: ["Close Combat Weapons"], except: ["chaos"] } });
+  const problems = checkCompendium(c);
+  for (const m of [
+    'filter group "Armor" matches no item group',
+    `gear require "Grenades" matches no row of "equipment-generator"`,
+    'gear exclude "armour" matches no item',
+    'restrict category "Close Combat Weapons" matches no item category',
+    'restrict except "chaos" matches no item',
+  ]) {
+    assert.ok(problems.some((p) => p.startsWith("archetype/trader") && p.endsWith(m)), m);
+  }
+  invalidate(c);
+  const f = build(c, vrec("trader", "fighter"), { mode: "freeform", roll: ones });
+  assert.ok(!f.pending.some((x) => x.key === "trader/any-armour" && x.options.length));
+  // names are ids, groups, categories and the special "alien" exactly as the entries spell them
+  anyArmour.filter = { group: ["Armour"], exclude: ["light-shield", "Armour"] };
+  assert.ok(!checkCompendium(c).some((p) => p.includes("any-armour")));
+  anyArmour.filter = { category: ["Armour"], exclude: ["flak-armour", "alien"] };
+  assert.ok(pool(c).length > 0 && !pool(c).includes("flak-armour") && !pool(c).includes("light-shield"));
+});
+
 test("dice: a multiplied term (D6x10)", () => {
   const e = dice.parseDice("D6x10");
   assert.equal(dice.total(e, [3]), 30);
@@ -1001,7 +1035,7 @@ test("the GM sheet: armour row, firearms, melee, other equipment, starting row",
     { name: "Axe of Rage", rch: "3", dam: "2D10", pp: "-20", special: "Hunter; -20 Wp" },
     { name: "Barbed Tail", rch: "4", dam: "D6+3", pp: "", special: "" },
   ]);
-  assert.deepEqual(s.other, ["Flak Armor", "Breastplate", "Light Shield (Head, Left Arm)", "Refractor Field", "Bionic Organs (Advanced, Heart; Advanced, Lungs) ×2", "Laspistol"]);
+  assert.deepEqual(s.other, ["Flak Armour", "Breastplate", "Light Shield (Head, Left Arm)", "Refractor Field", "Bionic Organs (Advanced, Heart; Advanced, Lungs) ×2", "Laspistol"]);
   assert.deepEqual(at(s.abilities, (a) => a.name.startsWith("Word of the Emperor")), {
     name: "Word of the Emperor (Curse Of Undoing; Litany Of Spite)",
     effect: "Choose one of the following prayers.",

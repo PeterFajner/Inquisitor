@@ -1,8 +1,8 @@
 id: daemonic-armour
 kind: item
-name: Daemonic Armor
-group: Armor
-category: Armor
+name: Daemonic Armour
+group: Armour
+category: Armour
 availability: Legendary
 product: Chaos
 source: { page: 9 }

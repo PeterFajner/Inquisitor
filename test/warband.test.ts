@@ -188,7 +188,7 @@ test("a sample warband of four real characters as the GM's Word sheet", { skip: 
   const { pack } = loadPack("loyalist", SAMPLE_RULES);
   assert.ok(pack);
   const C = buildCompendium([pack]);
-  // Four characters as the builder makes them (random; the Inquisitor takes the book's Power Armor option).
+  // Four characters as the builder makes them (random; the Inquisitor takes the book's Power Armour option).
   const make = (archetype: string, subtype: string, name: string, seed: number, choices: Record<string, string[]> = {}): CharacterRecord => {
     const r = newRecord(C.packs.map((p) => p.id), archetype, subtype, name);
     r.choices = { ...choices };

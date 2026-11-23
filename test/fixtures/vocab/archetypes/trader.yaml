@@ -27,7 +27,7 @@ sections:
       - { id: stimm, roll: stimm-type, qty: D10, rerollUnless: { profile: Allowed Dispenser Types, includes: Inhaler } }
       - { id: lucky, chance: { die: D6, on: [6] }, then: [{ item: needler }] }
       - { id: implant, pick: 1, pool: item, filter: { category: [Pistol] }, implanted: true, qty: 2 }
-      - { id: any-armour, pick: any, pool: item, filter: { availability: [Common], group: [Armor] } }
+      - { id: any-armour, pick: any, pool: item, filter: { availability: [Common], group: [Armour] } }
       - { id: bionics, bionics: { count: 2, quality: Crude, upgrade: 50 } }
       - { item: archeotech }
       - { item: disruptor }

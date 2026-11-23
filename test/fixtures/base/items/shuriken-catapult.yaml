@@ -2,7 +2,7 @@ id: shuriken-catapult
 kind: item
 name: Shuriken Catapult
 group: Weapons
-category: Basic Weapon
+category: Basic weapon
 availability: Rare
 source: { page: 6 }
 alien: true

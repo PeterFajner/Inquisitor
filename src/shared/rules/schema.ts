@@ -216,9 +216,11 @@ export type Option = {
   effects?: Effect[];
 };
 
-// Which entries a pool (or a give, or a restriction) is about. Names in
-// `tag`/`exclude` match an entry's id, its kebab-cased group or category,
-// its tags, its product ("chaos", "radical", "xenos") or "alien".
+// Which entries a pool (or a give, or a restriction) is about. Every name is
+// exact (rules:check reports one that matches nothing): `group`/`discipline`
+// an entry's group, `category` an item's category; names in `tag`/`exclude`
+// match an entry's id, group, category, tags, product ("Chaos", "Radical",
+// "Xenos") or "alien" (entryNames in compendium.ts).
 export type PickFilter = {
   group?: string[];
   category?: string[]; // items: the equipment generator's category (Pistol, Basic weapon…)
@@ -300,7 +302,7 @@ export type AlignmentEffect = { id: string; alignment: Alignment[] };
 //    downgrades only results whose generator row is named in `only`
 //    ("all other weapons generated").
 //  - require: generated results must include, for each list, a row named in
-//    it ("at least one melee and ranged weapon, and one piece of armor");
+//    it ("at least one melee and ranged weapon, and one piece of armour");
 //    the last slots are re-rolled until they do.
 export type GearEffect = {
   id: string;
@@ -739,7 +741,7 @@ export const Archetype = z.strictObject({
   // (Alien Bounty Hunter's Level Of Experience); see rollSubtype()
   subtypeDie: Dice.optional(),
   subtypes: z.array(Subtype).min(1),
-  // Book sections in order (Equipment, Armor, Psychic Abilities, Exotic
+  // Book sections in order (Equipment, Armour, Psychic Abilities, Exotic
   // Abilities, Talents, Mutations, Alignment, …), each a list of effects.
   sections: z.array(z.strictObject({ name: z.string(), effects: EffectArray })),
 });
@@ -777,7 +779,7 @@ export const Item = z.strictObject({
   // "Combat Stimms don't have availability restrictions": counts as every availability
   unrestricted: z.boolean().optional(),
   alien: z.boolean().optional(),
-  // "Chaos Product.", "Radical Product." (matched as "chaos", "radical", "xenos")
+  // "Chaos Product.", "Radical Product." (matched as "Chaos", "Radical", "Xenos")
   product: z.enum(["Chaos", "Radical", "Xenos"]).optional(),
   // names for filters and restrictions (power-weapon, bolt-weapon, bladed, anti-psychic…)
   tags: z.array(z.string()).optional(),

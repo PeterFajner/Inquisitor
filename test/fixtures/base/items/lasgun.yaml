@@ -2,6 +2,6 @@ id: lasgun
 kind: item
 name: Lasgun
 group: Weapons
-category: Basic Weapon
+category: Basic weapon
 availability: Common
 source: { page: 6 }

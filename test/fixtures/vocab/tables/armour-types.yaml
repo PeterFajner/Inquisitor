@@ -1,6 +1,6 @@
 id: armour-types
 kind: table
-name: Random Armor Types
+name: Random Armour Types
 die: D6
 source: { page: 8 }
 rows:

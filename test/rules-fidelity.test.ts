@@ -39,7 +39,7 @@ const entries = [
     source: src,
     subtypes: [{ id: "fighter", name: "Fighter", stats }],
     sections: [
-      { name: "Equipment", effects: [{ restrict: { pool: "item", except: ["stimm"] } }, { id: "gear", gear: { count: 1, availability: ["Common"] } }] },
+      { name: "Equipment", effects: [{ restrict: { pool: "item", except: ["Stimm"] } }, { id: "gear", gear: { count: 1, availability: ["Common"] } }] },
     ],
   },
   {

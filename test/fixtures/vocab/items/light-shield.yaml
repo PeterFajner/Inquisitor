@@ -1,7 +1,7 @@
 id: light-shield
 kind: item
 name: Light Shield
-group: Armor
+group: Armour
 availability: Common
 source: { page: 9 }
 effects:

@@ -2,6 +2,6 @@ id: krak-grenade
 kind: item
 name: Krak Grenade
 group: Weapons
-category: Grenades
+category: Grenade
 availability: Rare
 source: { page: 6 }

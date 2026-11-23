@@ -80,7 +80,7 @@ allows, so random builds keep the book's odds):
   `alien: { alignment }` in the Equipment row, the Alignment row last).
   A replay knows the alignment from the record, so it needs no second pass.
 - a `restrict`, `exclusive` or `access` effect met after the decisions it
-  limits (the Armor row comes after the Equipment row's gear). Those stated
+  limits (the Armour row comes after the Equipment row's gear). Those stated
   outright in an archetype's sections are known before the first pass.
 
 At most four passes. The character's `restrictions` are the archetype's
@@ -104,7 +104,7 @@ own and those the last pass met.
    later bonuses may pass it) → adds/sets in order → formula adds (`{ stat:
    S, divide: 10 }`, worked out from the stats after their adds/sets) → caps
    (`max`, `min`, `max: average` = the subtype's stat line with every die at
-   its mean, rounded down) → multiplies (Power Armor's ×1.2, rounded off) =
+   its mean, rounded down) → multiplies (Power Armour's ×1.2, rounded off) =
    `modified`.
 4. `remove` effects (Warp Disruptor) take things away.
 5. Overrides last (they don't re-trigger rules) = `final`, flagged.
@@ -226,14 +226,13 @@ chosen option's nested picks); the next build makes them again.
 - **Table `equipment-generator`**: the equipment generator. `columns` are
   subtype ids (`fighter`, `marksman`, `scout`, `sage`, `psyker`); a gear
   effect rolls in the character's subtype column. Each row's `label` is a
-  category: an item is a candidate when its `category` matches the label,
-  ignoring case, punctuation, a plural `s` and armour/armor (`Armour` ↔
-  `Armor`, `Grenade` ↔ `Grenades`). A row with effects other than prose (a
+  category: an item is a candidate when its `category` is the label,
+  exactly (`Armour`, `Close combat weapon`). A row with effects other than prose (a
   roll on a sub-table, a grant) makes its gear through those effects
   instead; a row whose category has no items keeps the result in `rolls`
   with its availability and warns. While a row's effects run, the condition
   `{ availability: [...] }` tests the result's availability (Armour rolls
-  Common, Rare, Exotic or Legendary Armor by it), and a roll with
+  Common, Rare, Exotic or Legendary Armour by it), and a roll with
   `matchAvailability` re-rolls rows whose items are of another availability
   (an item with none, or `unrestricted`, fits any). Under a gear result an
   item whose `availabilityWhen` leaves it to the GM is never generated. A
@@ -249,8 +248,8 @@ chosen option's nested picks); the next build makes them again.
 - Gear: the availability is downgraded by `downgrade` steps (Common
   downgraded is lost); an availability not in the effect's list, or no
   item of that category and availability (also excluding alien items
-  unless `alien` allows them and anything in `exclude`, matched against
-  item id, kebab-cased group or category), re-rolls the slot. The item is
+  unless `alien` allows them and anything in `exclude`, matched exactly
+  against item id, group, category, tags, product or `alien`), re-rolls the slot. The item is
   chosen among the candidates (random: uniform; freeform: pending).
 - Missing tables degrade: no generator → no gear, a warning; no
   availability table → any allowed availability.
@@ -278,8 +277,8 @@ chosen option's nested picks); the next build makes them again.
   a `table` (`only`: just these row labels, others re-rolled: Skitarii's
   "random body part"). An equipment generator row's `quality` gives what it
   makes the quality of the rolled availability; an item granted with a
-  quality answers its own `quality` pick (or roll: a row label, matched
-  ignoring case) and lists the quality in its variants. Bionic Limb and
+  quality answers its own `quality` pick (a pick's option id, `average`, or
+  a roll's row label, `Average`) and lists the quality in its variants. Bionic Limb and
   Bionic sense roll Bionic Quality only when nothing gives one.
 - **Variants**: a grant's `variant` (the limb or sense a Bionic Limbs row
   names) is listed first in that unit's variants; `covers` makes the item's
@@ -297,8 +296,8 @@ chosen option's nested picks); the next build makes them again.
   (`rolls[…].lost`). Only results whose items were chosen by category can
   be downgraded or upgraded (not sub-table rows).
 - **Pools** (`pick … pool`) and **powers** never offer what the character
-  already has (items excepted). `filter.group`/`discipline` match the
-  entry's `group`; a power's discipline is its `group`.
+  already has (items excepted). `filter.group`/`discipline` are the
+  entry's `group`, exactly; a power's discipline is its `group`.
 - **Powers**: `count` slots, one choice each, among powers with
   `difficulty ≤ maxDifficulty` in `disciplines` (plus any `access` power
   groups). A formula difficulty (`TT/2`, `Wp/2`, `Wt`) counts as within any

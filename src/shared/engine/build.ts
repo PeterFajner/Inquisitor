@@ -6,7 +6,7 @@
 // dice are rolled with opts.roll; missing choices are made at random
 // (random mode) or returned as pending (freeform mode). The returned record
 // holds exactly the decisions this character uses.
-import type { Compendium } from "../rules/compendium.ts";
+import { EQUIPMENT_GENERATOR, entryNames, type Compendium } from "../rules/compendium.ts";
 import {
   AVAILABILITIES,
   DERIVED,
@@ -42,7 +42,7 @@ import { cloneRecord, THING_KINDS, type CharacterRecord, type Override, type Thi
 import { cryptoRoller } from "./rng.ts";
 
 // Table ids the engine looks up by convention (docs/ENGINE.md).
-export const EQUIPMENT_GENERATOR = "equipment-generator";
+export { EQUIPMENT_GENERATOR };
 export const WEAPON_AVAILABILITY = "weapon-availability";
 export const BIONICS_TABLE = "bionics-table";
 
@@ -267,31 +267,7 @@ const thingOf = (e: Effect): { kind: ThingKind; id: string } | undefined => {
 
 const statList = (s: Stat | Stat[] | "all"): Stat[] => (s === "all" ? [...STATS] : Array.isArray(s) ? s : [s]);
 
-// Names come from a small fixed set (the rules' groups, categories, tags) but
-// are compared thousands of times per character, so each is normalised once.
-const memo = (f: (s: string) => string) => {
-  const cache = new Map<string, string>();
-  return (s: string) => {
-    let v = cache.get(s);
-    if (v === undefined) cache.set(s, (v = f(s)));
-    return v;
-  };
-};
-
-const norm = memo((s: string) =>
-  s
-    .toLowerCase()
-    .replace(/armour/g, "armor")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .split(" ")
-    .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w))
-    .join(" "),
-);
-
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-// a name for matching: kebab-case, armour = armor, singular
-const nm = memo((s: string) => norm(s).replace(/ /g, "-"));
 
 /** Core rulebook rounding: fractions of a half or more round up. */
 export const roundOff = (x: number) => Math.floor(x + 0.5);
@@ -328,25 +304,16 @@ export function findRow(table: Table, totalRolled: number, column?: string): Tab
   });
 }
 
-/** The names an entry matches in filters and restrictions (PickFilter.tag). */
+/** The names an entry matches in filters and restrictions, exactly (entryNames). */
 const names = new WeakMap<Ability | Item, Set<string>>();
 export function namesOf(e: Ability | Item): Set<string> {
   let s = names.get(e);
-  if (s) return s;
-  s = new Set<string>([e.id]);
-  names.set(e, s);
-  if (e.group) s.add(nm(e.group));
-  if (e.kind === "item") {
-    if (e.category) s.add(nm(e.category));
-    for (const t of e.tags ?? []) s.add(nm(t));
-    if (e.product) s.add(nm(e.product));
-    if (e.alien) s.add("alien");
-  }
+  if (!s) names.set(e, (s = new Set(entryNames(e))));
   return s;
 }
 const matches = (e: Ability | Item, names: string[]) => {
   const own = namesOf(e);
-  return names.some((n) => own.has(n) || own.has(nm(n)));
+  return names.some((n) => own.has(n));
 };
 
 /** Whether a power's difficulty is within `max`; a formula ("TT/2") always is. */
@@ -386,7 +353,7 @@ function itemsByCategory(c: Compendium): Map<string, Item[]> {
     m = new Map();
     for (const it of sortedValues(c.items)) {
       if (it.category === undefined) continue;
-      const k = norm(it.category);
+      const k = it.category;
       const list = m.get(k) ?? [];
       list.push(it);
       m.set(k, list);
@@ -1049,7 +1016,10 @@ class Pass {
       if (extra.alterations?.length) have.alterations = [...(have.alterations ?? []), ...extra.alterations];
     }
     const quality = extra.quality ?? (kind === "item" ? scope.grant?.quality : undefined);
-    const set: Record<string, string[]> = { ...(quality ? { quality: [quality.toLowerCase()] } : {}), ...extra.set };
+    // a quality answers the item's own `quality` decision: a roll's row label
+    // (Bionic Quality: "Average"), else a pick's option id ("average")
+    const qRoll = !!entry?.effects?.some((x) => "roll" in x && x.id === "quality");
+    const set: Record<string, string[]> = { ...(quality ? { quality: [qRoll ? quality : quality.toLowerCase()] } : {}), ...extra.set };
     const tag = `${kind}/${id}`;
     // Effects run once per thing, except: a grant that says so (again, set,
     // a quality), and items whose effects decide something (each Bionic
@@ -1308,13 +1278,13 @@ class Pass {
   poolOf(kind: ThingKind, f?: PickFilter): (Ability | Item)[] {
     const groups = f?.group ? [...f.group, ...this.accessGroups(kind)] : undefined;
     const disciplines = f?.discipline ? [...f.discipline, ...this.accessGroups("power")] : undefined;
-    const inList = (g: string | undefined, list: string[]) => g !== undefined && list.some((x) => x === g || nm(x) === nm(g));
+    const inList = (g: string | undefined, list: string[]) => g !== undefined && list.includes(g);
     return sortedValues(this.c[KIND_MAP[kind]] as Map<string, Ability | Item>).filter((x) => {
       const owned = this.owned[kind].has(x.id);
       if (f?.owned === true ? !owned : (f?.owned === false || kind !== "item") && owned) return false;
       if (groups && !inList(x.group, groups)) return false;
       if (disciplines && !inList(x.group, disciplines)) return false;
-      if (f?.category && !(x.kind === "item" && x.category && f.category.some((c) => norm(c) === norm(x.category!)))) return false;
+      if (f?.category && !(x.kind === "item" && x.category && f.category.includes(x.category))) return false;
       if (f?.tag && !matches(x, f.tag)) return false;
       if (f?.exclude && matches(x, f.exclude)) return false;
       if (f?.availability && !(x.kind === "item" && this.availOk(x, f.availability))) return false;
@@ -1347,7 +1317,7 @@ class Pass {
   // `unless`, under a gear result an item of another availability, a row
   // `onlyRows` doesn't name, or a row whose own rolls can't land anywhere.
   unusable(row: TableRow, dupes: boolean, unless?: { profile: string; includes: string }, scope?: Scope, onlyRows?: string[]): boolean {
-    if (onlyRows && !onlyRows.some((l) => norm(l) === norm(row.label))) return true;
+    if (onlyRows && !onlyRows.includes(row.label)) return true;
     const ctx: RollCtx = { dupes, inSlot: !!scope?.slotAvail, matchAvail: scope?.matchAvail, only: scope?.only };
     return this.refused(row, ctx, unless) || !this.feasible(row.effects, ctx, new Set(), 0);
   }
@@ -1506,7 +1476,7 @@ class Pass {
     x: { unless?: { profile: string; includes: string }; preset?: string; onlyRows?: string[] } = {},
   ): TableRow | undefined {
     if (x.preset !== undefined) {
-      const row = table.rows.find((r) => r.label === x.preset) ?? table.rows.find((r) => norm(r.label) === norm(x.preset!));
+      const row = table.rows.find((r) => r.label === x.preset);
       if (!row) {
         this.warn(`${slot}: no row "${x.preset}" on table "${table.id}"`);
         return undefined;
@@ -1586,7 +1556,7 @@ class Pass {
     if (!avt) this.warn(`${key}: no "${WEAPON_AVAILABILITY}" table; any allowed availability is used`);
     const alienOk = g.alien === true || (typeof g.alien === "object" && this.test(g.alien));
     const down = typeof g.downgrade === "number" ? { steps: g.downgrade } : g.downgrade;
-    const inRow = (label: string, names: string[]) => names.some((x) => nm(x) === nm(label));
+    const inRow = (label: string, names: string[]) => names.includes(label);
     const required = g.require ?? [];
     const got: string[] = []; // row labels generated so far
     // A row rolling in the column of a weapon the character carries (Special
@@ -1664,7 +1634,7 @@ class Pass {
           this.slotAvail = was;
           break;
         }
-        const inCategory = itemsByCategory(this.c).get(norm(row.label)) ?? [];
+        const inCategory = itemsByCategory(this.c).get(row.label) ?? [];
         if (!inCategory.length) {
           // nothing to pick from: keep the generated type for the GM
           done = true;
@@ -1899,8 +1869,8 @@ class Pass {
     let rollTable = !!table && col !== false;
     if (rollTable) {
       const onTable = this.tablePowers(table!, col || undefined);
-      const opened = new Set(this.accessGroups("power").map(nm));
-      cands = cands.filter((x) => onTable.has(x.id) || (x.group !== undefined && opened.has(nm(x.group))));
+      const opened = new Set(this.accessGroups("power"));
+      cands = cands.filter((x) => onTable.has(x.id) || (x.group !== undefined && opened.has(x.group)));
       if (opened.size) rollTable = false;
     }
     const chosen: Ability[] = [];
@@ -2192,7 +2162,7 @@ export function build(c: Compendium, input: CharacterRecord, opts: BuildOptions)
   // Some rules are met after the decisions they affect: conditions on the
   // alignment before it is chosen (gear in the Equipment row, alignment in
   // the last row), restrictions and access stated after the gear or pools
-  // they limit (the Armor row after Equipment). When a pass meets any of
+  // they limit (the Armour row after Equipment). When a pass meets any of
   // these late, it is run again knowing them, keeping the dice it rolled and
   // the choices it made (a choice they now refuse is made again).
   let work = cloneRecord(input);
