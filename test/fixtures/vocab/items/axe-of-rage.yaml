@@ -1,0 +1,9 @@
+id: axe-of-rage
+kind: item
+name: Axe of Rage
+group: Melee Weapons
+availability: Exotic
+source: { page: 9 }
+profile: { Reach: "3", Damage: 2D10, Parry Penalty: "-20" }
+effects:
+  - { wielded: [{ talent: hunter }, { stat: Wp, add: -20 }] }

@@ -1,0 +1,13 @@
+id: prayer
+kind: exotic
+name: Word of the Emperor
+group: Exotic
+source: { page: 3 }
+text: Choose one of the following prayers.
+effects:
+  - id: prayer
+    pick: 1
+    from:
+      - { id: curse-of-undoing, name: Curse Of Undoing }
+      - { id: litany-of-spite, name: Litany Of Spite }
+      - { id: stunning-sermon, name: Stunning Sermon }

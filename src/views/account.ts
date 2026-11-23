@@ -7,7 +7,9 @@
 // mode: "register" (a new passkey is a new account), "sign-in" (a passkey
 // we know), "add" (another passkey for the signed-in account). `import`
 // (ImportBody) moves the browser's characters into the account in the same
-// request; `imported` maps their local ids to the saved ones.
+// request when it is small (the browser sends a large one on its own, as
+// POST /api/v1/import, after signing in); `imported` maps their local ids
+// to the saved ones.
 import {
   addPasskey,
   addPasskeyOptions,
@@ -23,11 +25,19 @@ import {
   type RegistrationResponse,
 } from "../lib/accounts.ts";
 import { importBrowser } from "../lib/characters.ts";
-import { HttpError, readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
+import { HttpError, readJson, sendJson, SMALL_BODY, type Ctx, type Router } from "../lib/http.ts";
+import { rateLimit, RateWindow } from "../lib/limits.ts";
 import { API, type AccountInfo, type ImportResult } from "../shared/api.ts";
 
-// The import may carry every character the browser has.
-export const IMPORT_LIMIT = 8 * 1024 * 1024;
+// POST /api/v1/import may carry every character the browser has. Parsing
+// it takes several times its size in heap (the service has 48 MB), so it
+// is capped, and large bodies are parsed one at a time (readJson).
+export const IMPORT_LIMIT = 2 * 1024 * 1024;
+
+// Global limits (nginx limits per IP in front): passkey options (each
+// stores a challenge for five minutes) and new accounts.
+export const passkeyOptionsWindow = new RateWindow(600, 10 * 60_000);
+export const newAccountWindow = new RateWindow(60, 60 * 60_000);
 
 export function accountInfo(ctx: Ctx): AccountInfo {
   const v = currentViewer(ctx);
@@ -49,12 +59,14 @@ function signedIn(ctx: Ctx, importBody: unknown): { ok: true; account: AccountIn
 }
 
 async function passkeyApi(ctx: Ctx): Promise<void> {
-  const body = ((await readJson(ctx, IMPORT_LIMIT)) ?? {}) as { step?: string; response?: unknown; import?: unknown };
+  const body = ((await readJson(ctx, SMALL_BODY)) ?? {}) as { step?: string; response?: unknown; import?: unknown };
   const response = body.response && typeof body.response === "object" ? body.response : null;
+  if (typeof body.step === "string" && body.step.endsWith("-options")) rateLimit(passkeyOptionsWindow);
   switch (body.step) {
     case "register-options":
       return sendJson(ctx, { options: createAccountOptions() });
     case "register":
+      rateLimit(newAccountWindow);
       if (!response || !(await createAccount(ctx, response as RegistrationResponse))) return sendJson(ctx, { error: "passkey_rejected" }, 400);
       return sendJson(ctx, signedIn(ctx, body.import));
     case "sign-in-options":

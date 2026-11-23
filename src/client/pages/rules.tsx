@@ -1,7 +1,7 @@
-// Placeholder: replaced by the page's implementation.
+// /rules: the rules canvas (src/client/rules).
 import type { PageData } from "../../shared/api.ts";
+import { RulesCanvas } from "../rules/RulesCanvas.tsx";
 
 export function RulesPage({ data }: { data: PageData }) {
-  void data;
-  return <main />;
+  return <RulesCanvas data={data} />;
 }

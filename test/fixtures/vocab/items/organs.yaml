@@ -1,0 +1,14 @@
+id: organs
+kind: item
+name: Bionic Organs
+group: Bionics
+availability: Rare
+source: { page: 9 }
+effects:
+  - id: quality
+    pick: 1
+    from:
+      - { id: crude, name: Crude, when: { generates: [Common] } }
+      - { id: average, name: Average, when: { generates: [Rare] } }
+      - { id: advanced, name: Advanced, when: { generates: [Exotic] } }
+  - { id: organ, roll: organs }

@@ -1,0 +1,7 @@
+id: choke
+kind: power
+name: Choke
+group: Telepathy
+difficulty: TT/2
+source: { page: 6 }
+text: Made-up.

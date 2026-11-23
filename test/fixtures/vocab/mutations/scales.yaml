@@ -1,0 +1,8 @@
+id: scales
+kind: mutation
+name: Scales
+source: { page: 4 }
+text: +1 Base Injury Value.
+effects:
+  - { derived: BIV, add: 1 }
+  - { derived: SS, counts: { T: 20 } }

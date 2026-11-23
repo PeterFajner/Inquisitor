@@ -1,0 +1,110 @@
+/* The GM's sheet on screen: the Word sheet's tables (thin rules, shaded
+   header cells, the Game Notes column on the right), in the app's tokens.
+   The sheet's red names are the accent colour here (no red/green). */
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; font-family: var(--font-ui); font-size: 13px; color: var(--ink); }
+.sheet-nameline { margin: 0 0 8px; font: 600 18px/1.3 var(--font); }
+.sheet-name { color: var(--accent); }
+.sheet-tag { font-weight: 400; color: var(--ink); }
+.sheet-name-btn, .sheet-align-btn, .cell-btn {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 3px;
+}
+.sheet-name-btn { min-height: 32px; text-align: left; }
+.sheet-name-btn:hover, .sheet-align-btn:hover, .cell-btn:hover { background: var(--surface-2); }
+.sheet-name-empty { display: inline-block; width: 6em; border-bottom: 1px dashed var(--ink-3); height: 1em; vertical-align: middle; }
+.sheet-align-btn { text-decoration: underline dotted var(--ink-3); text-underline-offset: 3px; }
+.sheet-align-select { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--focus); border-radius: 3px; }
+.sheet-input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--focus); border-radius: 3px; padding: 2px 4px; width: min(16em, 100%); }
+.sheet-input.num { width: 3.6em; text-align: center; padding: 2px; }
+
+.sheet-grid { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 0; border: 1px solid var(--ink-3); }
+.sheet-main { min-width: 0; display: flex; flex-direction: column; }
+.sheet-notes { border-left: 1px solid var(--ink-3); min-width: 0; }
+.sheet-notes ul { margin: 0; padding: 6px 8px; list-style: none; color: var(--accent); font-weight: 600; text-align: center; }
+.sheet-notes li + li { margin-top: 4px; }
+.sheet-th { background: var(--surface-2); font-weight: 700; text-align: center; padding: 3px 6px; border-bottom: 1px solid var(--ink-3); display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 26px; }
+
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+/* A fade at an edge with more table beyond it. */
+.scroll-wrap { position: relative; min-width: 0; }
+.scroll-wrap::before, .scroll-wrap::after { content: ""; position: absolute; top: 0; bottom: 0; width: 28px; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 1; }
+.scroll-wrap::before { left: 0; background: linear-gradient(to right, var(--surface), transparent); }
+.scroll-wrap::after { right: 0; background: linear-gradient(to left, var(--surface), transparent); }
+.scroll-wrap.more-left::before, .scroll-wrap.more-right::after { opacity: 1; }
+.sheet-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.sheet-table th, .sheet-table td { border: 1px solid var(--line); padding: 3px 4px; text-align: center; vertical-align: middle; }
+.sheet-table thead th { background: var(--surface-2); font-weight: 700; }
+.sheet-table tbody th { text-align: left; font-weight: 700; white-space: nowrap; }
+.sheet-table .shade { background: var(--surface-2); }
+.sheet-table td.special { text-align: left; font-size: 12px; color: var(--ink-2); min-width: 10em; }
+.sheet-table td.wname { text-align: left; white-space: nowrap; }
+.sheet-table .nowrap { white-space: nowrap; }
+.sheet-firearm td:not(.special), .sheet-melee td:not(.special) { white-space: nowrap; }
+.sheet-stats td { min-width: 2.2em; height: 26px; }
+.sheet-stats td.editing { padding: 0; }
+.cell-btn { display: inline-block; min-width: 100%; min-height: 24px; }
+.stats-narrow { display: none; }
+
+.sheet-loc .ranges td { font-size: 10px; color: var(--ink-2); white-space: nowrap; border-top: 0; }
+.sheet-loc .injury-total { font-size: 15px; }
+.sheet-loc, .sheet-firearm { margin-top: 8px; }
+.sheet-firearm td { height: 28px; }
+
+.sheet-abilities { padding: 8px 6px; text-align: center; min-height: 3.5em; }
+.sheet-abilities .sheet-label { font-weight: 700; }
+.sheet-abilities ul { list-style: none; margin: 2px 0 0; padding: 0; text-align: left; }
+.sheet-abilities li { padding: 2px 0; }
+.ability-name { color: var(--accent); }
+.ability-effect { color: var(--ink-2); }
+
+.sheet-bottom { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); border-top: 1px solid var(--line); margin-top: 8px; }
+.sheet-melee { height: 100%; }
+.sheet-melee td { height: 30px; }
+.sheet-other { border-left: 1px solid var(--line); }
+.sheet-other ul { list-style: none; margin: 0; padding: 6px 8px; text-align: center; }
+.sheet-other li { padding: 1px 0; }
+
+/* Overridden: an accent dot after the value and a dotted underline. */
+.ovr-mark { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 3px; vertical-align: super; }
+.sheet .ovr > .cell-btn, .sheet li.ovr, .sheet tr.ovr td.wname { text-decoration: underline dotted var(--warn); text-underline-offset: 3px; }
+.sheet td.ovr { background: var(--warn-bg); }
+.sheet td.ovr .cell-btn::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 2px; vertical-align: super; }
+.restore { display: none; border: 0; background: none; color: var(--ink-2); padding: 0 2px; cursor: pointer; vertical-align: middle; }
+.sheet td.ovr:hover .restore, .sheet td.ovr:focus-within .restore { display: inline; }
+
+/* Remove icons: on hover/focus with a mouse, always on touch. */
+.line-x { border: 0; background: none; color: var(--ink-3); padding: 2px; margin-left: 4px; cursor: pointer; vertical-align: middle; border-radius: 3px; opacity: 0; min-width: 24px; min-height: 24px; }
+.line-x:hover { color: var(--ink); background: var(--surface-2); }
+.sheet li:hover .line-x, .sheet tr:hover .line-x, .line-x:focus-visible { opacity: 1; }
+@media (hover: none) { .line-x { opacity: 0.8; } .sheet td.ovr .restore { display: inline; } }
+.icon-btn.icon-sm { width: 32px; height: 32px; }
+.sheet-add { width: 28px !important; height: 28px !important; vertical-align: middle; }
+
+@media (max-width: 700px) {
+  .sheet { padding: 8px; font-size: 12px; }
+  .sheet-grid { grid-template-columns: minmax(0, 1fr); }
+  .sheet-notes { border-left: 0; border-top: 1px solid var(--ink-3); }
+  .stats-wide { display: none; }
+  .stats-narrow { display: table; }
+  .stats-narrow + .stats-narrow { margin-top: 6px; }
+  .sheet-stats th, .sheet-stats td { padding: 2px 1px; }
+  .sheet-bottom { grid-template-columns: minmax(0, 1fr); }
+  .sheet-other { border-left: 0; border-top: 1px solid var(--line); }
+  .sheet-table td.special { min-width: 8em; }
+}
+
+@media print {
+  .sheet { border: 0; padding: 0; }
+  .line-x, .restore, .sheet-add, .ovr-mark { display: none !important; }
+}
+
+.sheet-abilities .line-x, .sheet-other .line-x { min-height: 0; min-width: 20px; padding: 0 2px; }
+
+/* Touch: every control a 40px target (the glyphs stay small). The stat
+   cell's button fills its cell. */
+@media (pointer: coarse) {
+  .sheet .line-x, .sheet .restore, .sheet-abilities .line-x, .sheet-other .line-x { min-width: 40px; min-height: 40px; padding: 0 8px; }
+  .sheet .icon-btn.icon-sm { width: 40px; height: 40px; }
+  .sheet .sheet-add { width: 40px !important; height: 40px !important; }
+  .sheet-stats td .cell-btn { display: block; min-height: 40px; line-height: 40px; }
+  .sheet-align-btn, .sheet-name-btn { min-height: 40px; padding: 0 4px; }
+}

@@ -1,0 +1,10 @@
+id: power-armour
+kind: item
+name: Power Armor
+group: Armor
+category: Armor
+availability: Legendary
+source: { page: 9 }
+effects:
+  - { armour: { av: 10 } }
+  - { stat: S, multiply: 1.2 }

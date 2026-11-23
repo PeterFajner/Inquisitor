@@ -79,12 +79,26 @@ function pages(characters: SheetCharacter[]) {
   return out;
 }
 
+// docx-templates writes text between this delimiter as raw XML (its
+// default, "||", can be typed into a name). A private-use character no
+// value may contain: every string is stripped of it.
+const LITERAL_XML = '\uE000';
+const noLiteralXml = (x: unknown): unknown =>
+  typeof x === 'string'
+    ? x.replaceAll(LITERAL_XML, '')
+    : Array.isArray(x)
+      ? x.map(noLiteralXml)
+      : x && typeof x === 'object'
+        ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, noLiteralXml(v)]))
+        : x;
+
 /** Fills the sheet template with `characters`, three per page (a partly used last page keeps its other blocks empty). */
 export async function renderSheetDocx(characters: SheetCharacter[], template: ArrayBuffer): Promise<Uint8Array> {
   return createReport({
     template: new Uint8Array(template),
-    data: { pages: pages(characters) },
+    data: noLiteralXml({ pages: pages(characters) }) as { pages: ReturnType<typeof pages> },
     cmdDelimiter: ['{{', '}}'],
+    literalXmlDelimiter: LITERAL_XML,
     noSandbox: true,
     processLineBreaks: true,
     processLineBreaksAsNewText: true,
@@ -95,12 +109,12 @@ export async function renderSheetDocx(characters: SheetCharacter[], template: Ar
   });
 }
 
-/** Fetches the template, fills it and saves the .docx, named after the characters. */
-export async function downloadSheetDocx(characters: SheetCharacter[]): Promise<void> {
+/** Fetches the template, fills it and saves the .docx, named `name` (a warband's) or after the characters. */
+export async function downloadSheetDocx(characters: SheetCharacter[], name?: string): Promise<void> {
   const res = await fetch(SHEET_TEMPLATE_URL);
   if (!res.ok) throw new Error(`${SHEET_TEMPLATE_URL}: ${res.status}`);
   const docx = await renderSheetDocx(characters, await res.arrayBuffer());
-  const names = characters.map((c) => c.name.trim()).filter(Boolean).join(', ');
+  const names = name?.trim() || characters.map((c) => c.name.trim()).filter(Boolean).join(', ');
   const fileName = `${(names || 'sheet').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120)}.docx`;
   const url = URL.createObjectURL(new Blob([docx as Uint8Array<ArrayBuffer>], { type: DOCX_TYPE }));
   const a = document.createElement('a');

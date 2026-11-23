@@ -1,0 +1,7 @@
+id: stare
+kind: power
+name: Lidless Stare
+group: Telepathy
+difficulty: "20"
+source: { page: 6 }
+text: Made-up.

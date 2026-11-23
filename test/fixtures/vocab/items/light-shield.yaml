@@ -1,0 +1,8 @@
+id: light-shield
+kind: item
+name: Light Shield
+group: Armor
+availability: Common
+source: { page: 9 }
+effects:
+  - { id: cover, armour: { av: 2, choose: 2, locations: [Left Arm, Chest, Abdomen, Head] } }

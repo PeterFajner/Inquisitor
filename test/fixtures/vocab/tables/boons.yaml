@@ -1,0 +1,27 @@
+id: boons
+kind: table
+name: Boons
+die: D100
+columns: [fighter, psyker]
+source: { page: 7 }
+rows:
+  - ranges: { fighter: [1, 30], psyker: [1, 30] }
+    label: +10 WS
+    effects: [{ stat: WS, add: 10 }]
+  - ranges: { fighter: [31, 50], psyker: [31, 50] }
+    label: Awareness
+    effects: [{ talent: awareness }]
+  - ranges: { fighter: [51, 70], psyker: [51, 70] }
+    label: Exotic ability
+    effects: [{ id: exotic, roll: random-exotic }]
+  - ranges: { psyker: [71, 95] }
+    label: Roll again on Fighter table
+    effects:
+      - id: again-fighter
+        pick: 1
+        from:
+          - { id: roll-again-fighter, roll: boons, column: fighter }
+          - { id: expansion-talent-fighter, pick: 1, from: [{ talent: hunter }, { talent: leader }, { talent: quick-draw }] }
+  - ranges: { fighter: [71, 100], psyker: [96, 100] }
+    label: +5 S
+    effects: [{ stat: S, add: 5 }]

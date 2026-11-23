@@ -1,0 +1,6 @@
+id: venom-b
+kind: item
+name: Venom B
+group: Toxins
+availability: Common
+source: { page: 9 }

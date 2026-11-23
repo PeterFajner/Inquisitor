@@ -10,7 +10,7 @@
 // isn't the session.
 import { createHash, randomBytes } from "node:crypto";
 import { all, get, NOW, run, transaction } from "./db.ts";
-import { setCookie, type Ctx } from "./http.ts";
+import { HttpError, setCookie, type Ctx } from "./http.ts";
 import {
   newChallenge,
   registerOptions,
@@ -93,8 +93,13 @@ export function signOut(ctx: Ctx): void {
 
 type Purpose = "register" | "add" | "sign-in";
 
+/** Unused challenges kept at most (each lives five minutes). */
+export const MAX_CHALLENGES = 2000;
+
 function saveChallenge(challenge: string, purpose: Purpose, accountId: string | null = null, newAccountId: string | null = null): void {
   run(`DELETE FROM account_challenges WHERE expires_at <= ${NOW}`);
+  const n = (get<{ n: number }>(`SELECT count(*) AS n FROM account_challenges`)?.n ?? 0);
+  if (n >= MAX_CHALLENGES) throw new HttpError(503, "busy");
   run(
     `INSERT INTO account_challenges (challenge, purpose, account_id, new_account_id, expires_at)
      VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+5 minutes'))`,

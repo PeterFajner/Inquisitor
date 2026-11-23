@@ -1,0 +1,7 @@
+id: crash
+kind: item
+name: Crash
+group: Stimms
+unrestricted: true
+source: { page: 9 }
+profile: { Allowed Dispenser Types: Injector }

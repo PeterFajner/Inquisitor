@@ -150,7 +150,91 @@ export type PageData = {
 
 export const MAX_NAME = 200;
 
-/** GET /api/v1/rules: every rule pack and its entries; version = the rules repo's HEAD commit. */
-export type RulesPayload = { version: string; packs: import("./rules/compendium.ts").PackEntries[] };
+// ---------------------------------------------------------------------------
+// The rules (src/views/rules.ts, src/lib/rules-store.ts)
+// ---------------------------------------------------------------------------
+// data/rules is a git repository; every write below is one commit of one
+// file, authored by the editor's public id (history shows "transcription"
+// for the book's transcription). Writes need a signed-in account (401
+// {error: "account_required", account: "required"}), are limited per
+// account (429 {error: "rate_limited"}) and answer RulesWriteResult. Each
+// commit is also sent to everyone on GET /api/v1/rules/events.
+
+type RulesEntry = import("./rules/schema.ts").Entry;
+type RulesPack = import("./rules/schema.ts").Pack;
+
+/** What the rules repo knows about one entry's file. */
+export type EntryMeta = {
+  /** The last commit touching the file: the `base` to send when editing it. */
+  commit: string;
+  /** Its author: a public account id, or "transcription". */
+  author: string;
+  at: string;
+  /** The entry changed (beyond pos/points) since its transcription: the book's quote (source.text) may be stale. */
+  edited: boolean;
+};
+
+/**
+ * GET /api/v1/rules: every rule pack and its entries; version = the rules
+ * repo's HEAD commit (also the ETag). meta[pack]["<kind>/<id>"] is each
+ * entry's EntryMeta (missing only for files never committed).
+ */
+export type RulesPayload = {
+  version: string;
+  packs: import("./rules/compendium.ts").PackEntries[];
+  meta: Record<string, Record<string, EntryMeta>>;
+};
+
+/**
+ * POST /api/v1/rules/entries: create or replace one entry (its file is
+ * <pack>/<kind dir>/<entry.id>.yaml). base = meta.commit as last seen, or
+ * null for an entry that doesn't exist yet. 404 {error: "unknown_pack"};
+ * 409 RulesConflict when the file changed since base; 422 RulesInvalid when
+ * the entry fails the schema or would break a cross-reference.
+ */
+export type SaveEntry = { pack: string; entry: RulesEntry; base: string | null };
+/** POST /api/v1/rules/entries/delete. 404 when it doesn't exist; 409 / 422 as above (422: something refers to it). */
+export type DeleteEntry = { pack: string; kind: string; id: string; base: string | null };
+/**
+ * POST /api/v1/rules/move: the card's canvas position only. No base: last
+ * write wins. Rapid moves of the same card by the same account (within 5 s
+ * of each other) amend one commit, so meta.commit changes with each.
+ */
+export type MoveEntry = { pack: string; kind: string; id: string; pos: [number, number] };
+/** POST /api/v1/rules/packs: a new, empty pack. 409 {error: "exists"}; 422 for a bad id or an unknown pack in extends. */
+export type NewPack = { id: string; name: string; extends?: string[] };
+/**
+ * POST /api/v1/rules/revert: make the entry what it was at `commit` (one of
+ * its history's commits; an entry that didn't exist there is deleted), as a
+ * new commit. base as for SaveEntry. 404 {error: "unknown_commit"}.
+ */
+export type RevertEntry = { pack: string; kind: string; id: string; commit: string; base: string | null };
+
+/** What a write answers (200). entry null: deleted. A write that changes nothing answers the current state without a commit. */
+export type RulesWriteResult = { version: string; pack: string; kind: string; id: string; entry: RulesEntry | null; meta: EntryMeta | null };
+/** 409: the file changed since base; here is what it is now (entry null: deleted since; meta.commit is the new base). */
+export type RulesConflict = { error: "conflict"; entry: RulesEntry | null; meta: EntryMeta | null };
+/** 422: path is the schema path ("sections.0.effects.1.talent") or "" for a cross-reference problem. */
+export type RulesIssue = { path: string; message: string };
+export type RulesInvalid = { error: "invalid"; issues: RulesIssue[] };
+
+/** POST /api/v1/rules/packs answers this. */
+export type NewPackResult = { version: string; pack: RulesPack };
+
+/** One commit of an entry's file. entry null: the file didn't exist after it (deleted). */
+export type EntryVersion = { commit: string; author: string; at: string; message: string; entry: RulesEntry | null };
+/** GET /api/v1/rules/history?pack=&kind=&id=: newest first (at most 500). */
+export type RulesHistory = { pack: string; kind: string; id: string; commits: EntryVersion[] };
+
+/**
+ * GET /api/v1/rules/events (text/event-stream). Each `data:` is one
+ * RulesEvent, sent after its commit; ids let EventSource resume
+ * (Last-Event-ID). `reset`: events were missed (server restart, too far
+ * behind): fetch GET /api/v1/rules again. ": ping" comments every 25 s.
+ */
+export type RulesEvent =
+  | { type: "entry"; pack: string; kind: string; id: string; entry: RulesEntry | null; meta: EntryMeta | null; version: string }
+  | { type: "pack"; pack: RulesPack; version: string }
+  | { type: "reset"; version: string };
 /** Bytes of JSON per record. */
 export const MAX_RECORD = 64 * 1024;

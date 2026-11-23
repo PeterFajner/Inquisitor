@@ -1,0 +1,9 @@
+id: breastplate
+kind: item
+name: Breastplate
+group: Armor
+category: Armor
+availability: Rare
+source: { page: 9 }
+effects:
+  - { armour: { av: 5, locations: [Chest, Abdomen] } }

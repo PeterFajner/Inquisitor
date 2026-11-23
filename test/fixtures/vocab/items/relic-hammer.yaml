@@ -1,0 +1,9 @@
+id: relic-hammer
+kind: item
+name: Relic Hammer
+group: Melee Weapons
+category: Close combat weapon
+availability: Rare
+requires: { archetype: [priest] }
+source: { page: 9 }
+profile: { Reach: "2", Damage: 2D10, Parry Penalty: "-15" }

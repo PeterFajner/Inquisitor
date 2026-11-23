@@ -1,0 +1,10 @@
+id: bounty
+kind: archetype
+name: Alien Bounty Hunter
+subtypeDie: D10
+source: { page: 1 }
+subtypes:
+  - { id: rookie, name: Rookie, range: [1, 3], stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+  - { id: tracker, name: Tracker, range: [4, 8], stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+  - { id: hunter, name: Hunter, range: [9, 10], stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+sections: []

@@ -22,6 +22,8 @@ const PUBLIC = "/static/client/";
 // Entries the server names in manifest.json.
 export const ENTRIES: Record<string, string> = {
   app: "src/client/app.tsx",
+  // The balance simulation's Web Worker (src/client/lib/balance.ts finds it in manifest.json).
+  "balance-worker": "src/client/lib/balance-worker.ts",
 };
 
 type Entry = { js: string; css: string[]; preload: string[] };

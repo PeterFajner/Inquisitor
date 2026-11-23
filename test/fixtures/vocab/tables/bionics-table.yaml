@@ -1,0 +1,8 @@
+id: bionics-table
+kind: table
+name: Bionics Table
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 3], label: Bionic Limb, effects: [{ item: bionic-arm }] }
+  - { range: [4, 6], label: Other implant, effects: [{ item: organs }] }

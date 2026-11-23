@@ -1,0 +1,8 @@
+id: random-exotic
+kind: table
+name: Random Exotic Ability
+die: D6
+source: { page: 7 }
+rows:
+  - { range: [1, 3], label: Fearsome, effects: [{ exotic: fearsome }] }
+  - { range: [4, 6], label: Spit Acid, effects: [{ exotic: spit-acid }] }

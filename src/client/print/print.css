@@ -1,0 +1,68 @@
+/* The print view: the GM's sheet, three blocks to an A4 or Letter page.
+   On paper the page is set to the light tokens (open.tsx sets
+   data-theme="light" while printing), header cells keep their shade, and
+   everything but the print view is hidden. On screen it is a sheet of paper
+   in the app's tokens (light or dark), zoomed to fit narrow screens. The
+   sheet's red names are the accent colour (no red/green). */
+@page { margin: 8mm; }
+
+.pb-paper { width: 194mm; margin: 0 auto; font: 7.5pt/1.25 var(--font-ui); color: var(--ink); }
+.pb { min-height: 80mm; margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; display: flex; flex-direction: column; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pb-nameline { margin: 0 0 1mm; font: 700 11pt/1.2 var(--font-ui); }
+.pb-name { color: var(--accent); }
+.pb-tag { font-weight: 400; }
+
+.pb-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 36mm; border: 1px solid var(--ink-2); }
+.pb-main { min-width: 0; display: flex; flex-direction: column; }
+.pb-notes { border-left: 1px solid var(--ink-2); min-width: 0; }
+.pb-notes ul { list-style: none; margin: 0; padding: 1mm 1.5mm; text-align: center; color: var(--accent); font-weight: 700; }
+.pb-th { background: var(--surface-2); font-weight: 700; text-align: center; padding: 0.6mm 1mm; border-bottom: 1px solid var(--ink-2); }
+
+.pb-table { border-collapse: collapse; width: 100%; table-layout: auto; font-variant-numeric: tabular-nums; }
+.pb-table th, .pb-table td { border: 1px solid var(--line); padding: 0.2mm 0.8mm; text-align: center; vertical-align: middle; height: 3.8mm; }
+.pb-table thead th { background: var(--surface-2); font-weight: 700; }
+.pb-table tbody th { text-align: left; font-weight: 700; white-space: nowrap; }
+.pb-shade { background: var(--surface-2); }
+.pb-stats td { width: 6%; }
+.pb-corner { width: 9%; }
+
+.pb-abilities { flex: 1 0 auto; padding: 1mm 2mm; text-align: center; min-height: 8mm; border-bottom: 1px solid var(--line); }
+.pb-ability + .pb-ability { margin-top: 0.3mm; }
+.pb-ability-name { color: var(--accent); }
+
+.pb-loc .pb-ranges td { font-size: 6pt; color: var(--ink-2); height: auto; border-top: 0; white-space: nowrap; }
+.pb-loc thead tr:first-child th { border-bottom: 0; }
+.pb-injury-head { width: 9%; }
+.pb-injury { font-size: 10pt; }
+
+.pb-firearm td, .pb-melee td { height: 4.6mm; white-space: nowrap; }
+.pb-firearm thead th, .pb-melee thead th { font-size: 6.5pt; }
+.pb-table td.pb-wname { text-align: left; white-space: normal; min-width: 14mm; }
+.pb-table td.pb-special { white-space: normal; text-align: left; font-size: 6.5pt; min-width: 22mm; }
+.pb-nowrap { white-space: nowrap; }
+
+.pb-bottom { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.pb-other { border-left: 1px solid var(--ink-2); border-top: 1px solid var(--line); min-width: 0; }
+.pb-other ul { list-style: none; margin: 0; padding: 1mm; text-align: center; }
+
+/* --- the overlay (open.tsx) and the share link's print page ------------- */
+body.print-open { overflow: hidden; }
+.print-root { position: fixed; inset: 0; z-index: 50; overflow: auto; background: var(--bg); color: var(--ink); }
+.print-page { min-height: 100vh; background: var(--bg); }
+.print-toolbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 2px; padding: 4px 8px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.print-toolbar .gap { flex: 1; }
+.print-toolbar .home { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius); }
+.print-sheet { padding: 12px 8px 24px; }
+.print-sheet .pb-paper { background: var(--surface); box-shadow: var(--shadow); padding: 8mm; width: calc(194mm + 16mm); border-radius: 2px; }
+.print-sheet .pb { margin-bottom: 6mm; }
+
+@media print {
+  body.print-open > :not(.print-root) { display: none !important; }
+  body.print-open { overflow: visible; }
+  .print-root { position: static; overflow: visible; background: none; }
+  .print-toolbar { display: none !important; }
+  .print-page, .print-sheet { background: none; padding: 0; min-height: 0; }
+  .print-sheet .pb-paper { background: none; box-shadow: none; padding: 0; width: 194mm; zoom: 1 !important; }
+  .print-sheet .pb { margin-bottom: 3mm; }
+  html, body { background: none !important; }
+}

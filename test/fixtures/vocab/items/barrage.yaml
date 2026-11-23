@@ -1,0 +1,7 @@
+id: barrage
+kind: item
+name: Barrage
+group: Stimms
+unrestricted: true
+source: { page: 9 }
+profile: { Allowed Dispenser Types: "Inhaler, Injector" }

@@ -1,0 +1,8 @@
+id: bigga
+kind: exotic
+name: Bigga Is Betta
+group: Exotic
+source: { page: 3 }
+text: This character adds their [Strength/10] to their Leadership.
+effects:
+  - { stat: Ld, add: { stat: S, divide: 10 } }

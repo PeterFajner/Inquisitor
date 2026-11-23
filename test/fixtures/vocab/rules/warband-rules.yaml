@@ -1,0 +1,7 @@
+id: warband-rules
+kind: rule
+name: Steps
+source: { page: 1 }
+text: Made-up warband rule.
+effects:
+  - { warband: { max: 1, archetype: [tester] } }

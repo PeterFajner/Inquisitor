@@ -107,6 +107,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
     secure: req.headers["x-forwarded-proto"] === "https",
   };
   const isApi = url.pathname.startsWith(`${API}/`);
+  // No page may be framed by another site (clickjacking).
+  res.setHeader("x-frame-options", "DENY");
+  res.setHeader("content-security-policy", "frame-ancestors 'none'");
   try {
     if ((req.method === "GET" || req.method === "HEAD") && serveStatic(req, res, ROOT_FILES[url.pathname] ?? url.pathname)) return;
     // The API's reads are open to any site, without credentials (its errors
@@ -140,7 +143,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
     if (status === 500) console.error(e);
     if (isApi) {
       const error = e instanceof HttpError && e.message ? e.message : status === 500 ? "server_error" : `http_${status}`;
-      sendJson(ctx, { error, ...(status === 401 ? { account: "required" } : {}) }, status);
+      const retry: Record<string, string> = status === 429 ? { "retry-after": "60" } : status === 503 ? { "retry-after": "5" } : {};
+      sendJson(ctx, { error, ...(status === 401 ? { account: "required" } : {}) }, status, retry);
     } else {
       errorPage(ctx, status);
     }

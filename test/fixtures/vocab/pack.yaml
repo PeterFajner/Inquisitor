@@ -1,0 +1,4 @@
+# Made-up pack for the extended vocabulary (test/engine.test.ts, "vocabulary").
+id: vocab
+name: Fixture Vocabulary
+extends: [base]

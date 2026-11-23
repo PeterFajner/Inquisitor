@@ -1,0 +1,8 @@
+id: natural-psyker
+kind: talent
+name: Natural Psyker
+group: Psyker Talents
+source: { page: 5 }
+text: Can't be used with other Psyker Talents.
+effects:
+  - { exclusive: { pool: talent, group: [Psyker Talents] } }

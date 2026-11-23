@@ -1,0 +1,8 @@
+id: archeotech
+kind: item
+name: Archeotech Wargear
+group: Miscellaneous
+availability: Exotic
+source: { page: 9 }
+effects:
+  - { id: power, pick: 1, pool: power, filter: { maxDifficulty: 10 }, into: self }

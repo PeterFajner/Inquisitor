@@ -1,0 +1,21 @@
+id: needler
+kind: item
+name: Needler
+group: Ranged Weapons
+category: Pistol
+availability: Rare
+source: { page: 9 }
+profile:
+  Type: Pistol
+  Rng: C
+  Mode: |-
+    Single
+    Semi 2
+  Acc: "-"
+  Dam: D3
+  Shots: "6"
+  Rld: "1"
+  Wt: "5"
+text: Carries a toxin.
+effects:
+  - { id: toxin, pick: 1, pool: item, filter: { group: [Toxins] }, into: self }

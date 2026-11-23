@@ -1,0 +1,9 @@
+id: organs
+kind: table
+name: Bionic Organs
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 2], label: Lungs, effects: [] }
+  - { range: [3, 4], label: Heart, effects: [] }
+  - { range: [5, 6], label: Brains, effects: [] }

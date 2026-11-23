@@ -1,0 +1,10 @@
+id: creating
+kind: rule
+name: Creating A Character
+source: { page: 1 }
+text: Made-up step B.
+apply: { after: Talents }
+effects:
+  - when: { subtype: [fighter, psyker] }
+    then:
+      - { id: boons, roll: boons, times: D3+3, column: $subtype, rerollDuplicates: true }

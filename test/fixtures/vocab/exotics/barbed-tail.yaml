@@ -1,0 +1,8 @@
+id: barbed-tail
+kind: exotic
+name: Barbed Tail
+group: Exotic
+source: { page: 3 }
+text: The tail is Reach 4 and deals a D6+3 damage.
+effects:
+  - { weapon: { profile: { Reach: "4", Damage: D6+3 } } }

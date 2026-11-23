@@ -1,0 +1,8 @@
+id: study
+kind: talent
+name: Study Thy Weapon
+group: General
+source: { page: 5 }
+text: Choose a specific weapon.
+effects:
+  - { id: weapon, pick: 1, pool: item, filter: { owned: true, group: [Melee Weapons, Ranged Weapons] }, into: self }

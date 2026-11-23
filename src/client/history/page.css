@@ -1,0 +1,12 @@
+/* /c/<id>/history: a bar of icons and the character's name over the canvas,
+   which fills the rest of the screen. */
+.history-page { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.history-bar { flex: none; display: flex; align-items: center; gap: 2px; padding: 4px 8px; background: var(--bg); border-bottom: 1px solid var(--line); min-width: 0; }
+.history-bar .icon-btn { color: var(--ink); text-decoration: none; }
+.history-home { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius); flex: none; }
+.history-home img { display: block; }
+.history-name { flex: 1; min-width: 0; margin: 0 6px; font: 600 17px/1.2 var(--font); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-main { flex: 1; min-height: 0; }
+@media (max-width: 420px) {
+  .history-bar { padding: 4px; }
+}

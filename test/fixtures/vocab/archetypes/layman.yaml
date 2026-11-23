@@ -1,0 +1,10 @@
+id: layman
+kind: archetype
+name: Layman
+source: { page: 1 }
+subtypes:
+  - { id: fighter, name: Fighter, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+sections:
+  - name: Equipment
+    effects:
+      - { id: blade, pick: 1, pool: item, filter: { availability: [Rare], group: [Melee Weapons] } }

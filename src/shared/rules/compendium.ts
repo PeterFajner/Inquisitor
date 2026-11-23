@@ -97,6 +97,8 @@ export function walkEffects(effects: Effect[], visit: (e: Effect, path: string) 
       if (e.else) walkEffects(e.else, visit, `${p}/else`);
     }
     if ("optional" in e) walkEffects(e.optional, visit, `${p}/optional`);
+    if ("wielded" in e) walkEffects(e.wielded, visit, `${p}/wielded`);
+    if ("trade" in e) walkEffects(e.trade.get, visit, `${p}/trade/get`);
     if ("pick" in e && e.from) {
       e.from.forEach((o, j) => {
         if ("name" in o && "id" in o && !("stat" in o)) {
@@ -126,6 +128,18 @@ export function checkCompendium(c: Compendium): string[] {
         if ("mutation" in x && !has("mutation", x.mutation)) problems.push(`${at} ${where}: unknown mutation "${x.mutation}"`);
         if ("power" in x && !has("power", x.power)) problems.push(`${at} ${where}: unknown power "${x.power}"`);
         if ("roll" in x && !has("table", x.roll)) problems.push(`${at} ${where}: unknown table "${x.roll}"`);
+        if ("armour" in x && x.armour.as && !has("item", x.armour.as)) problems.push(`${at} ${where}: armour as unknown item "${x.armour.as}"`);
+        if ("pick" in x && x.into && x.into !== "self" && !has("item", x.into)) problems.push(`${at} ${where}: into unknown item "${x.into}"`);
+        if ("item" in x && "alterations" in x) {
+          for (const a of x.alterations ?? []) if (!has("item", a)) problems.push(`${at} ${where}: unknown alteration "${a}"`);
+        }
+        if ("remove" in x) {
+          for (const [k, ids] of Object.entries(x.remove) as [KindKey, string[]][]) {
+            for (const id of ids) if (!has(k, id)) problems.push(`${at} ${where}: remove unknown ${k} "${id}"`);
+          }
+        }
+        if ("companion" in x && !c.archetypes.has(x.companion.archetype)) problems.push(`${at} ${where}: unknown archetype "${x.companion.archetype}"`);
+        if ("bionics" in x && !has("table", x.bionics.table ?? "bionics-table")) problems.push(`${at} ${where}: unknown table "${x.bionics.table ?? "bionics-table"}"`);
       });
     }
     if (e.kind === "archetype") {
@@ -133,7 +147,11 @@ export function checkCompendium(c: Compendium): string[] {
       for (const s of e.subtypes) {
         if (subIds.has(s.id)) problems.push(`${at}: subtype "${s.id}" twice`);
         subIds.add(s.id);
+        if (e.subtypeDie && !s.range) problems.push(`${at}: subtype "${s.id}" needs a range (the archetype has a subtypeDie)`);
       }
+    }
+    if (e.kind === "rule" && e.apply && typeof e.apply === "object" && e.apply.after && e.apply.before) {
+      problems.push(`${at}: apply takes after or before, not both`);
     }
     if (e.kind === "table") {
       for (const [i, r] of e.rows.entries()) {

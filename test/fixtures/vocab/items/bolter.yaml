@@ -1,0 +1,9 @@
+id: bolter
+kind: item
+name: Bolter
+group: Ranged Weapons
+category: Basic weapon
+availability: Rare
+tags: [bolt-weapon]
+source: { page: 9 }
+profile: { Type: Basic, Rng: J, Mode: Single, Acc: "-", Dam: 2D10+4, Shots: "12", Rld: "2", Wt: "40" }

@@ -1,0 +1,6 @@
+id: marine-might
+kind: talent
+name: Marine Might
+group: Marine Talents
+source: { page: 5 }
+text: Made-up.

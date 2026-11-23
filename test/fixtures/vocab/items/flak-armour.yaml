@@ -1,0 +1,9 @@
+id: flak-armour
+kind: item
+name: Flak Armor
+group: Armor
+category: Armor
+availability: Common
+source: { page: 9 }
+effects:
+  - { armour: { av: 3 } }

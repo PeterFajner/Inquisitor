@@ -497,7 +497,20 @@ export function duplicateShared(viewer: Viewer, token: string, input: unknown): 
 // A link to a character or warband that isn't saved anywhere but the
 // browser (signed out, or not saved yet): stored without an owner,
 // read-only for good.
+// Every snapshot's records together (they're never deleted): past this,
+// new snapshots are refused (507) until the owner makes room.
+export const SNAPSHOT_BUDGET = 256 * 1024 * 1024;
+let snapshotBytes: number | null = null;
+
+function ownerlessBytes(): number {
+  snapshotBytes ??= get<{ n: number | null }>(
+    `SELECT sum(length(v.record)) AS n FROM character_versions v JOIN characters c ON c.id = v.character_id WHERE c.owner_id IS NULL`,
+  )?.n ?? 0;
+  return snapshotBytes;
+}
+
 export function shareSnapshot(viewer: Viewer, input: unknown): { token: string } {
+  if (ownerlessBytes() >= SNAPSHOT_BUDGET) throw new HttpError(507, "storage_full");
   const b = body(input);
   const one = (x: unknown, field: string) => {
     const c = isObject(x) ? x : invalid(field);
@@ -515,6 +528,7 @@ export function shareSnapshot(viewer: Viewer, input: unknown): { token: string }
       const id = insertCharacter({ ownerId: null, author: viewer.publicId, ...c });
       run(`INSERT INTO shares (token, character_id) VALUES (?1, ?2)`, [token, id]);
     });
+    snapshotBytes = null;
     return { token };
   }
   const w = isObject(b.warband) ? b.warband : invalid("warband");
@@ -526,6 +540,7 @@ export function shareSnapshot(viewer: Viewer, input: unknown): { token: string }
     const id = insertWarband(null, name, ids);
     run(`INSERT INTO shares (token, warband_id) VALUES (?1, ?2)`, [token, id]);
   });
+  snapshotBytes = null;
   return { token };
 }
 
@@ -587,7 +602,8 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
   });
 
   return transaction(() => {
-    const out: ImportResult = { characters: {}, warbands: {} };
+    // (null-prototype maps: a local id may be "__proto__" or "constructor")
+    const out: ImportResult = { characters: Object.create(null), warbands: Object.create(null) };
     for (const c of parsedChars) {
       const existing = get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND import_key = ?2`, [accountId, c.localId]);
       if (existing) {
@@ -625,7 +641,7 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
       const members: string[] = [];
       for (const m of w.members) {
         const id =
-          out.characters[m] ??
+          (Object.hasOwn(out.characters, m) ? out.characters[m] : undefined) ??
           get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND import_key = ?2`, [accountId, m])?.id ??
           get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND id = ?2`, [accountId, m])?.id;
         if (id && !members.includes(id)) members.push(id);

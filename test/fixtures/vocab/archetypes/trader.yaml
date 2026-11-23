@@ -1,0 +1,54 @@
+# Trades, gear requirements, roll mechanics, open picks, bionics, powers, derived values.
+id: trader
+kind: archetype
+name: Traders
+source: { page: 1 }
+subtypes:
+  - { id: fighter, name: Fighter, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+  - { id: psyker, name: Psyker, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+sections:
+  - name: Equipment
+    effects:
+      - { id: gear, gear: { count: 3, availability: [Common, Rare], require: [[Grenade]] } }
+      - { id: downgraded, gear: { count: 2, availability: [Common, Rare], downgrade: { steps: 1, only: [Pistol] } } }
+      - id: rare-weapon
+        trade:
+          give: { downgrade: 1 }
+          get: [{ id: weapon, pick: 1, pool: item, filter: { availability: [Rare], category: [Close combat weapon] } }]
+      - id: better
+        trade:
+          give: { downgrade: 1, count: 2 }
+          get: [{ id: up, upgrade: 1 }]
+      - id: swap
+        trade:
+          give: { lose: item, generated: true }
+          get: [{ item: refractor }]
+          times: any
+      - { id: stimm, roll: stimm-type, qty: D10, rerollUnless: { profile: Allowed Dispenser Types, includes: Inhaler } }
+      - { id: lucky, chance: { die: D6, on: [6] }, then: [{ item: needler }] }
+      - { id: implant, pick: 1, pool: item, filter: { category: [Pistol] }, implanted: true, qty: 2 }
+      - { id: any-armour, pick: any, pool: item, filter: { availability: [Common], group: [Armor] } }
+      - { id: bionics, bionics: { count: 2, quality: Crude, upgrade: 50 } }
+      - { item: archeotech }
+      - { item: disruptor }
+      - { companion: { archetype: tester, subtype: servitor } }
+  - name: Psychic Abilities
+    effects:
+      - { psyker: true }
+      - { id: powers, powers: { count: 2, maxDifficulty: 10, disciplines: [Telepathy] } }
+  - name: Exotic Abilities
+    effects:
+      - { exotic: strong }
+      - { exotic: bigga }
+  - name: Talents
+    effects:
+      - { talent: awareness }
+      - { id: up-to-two, pick: { max: 2 }, pool: talent, filter: { group: [General] } }
+      - { id: marine, pick: 1, pool: talent, filter: { group: [Marine Talents] } }
+  - name: Mutations
+    effects:
+      - { mutation: curse }
+  - name: Everything Else
+    effects:
+      - { attribute: Warp Strength, set: -50 }
+      - { attribute: Encumbrance Limit, set: { stat: S, add: 50 } }

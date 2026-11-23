@@ -1,0 +1,9 @@
+id: helmets
+kind: rule
+name: Helmets
+source: { page: 1 }
+text: Made-up helmet rule.
+apply: { after: Equipment }
+effects:
+  - when: { rolled: [armour-types] }
+    then: [{ prose: Rolled armour., kind: gameplay }]

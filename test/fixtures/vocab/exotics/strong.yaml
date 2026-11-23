@@ -1,0 +1,8 @@
+id: strong
+kind: exotic
+name: Strong
+group: Exotic
+source: { page: 3 }
+text: This character can take Marine Talents.
+effects:
+  - { access: { pool: talent, group: [Marine Talents] } }

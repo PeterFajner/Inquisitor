@@ -1,0 +1,21 @@
+id: equipment-generator
+kind: table
+name: Equipment Generator
+die: D100
+columns: [fighter, psyker]
+source: { page: 8 }
+rows:
+  - ranges: { fighter: [1, 40], psyker: [1, 30] }
+    label: Armour
+    effects: []
+  - ranges: { fighter: [41, 70], psyker: [31, 60] }
+    label: Pistol
+    effects: []
+  - ranges: { fighter: [71, 100] }
+    label: Grenade
+    qty: { Common: D3 }
+    effects: []
+  - ranges: { psyker: [61, 100] }
+    label: Bionics and implants
+    quality: { Common: Crude, Rare: Average, Exotic: Advanced }
+    effects: [{ id: bionic, roll: bionics-table }]

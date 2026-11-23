@@ -1,0 +1,10 @@
+id: curse
+kind: mutation
+name: Curse
+source: { page: 4 }
+text: Spd BIV SS CN 3 7 No No
+effects:
+  - { derived: [Spd, BIV, SS, Cnc], set: [3, 7, "No", "No"] }
+  - { stat: T, add: D6x10, id: bulk }
+  - { id: hand, location: { from: [Left Arm, Right Arm] } }
+  - { location: { add: Arm } }

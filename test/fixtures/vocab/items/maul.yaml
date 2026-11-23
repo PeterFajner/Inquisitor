@@ -1,0 +1,15 @@
+id: maul
+kind: item
+name: Power Maul
+group: Melee Weapons
+category: Close combat weapon
+availability: Rare
+tags: [power-weapon]
+source: { page: 9 }
+profile:
+  Reach: "2"
+  Damage: D10+2
+  Parry Penalty: "-10"
+profileWhen:
+  - when: { stat: S, below: 75 }
+    profile: { Damage: D10 }

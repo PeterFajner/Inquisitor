@@ -1,0 +1,103 @@
+/* The canvas engine (src/client/canvas, docs/CANVAS.md). Colours come from
+   base.css tokens only. */
+.cv {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  min-height: 240px;
+  background: var(--bg);
+  touch-action: none;
+  outline: none;
+  contain: strict;
+  -webkit-tap-highlight-color: transparent;
+}
+.cv:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.cv.is-panning { cursor: grabbing; }
+.cv-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.cv.is-moving .cv-layer { will-change: transform; }
+.cv.is-moving .cv-card { pointer-events: none; }
+.cv.is-dragging .cv-card { pointer-events: auto; }
+.cv:not(.is-ready) .cv-layer { visibility: hidden; }
+
+/* Regions: an area under the cards (back layer); their titles sit above the
+   cards (front layer). --cv-inv (1/zoom) is set on those two small layers
+   only (not the cards'), so titles stay readable when zoomed out. */
+.cv-front { pointer-events: none; }
+.cv-region {
+  position: absolute;
+  border: max(1px, calc(1px * var(--cv-inv, 1))) solid var(--line);
+  border-radius: max(12px, calc(8px * var(--cv-inv, 1)));
+  background: var(--surface-2);
+}
+.cv-region-label { position: absolute; height: 0; }
+.cv-region-title {
+  position: absolute;
+  margin: 0;
+  bottom: 100%;
+  left: 0;
+  padding-bottom: 0.3em;
+  white-space: nowrap;
+  font: 600 max(28px, min(calc(18px * var(--cv-inv, 1)), calc(var(--rw) / 12))) / 1.1 var(--font);
+  color: var(--ink-2);
+  transform-origin: 0 100%;
+  pointer-events: none;
+}
+
+.cv-wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.cv-wire { fill: none; stroke: var(--wire); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+
+.cv-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  outline-offset: 3px;
+  border-radius: var(--radius);
+}
+.cv-card:focus-visible { outline: 2px solid var(--focus); }
+.cv-card[data-selected] { outline: 3px solid var(--accent); }
+.cv-card.is-ph { background: var(--line); border-radius: 12px; }
+.cv-card.is-ph[data-selected] { background: var(--accent); }
+.cv-card.is-drag { z-index: 1; box-shadow: var(--shadow); }
+.cv-measure { position: absolute; left: -100000px; top: 0; visibility: hidden; pointer-events: none; contain: layout style; }
+.cv-measure > .cv-card { position: relative; }
+
+/* Controls: icon buttons over the canvas. */
+.cv-ui {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 3px);
+  box-shadow: var(--shadow);
+  touch-action: manipulation;
+}
+.cv-tabs { left: 12px; top: 12px; flex-wrap: wrap; max-width: calc(100% - 24px); }
+.cv-tabs .icon-btn[aria-current="true"] { background: var(--surface-2); border-color: var(--line); color: var(--accent); }
+.cv-controls { right: 12px; bottom: 12px; flex-direction: column; }
+.cv-minimap {
+  position: absolute;
+  z-index: 2;
+  right: 68px;
+  bottom: 12px;
+  width: 220px;
+  height: 150px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 3px);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+.cv-minimap canvas { display: block; width: 100%; height: 100%; }
+.cv-minimap-view { position: absolute; left: 0; top: 0; border: 2px solid var(--focus); border-radius: 2px; pointer-events: none; }
+@media (max-width: 599px) {
+  /* one row that scrolls sideways, not a second row over the canvas */
+  .cv-tabs { left: 8px; top: 8px; flex-wrap: nowrap; overflow-x: auto; max-width: calc(100% - 16px); scrollbar-width: none; }
+  .cv-tabs .icon-btn { flex: none; }
+  .cv-controls { right: 8px; bottom: 8px; }
+  .cv-minimap { right: 60px; bottom: 8px; width: 150px; height: 104px; }
+}

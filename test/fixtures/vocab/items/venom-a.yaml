@@ -1,0 +1,6 @@
+id: venom-a
+kind: item
+name: Venom A
+group: Toxins
+availability: Common
+source: { page: 9 }

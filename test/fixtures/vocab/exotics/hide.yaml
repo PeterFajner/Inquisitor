@@ -1,0 +1,8 @@
+id: hide
+kind: exotic
+name: Chitinous Hide
+group: Exotic
+source: { page: 3 }
+text: This character gets D3+1 extra AV to every hit location.
+effects:
+  - { id: av, armour: { add: D3+1 } }

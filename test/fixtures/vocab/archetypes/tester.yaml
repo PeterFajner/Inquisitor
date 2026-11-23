@@ -1,0 +1,42 @@
+# Armour, the sheet, boons by the creating rule, grants with set/again.
+id: tester
+kind: archetype
+name: Testers
+source: { page: 1 }
+subtypes:
+  - { id: fighter, name: Fighter, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+  - { id: psyker, name: Psyker, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+  - { id: servitor, name: Servitor, stats: { WS: 50, BS: 50, S: 70, T: 50, I: 50, Wp: 50, Sg: 50, Nv: 50, Ld: 50 } }
+sections:
+  - name: Equipment
+    effects:
+      - { item: flak-armour }
+      - { item: breastplate }
+      - { item: light-shield }
+      - { item: refractor }
+      - { item: needler }
+      - { item: maul }
+      - { item: axe-of-rage }
+      - { item: bolter, reloads: 4, implanted: true }
+      - { reloads: { add: 2 } }
+      - { item: organs, set: { quality: [advanced], organ: [Heart] } }
+      - { item: organs, set: { quality: [advanced], organ: [Lungs] } }
+      - { item: laspistol, alterations: [master-crafted] }
+  - name: Armor
+    effects: []
+  - name: Exotic Abilities
+    effects:
+      - { exotic: hide }
+      - { exotic: barbed-tail }
+      - { exotic: prayer }
+      - { exotic: prayer, again: true }
+  - name: Talents
+    effects:
+      - { talent: awareness }
+      - { talent: study }
+  - name: Mutations
+    effects:
+      - { mutation: scales }
+  - name: Alignment
+    effects:
+      - { id: alignment, alignment: [Puritan] }

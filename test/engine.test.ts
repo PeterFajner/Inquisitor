@@ -8,7 +8,9 @@ import { buildCompendium, checkCompendium, type Compendium } from "../src/shared
 import type { Effect } from "../src/shared/rules/schema.ts";
 import * as dice from "../src/shared/engine/dice.ts";
 import { rollDie, seededRoller, splitmix32 } from "../src/shared/engine/rng.ts";
-import { build, BuildError, type BuildResult } from "../src/shared/engine/build.ts";
+import { build, BuildError, difficultyWithin, invalidateCompendium as invalidate, rollSubtype, type BuildResult } from "../src/shared/engine/build.ts";
+import { armourCell, toSheetCharacter as sheetCharacter } from "../src/shared/sheet-map.ts";
+import { warbandWarnings } from "../src/shared/engine/warband.ts";
 import { newRecord, parseRecord, type CharacterRecord } from "../src/shared/engine/record.ts";
 import { clearDecisions, isUnder, reroll } from "../src/shared/engine/reroll.ts";
 import { diff } from "../src/shared/engine/diff.ts";
@@ -290,7 +292,8 @@ test("roll: times, $subtype column, duplicates re-rolled, roll again", () => {
       "hero/boons#1": [35], // Dodge (fighter 31-50)
       "hero/boons#2": [40], // Dodge again: duplicate
       "hero/boons#2~2": [20], // +10 WS
-      "hero/boons#3": [60], // Awareness
+      "hero/boons#3": [60], // Awareness: the profile's own talent (step A comes first): a duplicate
+      "hero/boons#3~2": [20], // +10 WS
       "hero/boons#4": [98], // Roll again on Fighter table
       "hero/boons#4>boons/again": [75], // Hunter
       "hero/@stats:WS": [1, 1],
@@ -301,11 +304,12 @@ test("roll: times, $subtype column, duplicates re-rolled, roll again", () => {
   assert.deepEqual(boons.map((r) => [r.key, r.label]), [
     ["hero/boons#1", "Dodge"],
     ["hero/boons#2~2", "+10 WS"],
-    ["hero/boons#3", "Awareness"],
+    ["hero/boons#3~2", "+10 WS"],
     ["hero/boons#4", "Roll again on Fighter table"],
     ["hero/boons#4>boons/again", "Hunter"],
   ]);
   assert.ok(b.log.find((l) => l.key === "hero/boons#2")!.rerolled);
+  assert.ok(b.log.find((l) => l.key === "hero/boons#3")!.rerolled, "a talent the profile grants later is a duplicate");
   assert.deepEqual(b.log.find((l) => l.key === "hero/boons#2")!.result, ["Dodge"]);
   assert.ok(ids(b.character.talents).includes("hunter"));
   const hunter = b.character.talents.find((t) => t.id === "hunter")!;
@@ -589,4 +593,459 @@ test("balance: power score, simulation, labels", () => {
   assert.equal(label(d1.median + d1.sd * 1.01, d1).word, "overpowered");
   assert.deepEqual(label(d1.median - 2.5 * d1.sd, d1), { word: "underpowered", sigma: -2.5 });
   assert.deepEqual(label(10, { median: 10, sd: 0 }), { word: "balanced", sigma: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// The extended vocabulary (docs/RULES-FORMAT.md), against the "vocab" pack.
+
+const V = compendium(["base", "vocab"]);
+const VP = ["base", "vocab"];
+const vrec = (archetype: string, subtype: string, patch: Partial<CharacterRecord> = {}): CharacterRecord => ({
+  ...newRecord(VP, archetype, subtype),
+  ...patch,
+});
+const vbuild = (r: CharacterRecord, roll: (sides: number) => number = ones, mode: "random" | "freeform" = "random") =>
+  build(V, r, { mode, roll });
+const at = <T,>(xs: T[], f: (x: T) => boolean) => {
+  const x = xs.find(f);
+  assert.ok(x, "found");
+  return x!;
+};
+
+test("vocab fixtures are valid rules", () => {
+  assert.deepEqual(checkCompendium(V), []);
+});
+
+test("dice: a multiplied term (D6x10)", () => {
+  const e = dice.parseDice("D6x10");
+  assert.equal(dice.total(e, [3]), 30);
+  assert.equal(dice.mean("D6x10"), 35);
+  assert.equal(dice.min("D6x10"), 10);
+  assert.equal(dice.max("D6x10+5"), 65);
+  assert.ok(dice.isDice("2D6x10-D3"));
+});
+
+test("rules with apply: Creating A Character's boons roll for generator subtypes only", () => {
+  const f = vbuild(vrec("tester", "fighter", { dice: { "creating/boons:count": [3] } }), seededRoller(4));
+  const boons = f.character.rolls.filter((r) => r.table === "boons" && /^creating\/boons#\d+(~\d+)?$/.test(r.key));
+  assert.equal(boons.length, 6, "D3+3 = 6");
+  assert.equal(f.log.find((l) => l.key === "creating/boons:count")!.label, "Boons");
+  // after the Talents row: Awareness (a profile talent) is a duplicate, re-rolled
+  const dup = vbuild(vrec("tester", "fighter", { dice: { "creating/boons:count": [1], "creating/boons#1": [40], "creating/boons#1~2": [1] } }));
+  assert.ok(dup.log.find((l) => l.key === "creating/boons#1")!.rerolled);
+  assert.equal(dup.character.rolls.find((r) => r.key === "creating/boons#1~2")!.label, "+10 WS");
+  // a Servitor rolls none
+  const s = vbuild(vrec("tester", "servitor"));
+  assert.ok(!s.character.rolls.some((r) => r.table === "boons"));
+  assert.ok(!Object.keys(s.record.dice).some((k) => k.startsWith("creating/")));
+  // stat boosts are cumulative: three +5 S
+  const st = vbuild(vrec("tester", "fighter", { dice: { "creating/boons:count": [1], "creating/boons#1": [80], "creating/boons#2": [90], "creating/boons#3": [100], "creating/boons#4": [75] } }));
+  assert.equal(st.character.stats.S.modified, 70 + 20);
+});
+
+test("boons: duplicates re-rolled in rolls nested under the boons roll; roll again or an expansion talent", () => {
+  // fearsome first, then the exotic table gives it again: re-rolled to Spit Acid
+  const b = vbuild(
+    vrec("tester", "fighter", {
+      dice: {
+        "creating/boons:count": [1],
+        "creating/boons#1": [60],
+        "creating/boons#1>boons/exotic": [1],
+        "creating/boons#2": [60],
+        "creating/boons#2>boons/exotic": [2],
+        "creating/boons#2>boons/exotic~2": [5],
+        "creating/boons#3": [1],
+        "creating/boons#4": [1],
+      },
+    }),
+  );
+  assert.ok(b.log.find((l) => l.key === "creating/boons#2>boons/exotic")!.rerolled);
+  assert.deepEqual(ids(b.character.exotics).filter((x) => x === "fearsome" || x === "spit-acid"), ["fearsome", "spit-acid"]);
+  // psyker: "Roll again on Fighter table" offers the roll or an expansion talent (not one it has)
+  const r = vrec("trader", "psyker", { dice: { "creating/boons:count": [1], "creating/boons#1": [80] } });
+  const p = build(V, r, { mode: "freeform", roll: ones });
+  const again = at(p.pending, (x) => x.key === "creating/boons#1>boons/again-fighter");
+  assert.deepEqual(again.options.map((o) => o.id), ["roll-again-fighter", "expansion-talent-fighter"]);
+  const exp = build(V, { ...p.record, choices: { ...p.record.choices, "creating/boons#1>boons/again-fighter": ["expansion-talent-fighter"] } }, { mode: "freeform", roll: ones });
+  const talents = at(exp.pending, (x) => x.key === "creating/boons#1>boons/expansion-talent-fighter");
+  assert.ok(talents.options.every((o) => o.id !== "talent:awareness"));
+  assert.deepEqual(talents.options.map((o) => o.id), ["talent:hunter", "talent:leader", "talent:quick-draw"]);
+});
+
+test("armour: best piece per location, extra AV on top, force fields, chosen locations, as", () => {
+  const b = vbuild(vrec("tester", "servitor", { dice: { "hide/av": [2] }, choices: { "light-shield/cover": ["Left Arm", "Head"] } }));
+  const a = b.character.armour;
+  // flak 3 everywhere, breastplate 5 on chest/abdomen, shield 2 (less), hide +3
+  assert.deepEqual([a.Head.av, a.Chest.av, a.Abdomen.av, a["Left Leg"].av], [6, 8, 8, 6]);
+  assert.deepEqual(a.Chest.from, ["breastplate", "hide", "refractor"]);
+  assert.deepEqual(a.Head.fields, ["D10"]);
+  assert.deepEqual(at(b.character.items, (i) => i.id === "light-shield").variants, [["Head", "Left Arm"]]);
+  const p = at(b.character.armourPieces, (x) => x.source === "light-shield");
+  assert.deepEqual(p.locations, ["Head", "Left Arm"]);
+  assert.equal(at(b.character.armourPieces, (x) => x.source === "hide").add, 3);
+  // as: Daemonic Armour counts as Power Armour with +3
+  const d = vbuild(vrec("tester", "servitor", { overrides: [{ op: "add", kind: "item", id: "daemonic-armour" }] }));
+  assert.ok(!d.character.armourPieces.some((x) => x.source === "daemonic-armour"), "an override doesn't run the item's effects");
+  const c2 = clone(V);
+  c2.archetypes.get("tester")!.sections[0].effects.push({ item: "daemonic-armour" });
+  invalidate(c2);
+  const dd = build(c2, vrec("tester", "servitor", { dice: { "hide/av": [2] } }), { mode: "random", roll: ones });
+  assert.equal(dd.character.armour.Head.av, 13 + 3);
+  // an armour item taken away by an override takes its armour with it
+  const gone = vbuild(vrec("tester", "servitor", { dice: { "hide/av": [2] }, overrides: [{ op: "remove", kind: "item", id: "breastplate" }] }));
+  assert.equal(gone.character.armour.Chest.av, 6);
+});
+
+test("restrict: late restrictions rerun the build; pools, gear and table rows skip what's refused", () => {
+  for (let seed = 0; seed < 25; seed++) {
+    const b = vbuild(vrec("restricted", "fighter"), seededRoller(seed));
+    const items = ids(b.character.items);
+    assert.ok(!items.includes("breastplate") && !items.includes("power-armour"), `seed ${seed}: armour over AV 3`);
+    assert.ok(!items.includes("bolter"), "bolt weapons other than the maul");
+    assert.ok(!b.character.talents.some((t) => t.id !== "natural-psyker" && C.talents.get(t.id)?.group === "Psyker Talents"), "exclusive");
+    if (b.character.alignment === "Puritan") assert.ok(!items.includes("daemonic-armour"));
+    const again = build(V, b.record, { mode: "random", roll: noRolls });
+    assert.deepEqual(again.character, b.character, `seed ${seed} replays`);
+  }
+  const p = build(V, vrec("restricted", "fighter", { choices: { "restricted/alignment": ["Puritan"] } }), { mode: "freeform", roll: ones });
+  assert.deepEqual(at(p.pending, (x) => x.key === "restricted/armour").options.map((o) => o.id), ["flak-armour", "light-shield"]);
+  assert.deepEqual(at(p.pending, (x) => x.key === "restricted/weapon").options.map((o) => o.id), ["holy-blade", "maul"]);
+  assert.deepEqual(at(p.pending, (x) => x.key === "restricted/any-pistol").options.map((o) => o.id), ["autopistol", "digital-weapons", "needle-pistol", "needler", "plasma-pistol"]);
+  assert.ok(!p.pending.some((x) => x.key === "restricted/psy"), "nothing left to pick");
+  // the armour table re-rolls Power Armour
+  const t = vbuild(vrec("restricted", "fighter", { dice: { "restricted/armour-roll": [5], "restricted/armour-roll~2": [1] } }));
+  assert.ok(t.log.find((l) => l.key === "restricted/armour-roll")!.rerolled);
+  assert.ok(t.character.rolls.some((r) => r.table === "armour-types" && r.label === "Flak Armour"));
+  assert.equal(t.character.restrictions.length, 4);
+  // an override breaking a restriction is flagged
+  const o = vbuild(vrec("restricted", "fighter", { overrides: [{ op: "add", kind: "item", id: "power-armour" }] }));
+  assert.ok(at(o.character.items, (i) => i.id === "power-armour").restricted);
+  assert.ok(o.warnings.some((w) => w.includes("power-armour")));
+});
+
+test("availabilityWhen and requires", () => {
+  const pr = build(V, vrec("priest", "fighter"), { mode: "freeform", roll: ones });
+  const la = build(V, vrec("layman", "fighter"), { mode: "freeform", roll: ones });
+  const opts = (b: BuildResult, k: string) => at(b.pending, (x) => x.key === k).options.map((o) => o.id);
+  assert.deepEqual(opts(pr, "priest/blade"), ["holy-blade", "maul", "relic-hammer"]);
+  assert.deepEqual(la.record.choices["layman/blade"], ["maul"], "the only Rare melee weapon a layman can have");
+  const own = vbuild(vrec("priest", "fighter", { choices: { "priest/blade": ["holy-blade"] } }));
+  assert.equal(own.character.items[0].availability, "Rare");
+});
+
+test("derived values, attributes, stat formulas and multiplies", () => {
+  const b = vbuild(vrec("tester", "servitor"));
+  const d = b.character.derived;
+  // T 50: BIV 5 +1 (Scales); SS counts T as 70: 14
+  assert.deepEqual([d.BIV.base, d.BIV.value, d.SS.value, d.Cnc.value, d.Kbk.value, d.Spd.value], [5, 6, 14, 25, 7, 4]);
+  const t = vbuild(vrec("trader", "fighter", { dice: { "curse/bulk": [3] } }));
+  const td = t.character.derived;
+  assert.deepEqual([td.Spd.value, td.BIV.value, td.SS.value, td.Cnc.value], [3, 7, "No", "No"]);
+  assert.equal(t.character.stats.T.final, 80, "D6x10");
+  // Bigga Is Betta: Ld + [S/10] with S worked out first
+  const s = t.character.stats.S.final;
+  assert.equal(t.character.stats.Ld.final, 50 + Math.floor(s / 10 + 0.5));
+  assert.deepEqual(t.character.attributes, [
+    { name: "Warp Strength", value: -50, source: "trader" },
+    { name: "Encumbrance Limit", value: s + 50, source: "trader" },
+  ]);
+  // Power Armour: S × 1.2 at the end (after the human cap)
+  const c2 = clone(V);
+  c2.archetypes.get("tester")!.sections[0].effects.push({ item: "power-armour" });
+  invalidate(c2);
+  const pa = build(c2, vrec("tester", "servitor", { overrides: [] }), { mode: "random", roll: ones });
+  assert.equal(pa.character.stats.S.modified, 84);
+  assert.deepEqual(pa.character.stats.S.mods.at(-1), { multiply: 1.2, source: "power-armour" });
+  assert.equal(pa.character.derived.Kbk.value, 8);
+  // an overridden stat feeds the derived values
+  const ov = vbuild(vrec("tester", "servitor", { overrides: [{ op: "stat", stat: "T", value: 80 }] }));
+  assert.equal(ov.character.derived.BIV.value, 9);
+});
+
+test("item behaviour: wielded, remove, profileWhen, alterations, reloads", () => {
+  const b = vbuild(vrec("tester", "servitor"));
+  const ch = b.character;
+  assert.deepEqual(ch.wielded, [{ source: "axe-of-rage", name: "Axe of Rage", effects: ["Hunter", "-20 Wp"] }]);
+  assert.ok(!ids(ch.talents).includes("hunter") && ch.stats.Wp.final === 50, "not applied");
+  // S 70 < 75: the maul's damage drops
+  assert.equal(at(ch.items, (i) => i.id === "maul").profile!.Damage, "D10");
+  const strong = vbuild(vrec("tester", "servitor", { overrides: [{ op: "stat", stat: "S", value: 80 }] }));
+  assert.equal(at(strong.character.items, (i) => i.id === "maul").profile, undefined);
+  assert.equal(at(ch.items, (i) => i.id === "laspistol").availability, "Rare", "Master-crafted: a step up");
+  const bolter = at(ch.items, (i) => i.id === "bolter");
+  assert.ok(bolter.implanted && bolter.reloads === 4);
+  assert.deepEqual(ch.reloads, { add: 2, multiply: 1 });
+  const t = vbuild(vrec("trader", "fighter"));
+  assert.deepEqual(t.character.taken, [{ kind: "talent", id: "awareness", name: "Awareness", by: "disruptor" }]);
+  assert.ok(!ids(t.character.talents).includes("awareness"));
+});
+
+test("grants: set answers the entry's own decisions; again runs them once more; picks into an item", () => {
+  const b = vbuild(vrec("tester", "servitor"));
+  const organs = at(b.character.items, (i) => i.id === "organs");
+  assert.equal(organs.qty, 2);
+  assert.deepEqual(organs.variants, [["Advanced", "Heart"], ["Advanced", "Lungs"]]);
+  assert.ok(!Object.keys(b.record.dice).some((k) => k.startsWith("organs/")), "the organ isn't rolled");
+  // Word of the Emperor twice: the second prayer is another one
+  const wote = at(b.character.exotics, (e) => e.id === "prayer");
+  assert.deepEqual(wote.variants, [["Curse Of Undoing"], ["Litany Of Spite"]]);
+  const p = build(V, vrec("tester", "servitor", { choices: { "prayer/prayer": ["stunning-sermon"] } }), { mode: "freeform", roll: ones });
+  assert.deepEqual(at(p.pending, (x) => x.key === "prayer/prayer*2").options.map((o) => o.id), ["curse-of-undoing", "litany-of-spite"]);
+  // into: the needler's toxin and Study Thy Weapon's weapon go onto them
+  const needler = at(b.character.items, (i) => i.id === "needler");
+  assert.deepEqual(needler.chosen, [{ key: "needler/toxin", kind: "item", id: "venom-a", name: "Venom A" }]);
+  assert.ok(!ids(b.character.items).includes("venom-a"));
+  const study = at(b.character.talents, (t) => t.id === "study");
+  assert.deepEqual(study.chosen!.map((x) => x.id), ["axe-of-rage"]);
+  const sp = build(V, vrec("tester", "servitor"), { mode: "freeform", roll: ones });
+  assert.deepEqual(at(sp.pending, (x) => x.key === "study/weapon").options.map((o) => o.id), ["axe-of-rage", "bolter", "maul", "needler"]);
+});
+
+test("picks: filters (category, tag, exclude, owned), qty, implanted, open counts", () => {
+  const b = vbuild(vrec("trader", "fighter", { choices: { "trader/implant": ["needler"] } }));
+  const n = at(b.character.items, (i) => i.id === "needler");
+  assert.ok(n.implanted);
+  assert.equal(n.qty, 2);
+  // pick: { max: 2 } → random takes D3-1; any → none in random mode
+  const r = vbuild(vrec("trader", "fighter", { dice: { "trader/up-to-two:count": [3] } }));
+  assert.equal(r.record.choices["trader/up-to-two"].length, 2);
+  assert.deepEqual(r.record.choices["trader/any-armour"], []);
+  const f = build(V, vrec("trader", "fighter"), { mode: "freeform", roll: ones });
+  const any = at(f.pending, (x) => x.key === "trader/any-armour");
+  assert.equal(any.min, 0);
+  assert.deepEqual(any.options.map((o) => o.id), ["flak-armour", "light-shield"]);
+  assert.equal(any.count, 2);
+  const upto = at(f.pending, (x) => x.key === "trader/up-to-two");
+  assert.deepEqual([upto.min, upto.count], [0, 2]);
+  // any number fits, and replays
+  const chosen = build(V, { ...f.record, choices: { ...f.record.choices, "trader/any-armour": ["flak-armour", "light-shield"], "trader/up-to-two": [] } }, { mode: "freeform", roll: ones });
+  assert.ok(!chosen.pending.some((x) => x.key === "trader/any-armour" || x.key === "trader/up-to-two"));
+  assert.ok(ids(chosen.character.items).includes("light-shield"));
+});
+
+test("roll mechanics: chance on a die, roll qty, rerollUnless, row qty by availability, gear require, downgrade only", () => {
+  const b = vbuild(
+    vrec("trader", "fighter", {
+      dice: {
+        "trader/lucky": [6],
+        "trader/stimm:qty": [7],
+        "trader/stimm": [2], // Crash: Injector only → re-rolled
+        "trader/stimm~2": [5],
+        "trader/gear#1": [1], // Armour
+        "trader/gear#1:avail": [1],
+        "trader/gear#2": [41], // Pistol
+        "trader/gear#2:avail": [1],
+        "trader/gear#3": [45], // Pistol: the last slot must be a Grenade → re-rolled
+        "trader/gear#3~2": [80],
+        "trader/gear#3~2:avail": [1],
+        "trader/gear#3~2:qty": [3],
+        "trader/downgraded#1": [41], // Pistol, Rare → Common
+        "trader/downgraded#1:avail": [4],
+        "trader/downgraded#2": [1], // Armour, Rare: not downgraded
+        "trader/downgraded#2:avail": [4],
+      },
+      choices: { "trader/gear#3~2:item": ["frag-grenade"], "trader/implant": ["laspistol"] },
+    }),
+  );
+  const ch = b.character;
+  assert.ok(ids(ch.items).includes("needler"), "a 6 on the D6");
+  assert.ok(b.log.find((l) => l.key === "trader/stimm")!.rerolled);
+  assert.equal(at(ch.items, (i) => i.id === "barrage").qty, 7);
+  assert.ok(b.log.find((l) => l.key === "trader/gear#3")!.rerolled);
+  assert.equal(at(ch.items, (i) => i.id === "frag-grenade").qty, 3, "D3 of a Common grenade");
+  const dg = ch.rolls.filter((r) => r.key.startsWith("trader/downgraded"));
+  assert.deepEqual(dg.map((r) => r.availability), ["Common", "Rare"]);
+});
+
+test("trade: downgrade gear for a pick, lose things, upgrade; random mode never trades", () => {
+  const dice0 = {
+    "trader/gear#1": [1], "trader/gear#1:avail": [4], // Rare Armour
+    "trader/gear#2": [41], "trader/gear#2:avail": [1], // Common Pistol
+    "trader/gear#3": [80], "trader/gear#3:avail": [4], // Rare Grenade
+    "trader/downgraded#1": [41], "trader/downgraded#1:avail": [1], // Common Pistol, downgraded: lost
+    "trader/downgraded#2": [41], "trader/downgraded#2:avail": [1],
+  };
+  const none = vbuild(vrec("trader", "fighter", { dice: dice0 }));
+  for (const k of ["trader/rare-weapon#1", "trader/better#1", "trader/swap#1"]) assert.deepEqual(none.record.choices[k], ["no"]);
+  const t = vbuild(
+    vrec("trader", "fighter", {
+      dice: dice0,
+      choices: {
+        "trader/gear#1:item": ["breastplate"],
+        "trader/rare-weapon#1": ["yes"],
+        "trader/rare-weapon#1:give": ["trader/gear#1"], // Rare Armour → Common
+        "trader/rare-weapon#1:give>trader/gear#1:item": ["flak-armour"],
+        "trader/rare-weapon#1>trader/weapon": ["maul"],
+        "trader/better#1": ["yes"],
+        "trader/better#1:give": ["trader/gear#2", "trader/gear#3"], // Common Pistol lost; Rare Grenade → Common
+        "trader/better#1:give>trader/gear#3:item": ["frag-grenade"],
+        "trader/better#1>trader/up": ["trader/gear#1"], // Common Armour → Rare again
+        "trader/better#1>trader/up>trader/gear#1:item": ["breastplate"],
+        "trader/swap#1": ["yes"],
+        "trader/swap#1:give": ["item:frag-grenade"],
+        "trader/swap#2": ["no"],
+      },
+    }),
+  );
+  const ch = t.character;
+  assert.ok(ids(ch.items).includes("maul") && ids(ch.items).includes("breastplate") && ids(ch.items).includes("refractor"));
+  assert.ok(!ids(ch.items).includes("flak-armour"), "downgraded, then upgraded again");
+  assert.ok(!ids(ch.items).includes("frag-grenade"), "given up for the Refractor Field");
+  const r = (k: string) => at(ch.rolls, (x) => x.key === k);
+  assert.ok(r("trader/gear#2").lost);
+  assert.equal(r("trader/gear#1").availability, "Rare");
+  assert.equal(r("trader/gear#3").availability, "Common");
+  // the trade is pending in freeform mode, with what it gives
+  const f = build(V, vrec("trader", "fighter", { dice: dice0 }), { mode: "freeform", roll: ones });
+  const tr = at(f.pending, (x) => x.key === "trader/swap#1");
+  assert.equal(tr.kind, "trade");
+  assert.deepEqual(tr.options, [{ id: "yes", label: "Refractor Field" }, { id: "no", label: "" }]);
+  // replays exactly
+  assert.deepEqual(build(V, t.record, { mode: "random", roll: noRolls }).character, ch);
+});
+
+test("bionics: quality and upgrade chance; gear-generated bionics each roll their own", () => {
+  const b = vbuild(
+    vrec("trader", "fighter", {
+      dice: {
+        "trader/bionics#1:upgrade": [50], "trader/bionics#1": [5], "trader/bionics#1>organs/organ": [3],
+        "trader/bionics#2:upgrade": [51], "trader/bionics#2": [1],
+      },
+    }),
+  );
+  const organs = at(b.character.items, (i) => i.id === "organs");
+  assert.deepEqual(organs.variants, [["Average", "Heart"]]);
+  assert.deepEqual(at(b.character.items, (i) => i.id === "bionic-arm").variants, [["Crude"]]);
+  const quality = b.log.find((l) => l.key === "trader/bionics#1>organs/quality")!;
+  assert.deepEqual(quality.result, ["Average"]);
+  // generated bionics: the quality of the rolled availability (Rare → Average)
+  const g = vbuild(vrec("trader", "psyker", { dice: { "trader/gear#1": [70], "trader/gear#1:avail": [4], "trader/gear#1>equipment-generator/bionic": [5], "trader/gear#1>equipment-generator/bionic>organs/organ": [1] } }));
+  assert.deepEqual(at(g.character.items, (i) => i.id === "organs").variants![0], ["Average", "Lungs"]);
+  // otherwise a quality "you can generate": this gear offers only Common and Rare
+  const c2 = clone(V);
+  c2.archetypes.get("tester")!.sections[0].effects.push({ id: "gear", gear: { count: 1, availability: ["Common", "Rare"] } }, { item: "organs" });
+  invalidate(c2);
+  const q = build(c2, vrec("tester", "servitor", { dice: { "tester/gear#1": [1], "tester/gear#1:avail": [1] } }), { mode: "freeform", roll: ones });
+  assert.deepEqual(at(q.pending, (x) => x.key === "organs/quality*3").options.map((o) => o.id), ["crude", "average"]);
+});
+
+test("powers: formula difficulties count as within maxDifficulty; access; psyker; companions; locations", () => {
+  const f = build(V, vrec("trader", "fighter", { choices: { "trader/up-to-two": [] } }), { mode: "freeform", roll: ones });
+  assert.deepEqual(at(f.pending, (x) => x.key === "trader/powers#1").options.map((o) => o.id), ["choke", "mind-scan"]);
+  assert.deepEqual(at(f.pending, (x) => x.key === "archeotech/power").options.map((o) => o.id), ["bolt", "choke", "hellfire", "lift", "mind-scan", "push"]);
+  assert.deepEqual(f.record.choices["trader/marine"], ["marine-might"], "Strong opens Marine Talents");
+  const g = build(V, vrec("trader", "fighter"), { mode: "freeform", roll: ones });
+  assert.ok(at(g.pending, (x) => x.key === "trader/up-to-two").options.some((o) => o.id === "marine-might"), "in every talent pool");
+  const b = vbuild(vrec("trader", "fighter", { choices: { "curse/hand": ["Right Arm"] } }));
+  assert.ok(b.character.psyker);
+  assert.deepEqual(b.character.companions, [{ archetype: "tester", subtype: "servitor", source: "trader" }]);
+  assert.deepEqual(b.character.locations, [{ source: "curse", location: "Right Arm" }, { source: "curse", location: "Arm" }]);
+  assert.deepEqual(at(b.character.mutations, (m) => m.id === "curse").variants, [["Right Arm"]]);
+  assert.ok(!vbuild(vrec("tester", "servitor")).character.psyker);
+  assert.ok(difficultyWithin("TT/2", 10) && difficultyWithin("8", 10) && !difficultyWithin("12", 10) && !difficultyWithin(undefined, 10));
+});
+
+test("subtypeDie: a rolled subtype; warband rules", () => {
+  const arch = V.archetypes.get("bounty")!;
+  const r = rollSubtype(arch, () => 5);
+  assert.equal(r.subtype!.id, "tracker");
+  assert.deepEqual([r.key, r.faces], ["bounty/@subtype", [5]]);
+  const ok = vbuild(vrec("bounty", "tracker", { dice: { [r.key]: r.faces } }), noRolls);
+  assert.deepEqual(ok.warnings, []);
+  assert.deepEqual(ok.record.dice[r.key], [5]);
+  const bad = vbuild(vrec("bounty", "rookie", { dice: { [r.key]: r.faces } }), noRolls);
+  assert.ok(bad.warnings.some((w) => w.includes("bounty/@subtype")));
+  assert.deepEqual(warbandWarnings(V, [{ archetype: "tester" }, { archetype: "trader" }]), []);
+  assert.deepEqual(warbandWarnings(V, [{ archetype: "tester" }, { archetype: "tester" }]), [
+    { source: "warband-rules", max: 1, archetype: ["tester"], count: 2 },
+  ]);
+});
+
+test("rolled condition: a rule after Equipment sees the armour table", () => {
+  const b = vbuild(vrec("restricted", "fighter"));
+  assert.ok(notes(b).includes("Rolled armour."));
+  assert.ok(!notes(vbuild(vrec("tester", "servitor"))).includes("Rolled armour."));
+});
+
+test("the GM sheet: armour row, firearms, melee, other equipment, starting row", () => {
+  const b = vbuild(vrec("tester", "servitor", { name: "Ix", dice: { "hide/av": [2] }, choices: { "light-shield/cover": ["Left Arm", "Head"] } }));
+  const s = sheetCharacter(b.character, V);
+  assert.equal(s.name, "Ix");
+  assert.equal(s.tagLine, "Testers, Servitor, Puritan");
+  assert.deepEqual(s.armour, { Head: "6+D10", Chest: "8+D10", Abdmn: "8+D10", Groin: "6+D10", "L. Arm": "6+D10", "R. Arm": "6+D10", "L. Leg": "6+D10", "R. Leg": "6+D10" });
+  assert.deepEqual(s.starting, { WS: "50", BS: "50", S: "70", T: "50", I: "50", Wp: "50", Sg: "50", Nv: "50", Ld: "50", Kbk: "7", BIV: "6", SS: "14", Cnc: "25", Spd: "4" });
+  assert.deepEqual(s.firearms.map((f) => f.name), ["Needler (Venom A)", "Bolter"]);
+  assert.deepEqual(s.firearms[0], {
+    name: "Needler (Venom A)", type: "Pistol", rng: "C", mode: "Single / Semi 2", acc: "-", damage: "D3", shots: "6", rld: "1", enc: "5", reloads: "2", special: "Carries a toxin.",
+  });
+  assert.equal(s.firearms[1].reloads, "6");
+  assert.deepEqual(s.melee, [
+    { name: "Power Maul", rch: "2", dam: "D10", pp: "-10", special: "" },
+    { name: "Axe of Rage", rch: "3", dam: "2D10", pp: "-20", special: "Hunter; -20 Wp" },
+    { name: "Barbed Tail", rch: "4", dam: "D6+3", pp: "", special: "" },
+  ]);
+  assert.deepEqual(s.other, ["Flak Armor", "Breastplate", "Light Shield (Head, Left Arm)", "Refractor Field", "Bionic Organs (Advanced, Heart; Advanced, Lungs) ×2", "Laspistol"]);
+  assert.deepEqual(at(s.abilities, (a) => a.name.startsWith("Word of the Emperor")), {
+    name: "Word of the Emperor (Curse Of Undoing; Litany Of Spite)",
+    effect: "Choose one of the following prayers.",
+  });
+  assert.equal(armourCell({ av: 0, fields: [], from: [] }), "");
+});
+
+test("vocab: determinism across archetypes", () => {
+  for (const [a, s] of [["tester", "fighter"], ["tester", "psyker"], ["restricted", "fighter"], ["trader", "fighter"], ["trader", "psyker"], ["priest", "fighter"]]) {
+    for (const seed of [1, 2, 3]) {
+      const first = vbuild(vrec(a, s), seededRoller(seed));
+      const again = build(V, first.record, { mode: "random", roll: noRolls });
+      assert.deepEqual(again.character, first.character, `${a}/${s} seed ${seed}`);
+      assert.deepEqual(again.record, first.record);
+    }
+  }
+});
+
+test("armour from an archetype stays when an item has the same id", () => {
+  const c2 = clone(V);
+  const layman = structuredClone(c2.archetypes.get("layman")!);
+  layman.id = "breastplate";
+  layman.sections[0].effects = [{ armour: { av: 4, locations: "Head" } }];
+  c2.archetypes.set("breastplate", layman);
+  invalidate(c2);
+  const b = build(c2, newRecord(VP, "breastplate", "fighter"), { mode: "random", roll: ones });
+  assert.equal(b.character.armour.Head.av, 4);
+});
+
+test("a restriction met inside an option keeps the build's odds and replays exactly", () => {
+  const c2 = clone(V);
+  const arch = structuredClone(c2.archetypes.get("layman")!);
+  arch.id = "roles";
+  arch.sections = [
+    { name: "Equipment", effects: [{ id: "blade", pick: 1, pool: "item", filter: { group: ["Melee Weapons"] } }] },
+    {
+      name: "Role",
+      effects: [
+        {
+          id: "role",
+          pick: 1,
+          from: [
+            { id: "zealot", name: "Zealot", effects: [{ restrict: { pool: "item", group: ["Melee Weapons"], only: ["maul"] } }] },
+            { id: "other", name: "Other", effects: [] },
+          ],
+        },
+      ],
+    },
+  ];
+  c2.archetypes.set("roles", arch);
+  invalidate(c2);
+  let zealots = 0;
+  const N = 200;
+  for (let seed = 0; seed < N; seed++) {
+    const b = build(c2, newRecord(VP, "roles", "fighter"), { mode: "random", roll: seededRoller(seed) });
+    const zealot = b.character.options.some((o) => o.id === "zealot");
+    if (zealot) zealots++;
+    assert.equal(b.character.restrictions.length > 0, zealot, `seed ${seed}: restrictions only from the final pass`);
+    if (zealot) assert.deepEqual(ids(b.character.items), ["maul"]);
+    const again = build(c2, b.record, { mode: "random", roll: noRolls });
+    assert.deepEqual(again.character, b.character, `seed ${seed}`);
+  }
+  assert.ok(zealots > N * 0.4 && zealots < N * 0.6, `Zealot ${zealots} of ${N}`);
 });

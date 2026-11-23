@@ -1,0 +1,10 @@
+id: holy-blade
+kind: item
+name: Holy Blade
+group: Melee Weapons
+category: Close combat weapon
+availability: Rare
+tags: [bladed]
+availabilityWhen: { when: { archetype: [priest] }, else: gm }
+source: { page: 9 }
+profile: { Reach: "3", Damage: D10, Parry Penalty: "-5" }

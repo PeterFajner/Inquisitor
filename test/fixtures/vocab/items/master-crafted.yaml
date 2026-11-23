@@ -1,0 +1,5 @@
+id: master-crafted
+kind: item
+name: Master-crafted
+group: Equipment Alterations
+source: { page: 9 }

@@ -119,9 +119,30 @@ export function readBuffer(req: IncomingMessage, limit: number): Promise<Buffer>
   });
 }
 
+// JSON.parse of a few MB of small arrays takes tens of MB of heap, and the
+// service runs with a 48 MB heap cap: the bodies being parsed and handled
+// at once may add up to PARSE_BUDGET bytes (each counts until its reply is
+// sent: the parsed value lives that long). Past it, 503 "busy".
+export const SMALL_BODY = 64 * 1024;
+export const PARSE_BUDGET = 3 * 1024 * 1024;
+let parsing = 0;
+
+function holdParse(ctx: Ctx, bytes: number): void {
+  if (bytes > SMALL_BODY && parsing + bytes > PARSE_BUDGET) throw new HttpError(503, "busy");
+  parsing += bytes;
+  let held = true;
+  const release = () => {
+    if (held) parsing -= bytes;
+    held = false;
+  };
+  ctx.res.once("finish", release);
+  ctx.res.once("close", release);
+}
+
 // The body as JSON; 400 when it isn't, 413 past `limit` bytes.
 export async function readJson(ctx: Ctx, limit = 256 * 1024): Promise<unknown> {
   const body = await readBody(ctx.req, limit);
+  holdParse(ctx, Buffer.byteLength(body));
   try {
     return JSON.parse(body);
   } catch {

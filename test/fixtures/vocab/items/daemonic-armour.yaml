@@ -1,0 +1,10 @@
+id: daemonic-armour
+kind: item
+name: Daemonic Armor
+group: Armor
+category: Armor
+availability: Legendary
+product: Chaos
+source: { page: 9 }
+effects:
+  - { armour: { as: power-armour, add: 3 } }

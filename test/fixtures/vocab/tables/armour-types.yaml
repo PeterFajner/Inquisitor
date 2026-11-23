@@ -1,0 +1,8 @@
+id: armour-types
+kind: table
+name: Random Armor Types
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 3], label: Flak Armour, effects: [{ item: flak-armour }] }
+  - { range: [4, 6], label: Power Armour, effects: [{ item: power-armour }] }

@@ -5,8 +5,15 @@
 import { currentViewer } from "../lib/accounts.ts";
 import * as chars from "../lib/characters.ts";
 import { readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
+import { rateLimit, RateWindow } from "../lib/limits.ts";
 import { API } from "../shared/api.ts";
 import { IMPORT_LIMIT } from "./account.ts";
+
+// Share-only snapshots are kept for good and need no account: a cap on the
+// body (a warband of typical characters fits easily), a global rate, and a
+// total budget (chars.SNAPSHOT_BUDGET).
+export const SNAPSHOT_LIMIT = 1024 * 1024;
+export const snapshotWindow = new RateWindow(120, 60 * 60_000);
 
 const v = currentViewer;
 
@@ -57,7 +64,8 @@ export function characterRoutes(router: Router): void {
     })
     // Share links
     .post(`${API}/share`, async (ctx) => {
-      const { token } = chars.shareSnapshot(v(ctx), await readJson(ctx, IMPORT_LIMIT));
+      rateLimit(snapshotWindow);
+      const { token } = chars.shareSnapshot(v(ctx), await readJson(ctx, SNAPSHOT_LIMIT));
       sendJson(ctx, { token, url: shareUrl(token) }, 201);
     })
     .get(`${API}/share/:token`, (ctx) => sendJson(ctx, chars.resolveShare(v(ctx), ctx.params.token)))
