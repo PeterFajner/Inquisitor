@@ -1,0 +1,7 @@
+id: push
+kind: power
+name: Push
+group: Telekinesis
+difficulty: 8
+source: { page: 5 }
+text: Made-up text.

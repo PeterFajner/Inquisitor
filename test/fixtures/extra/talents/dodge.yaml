@@ -1,0 +1,7 @@
+id: dodge
+kind: talent
+name: Dodge
+group: General
+source: { page: 3 }
+text: Overridden by the extra pack.
+points: 10

@@ -1,0 +1,8 @@
+id: plasma-pistol
+kind: item
+name: Plasma Pistol
+group: Weapons
+category: Pistol
+availability: Rare
+source: { page: 6 }
+points: 4

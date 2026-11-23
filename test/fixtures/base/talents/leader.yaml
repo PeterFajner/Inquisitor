@@ -1,0 +1,6 @@
+id: leader
+kind: talent
+name: Leader
+group: General
+source: { page: 3 }
+text: Made-up text.

@@ -1,0 +1,8 @@
+id: weapon-availability-legendary
+kind: table
+name: Weapons Table
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 5], label: Exotic, effects: [] }
+  - { range: [6, 6], label: Legendary, effects: [] }

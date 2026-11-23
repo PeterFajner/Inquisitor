@@ -1,0 +1,31 @@
+# Inquisitor on asterix: one Node process serving the site, the API and the
+# accounts (behind nginx, inquisitor.pfaj.ca). Install: see DEPLOY.md.
+[Unit]
+Description=Inquisitor (character builder)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=inquisitor
+Group=inquisitor
+WorkingDirectory=/opt/inquisitor
+EnvironmentFile=/opt/inquisitor/.env
+Environment=NODE_ENV=production PORT=3010 HOST=127.0.0.1
+Environment=DATABASE_PATH=/opt/inquisitor/data/inquisitor.db
+# Forward-only migrations, then the server. The heap cap keeps the process
+# well under 100 MB (~57 MB at start); systemd kills it at 140 MB if
+# something runs away.
+ExecStartPre=/usr/bin/node --disable-warning=ExperimentalWarning dist/scripts/migrate.js
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --max-old-space-size=48 --max-semi-space-size=1 dist/src/server.js
+Restart=on-failure
+RestartSec=5
+MemoryLimit=140M
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/inquisitor/data
+
+[Install]
+WantedBy=multi-user.target

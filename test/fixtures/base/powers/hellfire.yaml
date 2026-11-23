@@ -1,0 +1,7 @@
+id: hellfire
+kind: power
+name: Hellfire
+group: Pyromancy
+difficulty: 9
+source: { page: 5 }
+text: Made-up text.

@@ -1,0 +1,14 @@
+id: ogre
+kind: archetype
+name: Ogres
+human: false
+source: { page: 9 }
+subtypes:
+  - id: fighter
+    name: Fighter
+    stats: { WS: 150+D10, BS: 20, S: 200, T: 150, I: 30, Wp: 30, Sg: 10, Nv: 80, Ld: 20 }
+sections:
+  - name: Gear
+    effects:
+      - id: gear
+        gear: { count: 3, availability: [Rare], downgrade: 1, alien: true }

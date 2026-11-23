@@ -1,0 +1,25 @@
+id: equipment-generator
+kind: table
+name: Equipment Generator
+die: D100
+columns: [fighter, psyker]
+source: { page: 8 }
+rows:
+  - ranges: { fighter: [1, 40], psyker: [1, 30] }
+    label: Pistol
+    effects: []
+  - ranges: { fighter: [41, 70], psyker: [31, 60] }
+    label: Basic weapon
+    effects: []
+  - ranges: { fighter: [71, 80] }
+    label: Heavy weapon
+    effects: []
+  - ranges: { fighter: [81, 100], psyker: [61, 80] }
+    label: Grenade
+    effects: [{ prose: Grenade note., kind: gameplay }]
+  - ranges: { psyker: [81, 90] }
+    label: Bionics and implants
+    effects: [{ id: bionic, roll: bionics }]
+  - ranges: { psyker: [91, 100] }
+    label: Cyber creatures
+    effects: []

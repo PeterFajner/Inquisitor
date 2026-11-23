@@ -1,0 +1,7 @@
+id: lift
+kind: power
+name: Lift
+group: Telekinesis
+difficulty: 9
+source: { page: 5 }
+text: Made-up text.

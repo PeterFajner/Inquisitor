@@ -1,0 +1,7 @@
+id: bolt
+kind: power
+name: Bolt
+group: Telekinesis
+difficulty: 5
+source: { page: 5 }
+text: Made-up text.

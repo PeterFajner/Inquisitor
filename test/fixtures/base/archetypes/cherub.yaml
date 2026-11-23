@@ -1,0 +1,21 @@
+id: cherub
+kind: archetype
+name: Cherubim
+source: { page: 2 }
+subtypes:
+  - id: cherub
+    name: Cherub
+    stats: { WS: 120, BS: 0, S: 10, T: 10, I: 50, Wp: 10, Sg: 10, Nv: 99, Ld: 0 }
+sections:
+  - name: Options
+    effects:
+      - id: role
+        pick: 2
+        from:
+          - { talent: dodge }
+          - { talent: awareness }
+          - { item: lasgun, qty: 2 }
+          - { id: bonus, stat: Ld, add: 5 }
+  - name: Alignment
+    effects:
+      - { id: alignment, alignment: [Neutral] }

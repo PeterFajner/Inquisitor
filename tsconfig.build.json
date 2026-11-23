@@ -3,7 +3,7 @@
 {
   "extends": "./tsconfig.json",
   // The client build and dev runner need esbuild, a dev dependency.
-  "exclude": ["src/client", "scripts/client.ts", "scripts/dev.ts"],
+  "exclude": ["src/client", "scripts/client.ts", "scripts/dev.ts", "test"],
   "compilerOptions": {
     "noEmit": false,
     "outDir": "dist",

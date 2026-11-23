@@ -1,0 +1,7 @@
+id: needle-pistol
+kind: item
+name: Needle Pistol
+group: Weapons
+category: Pistol
+availability: Exotic
+source: { page: 6 }

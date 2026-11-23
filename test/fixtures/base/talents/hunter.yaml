@@ -1,0 +1,6 @@
+id: hunter
+kind: talent
+name: Hunter
+group: General
+source: { page: 3 }
+text: Made-up text.

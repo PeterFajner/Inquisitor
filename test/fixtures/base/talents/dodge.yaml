@@ -1,0 +1,6 @@
+id: dodge
+kind: talent
+name: Dodge
+group: General
+source: { page: 3 }
+text: Made-up text.

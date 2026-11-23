@@ -1,0 +1,7 @@
+id: autopistol
+kind: item
+name: Autopistol
+group: Weapons
+category: Pistol
+availability: Common
+source: { page: 6 }

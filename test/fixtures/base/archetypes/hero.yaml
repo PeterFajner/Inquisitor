@@ -1,0 +1,91 @@
+# Made-up test archetype exercising every effect type.
+id: hero
+kind: archetype
+name: Heroes
+source: { page: 1 }
+subtypes:
+  - id: fighter
+    name: Fighter
+    stats: { WS: 60+2D10, BS: 50+2D10, S: 50+2D10, T: 50+2D10, I: 60+2D10, Wp: 50+2D10, Sg: 50+2D10, Nv: 60+2D6, Ld: 60+2D10 }
+  - id: psyker
+    name: Psyker
+    stats: { WS: 40+2D10, BS: 40+2D10, S: 40+2D10, T: 40+2D10, I: 50+2D10, Wp: 70+2D10, Sg: 60+2D10, Nv: 60+2D6, Ld: 50+2D10 }
+sections:
+  - name: Type
+    effects:
+      - id: type
+        pick: 1
+        from:
+          - id: brute
+            name: Brute
+            text: Big and strong.
+            effects:
+              - { stat: S, add: 10 }
+              - { talent: dodge }
+          - id: scholar
+            name: Scholar
+            effects:
+              - { stat: [WS, BS], add: -10 }
+              - id: scholar-stat
+                pick: 1
+                from:
+                  - id: scholar-sg
+                    name: Sg
+                    effects:
+                      - { id: scholar-sg-roll, chance: 50, then: [{ stat: Sg, add: 15 }], else: [{ stat: Sg, add: 10 }] }
+                  - id: scholar-ld
+                    name: Ld
+                    effects:
+                      - { id: scholar-ld-roll, chance: 50, then: [{ stat: Ld, add: 15 }], else: [{ stat: Ld, add: 10 }] }
+  - name: Stats
+    effects:
+      - { stat: I, add: D10 }
+      - { id: luck, stat: [Wp, Sg], add: D6, each: true }
+      - { stat: all, add: 1 }
+      - { stat: Nv, set: 50 }
+      - { stat: [WS, BS], max: average }
+      - { stat: Ld, min: 90 }
+  - name: Boons
+    effects:
+      - { id: boons, roll: boons, times: D3+3, column: $subtype }
+  - name: Equipment
+    effects:
+      - { item: laspistol }
+      - { item: frag-grenade, qty: D3 }
+      - id: gear
+        gear:
+          count: D6+3
+          availability: [Common, Rare]
+          alien: { alignment: [Radical] }
+          exclude: [heavy-flamer]
+      - when: { alignment: [Radical] }
+        then: [{ talent: leader }]
+  - name: Psychic Abilities
+    effects:
+      - when: { subtype: [psyker] }
+        then:
+          - { power: bolt }
+          - { id: powers, powers: { count: D6, maxDifficulty: 10, crossDisciplinePenalty: 1 } }
+  - name: Exotic Abilities
+    effects:
+      - { id: wyrd, chance: 5, then: [{ exotic: fearsome }], else: [{ prose: Not a Wyrd., kind: gameplay }] }
+      - { id: extra-exotic, optional: [{ exotic: spit-acid }] }
+  - name: Talents
+    effects:
+      - { talent: awareness }
+      - { id: any-talents, pick: 2, pool: talent, filter: { group: [General] } }
+      - when: { option: [brute] }
+        then: [{ talent: hunter }]
+      - when: { has: { talent: dodge } }
+        then: [{ prose: Dodgy., kind: gm }]
+      - when: { not: { archetype: [hero] } }
+        then: [{ talent: ambidextrous }]
+      - when: { any: [{ subtype: [psyker] }, { all: [{ archetype: [hero] }, { subtype: [fighter] }] }] }
+        then: [{ prose: Either., kind: gameplay }]
+  - name: Mutations
+    effects:
+      - { mutation: extra-arm }
+  - name: Alignment
+    effects:
+      - { id: alignment, alignment: [Puritan, Radical] }
+      - { prose: Must hate heretics., kind: unfit, proposal: a hatred effect }

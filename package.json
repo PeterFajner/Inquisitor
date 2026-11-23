@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node --disable-warning=ExperimentalWarning scripts/dev.ts",
     "start": "node dist/src/server.js",
+    "migrate": "node --disable-warning=ExperimentalWarning scripts/migrate.ts",
     "typecheck": "tsc && tsc -p src/client",
     "build": "tsc -p tsconfig.build.json && node --disable-warning=ExperimentalWarning scripts/client.ts",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",

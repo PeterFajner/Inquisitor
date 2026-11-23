@@ -1,0 +1,8 @@
+id: extra-arm
+kind: mutation
+name: Extra Arm
+source: { page: 4 }
+text: Made-up text.
+points: 3
+effects:
+  - { id: arm-strength, stat: S, add: D10 }

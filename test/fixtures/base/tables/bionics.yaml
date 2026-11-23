@@ -1,0 +1,8 @@
+id: bionics
+kind: table
+name: Bionics
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 3], label: Bionic Arm, effects: [{ item: bionic-arm }] }
+  - { range: [4, 6], label: Bionic Eye, effects: [{ item: bionic-eye, qty: D2 }] }

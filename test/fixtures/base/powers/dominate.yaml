@@ -1,0 +1,7 @@
+id: dominate
+kind: power
+name: Dominate
+group: Telepathy
+difficulty: 15
+source: { page: 5 }
+text: Made-up text.

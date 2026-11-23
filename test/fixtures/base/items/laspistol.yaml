@@ -1,0 +1,7 @@
+id: laspistol
+kind: item
+name: Laspistol
+group: Weapons
+category: Pistol
+availability: Common
+source: { page: 6 }

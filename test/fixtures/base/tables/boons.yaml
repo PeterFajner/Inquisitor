@@ -1,0 +1,29 @@
+id: boons
+kind: table
+name: Boons
+die: D100
+columns: [fighter, psyker]
+rerollDuplicates: true
+source: { page: 7 }
+rows:
+  - ranges: { fighter: [1, 30], psyker: [1, 20] }
+    label: +10 WS
+    effects: [{ stat: WS, add: 10 }]
+  - ranges: { fighter: [31, 50], psyker: [21, 40] }
+    label: Dodge
+    effects: [{ talent: dodge }]
+  - ranges: { fighter: [51, 70], psyker: [41, 60] }
+    label: Awareness
+    effects: [{ talent: awareness }]
+  - ranges: { fighter: [71, 85] }
+    label: Hunter
+    effects: [{ talent: hunter }]
+  - ranges: { psyker: [61, 85] }
+    label: Psyker Talent
+    effects: [{ id: psy-talent, pick: 1, pool: talent, filter: { group: [Psyker Talents] } }]
+  - ranges: { fighter: [86, 95], psyker: [86, 95] }
+    label: +D10 I
+    effects: [{ id: boon-i, stat: I, add: D10 }]
+  - ranges: { fighter: [96, 100], psyker: [96, 100] }
+    label: Roll again on Fighter table
+    effects: [{ id: again, roll: boons, column: fighter }]

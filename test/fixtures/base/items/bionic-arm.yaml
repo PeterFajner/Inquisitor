@@ -1,0 +1,7 @@
+id: bionic-arm
+kind: item
+name: Bionic Arm
+group: Bionics
+category: Bionic
+availability: Rare
+source: { page: 6 }

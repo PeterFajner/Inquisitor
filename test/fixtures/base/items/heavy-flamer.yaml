@@ -1,0 +1,7 @@
+id: heavy-flamer
+kind: item
+name: Heavy Flamer
+group: Weapons
+category: Heavy Weapon
+availability: Rare
+source: { page: 6 }

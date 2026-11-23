@@ -1,0 +1,7 @@
+id: heavy-bolter
+kind: item
+name: Heavy Bolter
+group: Weapons
+category: Heavy Weapon
+availability: Rare
+source: { page: 6 }

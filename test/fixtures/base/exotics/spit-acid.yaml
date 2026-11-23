@@ -1,0 +1,7 @@
+id: spit-acid
+kind: exotic
+name: Spit Acid
+group: Exotic
+source: { page: 3 }
+text: Made-up text.
+points: 5

@@ -1,0 +1,7 @@
+id: hellgun
+kind: item
+name: Hellgun
+group: Weapons
+category: Basic Weapon
+availability: Rare
+source: { page: 6 }

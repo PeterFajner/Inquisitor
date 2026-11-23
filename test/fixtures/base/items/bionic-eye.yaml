@@ -1,0 +1,7 @@
+id: bionic-eye
+kind: item
+name: Bionic Eye
+group: Bionics
+category: Bionic
+availability: Rare
+source: { page: 6 }

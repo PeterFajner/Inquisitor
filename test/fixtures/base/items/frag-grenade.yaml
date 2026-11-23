@@ -1,0 +1,8 @@
+id: frag-grenade
+kind: item
+name: Frag Grenade
+group: Weapons
+category: Grenades
+availability: Common
+source: { page: 6 }
+points: 1

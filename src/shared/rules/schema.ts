@@ -283,6 +283,9 @@ const base = {
   name: z.string(),
   source: Source,
   pos: Pos,
+  // power points for the balance score (talents, abilities, items, …);
+  // estimated, then tuned on the canvas
+  points: z.number().optional(),
 };
 
 export const Subtype = z.strictObject({

@@ -1,0 +1,7 @@
+id: mind-scan
+kind: power
+name: Mind Scan
+group: Telepathy
+difficulty: 6
+source: { page: 5 }
+text: Made-up text.

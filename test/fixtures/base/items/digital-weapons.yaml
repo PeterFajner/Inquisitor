@@ -1,0 +1,7 @@
+id: digital-weapons
+kind: item
+name: Digital Weapons
+group: Weapons
+category: Pistol
+availability: Legendary
+source: { page: 6 }

@@ -35,7 +35,7 @@ step below is done.
   against ~10,000 simulated characters of the same archetype and subtype;
   ±1σ is balanced. Power = stats plus points per talent, ability, item,
   mutation and power (points editable on the canvas).
-- **Luna** (`gpt-6-luna`, server-side, its own OpenAI key): a one-shot
+- **Luna** (shelved by the owner, November 2026; not built for now) (`gpt-6-luna`, server-side, its own OpenAI key): a one-shot
   prompt box that makes a character, with follow-up prompts that edit it.
   Its output is a character record, validated by the engine; rule breaks
   are overrides and show in the balance label. Anyone may use it, limited
@@ -78,4 +78,4 @@ step below is done.
    print export.
 3. Passkey accounts, saved and shared characters, the history canvas.
 4. The rules canvas with live editing and git history.
-5. The Luna box.
+5. ~~The Luna box.~~ Shelved.

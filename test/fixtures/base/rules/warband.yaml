@@ -1,0 +1,5 @@
+id: warband
+kind: rule
+name: Warband
+source: { page: 3 }
+text: Made-up warband rule.

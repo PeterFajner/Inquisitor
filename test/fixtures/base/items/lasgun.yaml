@@ -1,0 +1,7 @@
+id: lasgun
+kind: item
+name: Lasgun
+group: Weapons
+category: Basic Weapon
+availability: Common
+source: { page: 6 }

@@ -1,0 +1,9 @@
+id: weapon-availability
+kind: table
+name: Weapons Table
+die: D6
+source: { page: 8 }
+rows:
+  - { range: [1, 3], label: Common, effects: [] }
+  - { range: [4, 5], label: Rare, effects: [] }
+  - { range: [6, 6], label: Exotic*, effects: [{ id: legendary, roll: weapon-availability-legendary }] }

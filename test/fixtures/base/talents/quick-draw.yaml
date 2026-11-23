@@ -1,0 +1,7 @@
+id: quick-draw
+kind: talent
+name: Quick Draw
+group: General
+source: { page: 3 }
+text: Made-up text.
+points: 2
