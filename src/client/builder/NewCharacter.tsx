@@ -9,6 +9,9 @@ import { L } from "./labels.ts";
 
 const LAST = "inquisitor:new-archetype";
 
+/** An archetype as one character ("Inquisitor", not the book's heading "Inquisitors"). */
+export const archetypeName = (a: { name: string; characters?: string }): string => a.characters ?? a.name;
+
 export function NewCharacter({ c, onCreate, onClose }: { c: Compendium; onCreate: (a: string, s: string, mode: "random" | "freeform") => void; onClose?: () => void }) {
   const archetypes = useMemo(
     () => [...c.archetypes.values()].sort((a, b) => a.source.page - b.source.page || a.name.localeCompare(b.name)),
@@ -37,7 +40,7 @@ export function NewCharacter({ c, onCreate, onClose }: { c: Compendium; onCreate
       <select aria-label={L.archetype} title={L.archetype} value={arch} onChange={(e) => setArch(e.currentTarget.value)}>
         {archetypes.map((a) => (
           <option value={a.id}>
-            {a.name}
+            {archetypeName(a)}
             {a.gmApproval ? "*" : ""}
           </option>
         ))}

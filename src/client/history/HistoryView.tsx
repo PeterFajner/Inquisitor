@@ -432,7 +432,7 @@ export function HistoryView(p: HistoryViewProps) {
       let balance: Balance | null = null;
       if (x.built && x.rules) {
         const d = dists.get(`${x.rules.version}|${x.built.archetype.id}/${x.built.subtype.id}`);
-        if (d) balance = balanceText(powerScore(x.built, x.rules.compendium), d, x.rules.compendium.archetypes.get(x.built.archetype.id)?.characters ?? x.built.archetype.name, x.built.subtype.name);
+        if (d) balance = balanceText(powerScore(x.built, x.rules.compendium), d, x.built.archetype.name, x.built.subtype.name);
       }
       return {
         id: v.id,

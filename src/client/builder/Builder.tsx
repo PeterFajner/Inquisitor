@@ -27,7 +27,7 @@ import { useStore } from "../lib/store.ts";
 import { CharacterView, type ViewEdits } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L } from "./labels.ts";
-import { NewCharacter } from "./NewCharacter.tsx";
+import { archetypeName, NewCharacter } from "./NewCharacter.tsx";
 import * as ops from "./ops.ts";
 import { Picker, type PickerOption } from "./Picker.tsx";
 import { RulesUpdate } from "./RulesUpdate.tsx";
@@ -112,7 +112,7 @@ export function BalanceLabel({ rules, built }: { rules: Rules; built: ReturnType
     };
   }, [rules.version, ch.archetype.id, ch.subtype.id]);
   if (!dist) return null;
-  const b = balanceText(powerScore(ch, rules.compendium), dist, rules.compendium.archetypes.get(ch.archetype.id)?.characters ?? ch.archetype.name, ch.subtype.name);
+  const b = balanceText(powerScore(ch, rules.compendium), dist, ch.archetype.name, ch.subtype.name);
   return (
     <span class={`balance balance-${b.word}`} role="status" aria-label={`${L.balance}: ${b.text}`}>
       {b.text}
@@ -483,7 +483,8 @@ export function Builder({ data }: { data: PageData }) {
   const archOf = (r: ListRow) => {
     const a = c?.archetypes.get(String(r.head.record.archetype));
     const s = a?.subtypes.find((x) => x.id === r.head.record.subtype);
-    return [a?.name, s && s.name.toLowerCase() !== a?.name.toLowerCase() ? s.name : null].filter(Boolean).join(", ");
+    const name = a ? archetypeName(a) : undefined;
+    return [name, s && s.name.toLowerCase() !== name?.toLowerCase() ? s.name : null].filter(Boolean).join(", ");
   };
 
   // --- warbands ------------------------------------------------------------------

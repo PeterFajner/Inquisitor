@@ -1992,7 +1992,7 @@ class Pass {
     }
     const ch: Character = {
       name: record.name,
-      archetype: { id: this.arch.id, name: this.arch.name },
+      archetype: { id: this.arch.id, name: this.arch.characters ?? this.arch.name },
       subtype: { id: this.sub.id, name: this.sub.name },
       options: this.options,
       stats,
