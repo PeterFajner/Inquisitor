@@ -58,6 +58,11 @@ Word sheet. See PLAN.md for the design and its decisions.
   under a stable key (`<entry id>/<effect id>[#n]`); replaying a record
   against the rules reproduces the character exactly. Seeds exist only in
   tests and the balance simulation.
+- **Characters and warbands live only on the server**, in the session's
+  account: a visitor's (an account with no passkeys, made on a browser's
+  first save) or a passkey account's. localStorage holds only per-browser
+  conveniences (selection, collapsed sections) and caches (rules,
+  balance). "Signed in" means a passkey account; rule edits need one.
 - **Rules are data.** Never hard-code a rule in the engine or UI; express
   it in the format, or extend the format (schema + engine + docs together).
 - Memory budget on asterix (1.2 GB shared): keep the server well under

@@ -5,8 +5,14 @@
 //   the owner reads it by id or changes it. Anyone else sees 404.
 // - A share link (/s/<token>) shows its character or warband, read-only, to
 //   anyone (its head and its whole history).
-// - One without an owner was shared from a browser that wasn't signed in
-//   (POST /api/v1/share): read-only for everyone, through its link only.
+// - One without an owner was shared from a browser that kept its characters
+//   itself (before visitors, November 2026): read-only for everyone, through
+//   its link only. No new ones are made.
+//
+// Making something new needs an account, a visitor's at least (401
+// account_required without a session: the browser then gets a visitor,
+// src/lib/accounts.ts, and tries again). Reading lists without one gives
+// empty lists.
 //
 // Records are opaque here beyond their shape (src/shared/record-shape.ts).
 // A version is never changed or deleted on its own: edits add versions, and
@@ -188,7 +194,8 @@ const touchCharacter = (id: string, headId?: string): void => {
 // ---------------------------------------------------------------------------
 
 export function listCharacters(viewer: Viewer): CharacterSummary[] {
-  const accountId = requireAccount(viewer);
+  const accountId = viewer.accountId;
+  if (!accountId) return [];
   type Row = CharRow & { version_count: number } & { [K in keyof VersionRow as `v_${K}`]: VersionRow[K] };
   const rows = all<Row>(
     `SELECT c.id, c.owner_id, a.public_id AS owner_public, c.name, c.head_id, c.created_at, c.updated_at,
@@ -311,8 +318,8 @@ function duplicateArgs(input: unknown): { versionId?: string; name?: string } {
 }
 
 export function duplicateCharacter(viewer: Viewer, id: string, input: unknown): Character {
-  const accountId = requireAccount(viewer);
   const source = ownedCharacter(viewer, id);
+  const accountId = source.owner_id!;
   const { versionId, name } = duplicateArgs(input);
   const newId = transaction(() => duplicateInto(viewer, accountId, source, versionId, name));
   return getCharacter(viewer, newId);
@@ -374,7 +381,8 @@ function insertWarband(ownerId: string | null, name: string, ids: string[], impo
 }
 
 export function listWarbands(viewer: Viewer): Warband[] {
-  const accountId = requireAccount(viewer);
+  const accountId = viewer.accountId;
+  if (!accountId) return [];
   return all<WarbandRow>(`${WARBAND_SELECT} WHERE w.owner_id = ?1 ORDER BY w.updated_at DESC, w.rowid DESC`, [accountId]).map((r) =>
     warbandOut(r, viewer),
   );
@@ -416,8 +424,8 @@ function duplicateWarbandInto(viewer: Viewer, accountId: string, source: Warband
 }
 
 export function duplicateWarband(viewer: Viewer, id: string, input: unknown): Warband {
-  const accountId = requireAccount(viewer);
   const source = ownedWarband(viewer, id);
+  const accountId = source.owner_id!;
   const { name } = duplicateArgs(input);
   const newId = transaction(() => duplicateWarbandInto(viewer, accountId, source, name));
   return getWarband(viewer, newId).warband;
@@ -494,65 +502,16 @@ export function duplicateShared(viewer: Viewer, token: string, input: unknown): 
   return { warband: getWarband(viewer, id).warband };
 }
 
-// A link to a character or warband that isn't saved anywhere but the
-// browser (signed out, or not saved yet): stored without an owner,
-// read-only for good.
-// Every snapshot's records together (they're never deleted): past this,
-// new snapshots are refused (507) until the owner makes room.
-export const SNAPSHOT_BUDGET = 256 * 1024 * 1024;
-let snapshotBytes: number | null = null;
-
-function ownerlessBytes(): number {
-  snapshotBytes ??= get<{ n: number | null }>(
-    `SELECT sum(length(v.record)) AS n FROM character_versions v JOIN characters c ON c.id = v.character_id WHERE c.owner_id IS NULL`,
-  )?.n ?? 0;
-  return snapshotBytes;
-}
-
-export function shareSnapshot(viewer: Viewer, input: unknown): { token: string } {
-  if (ownerlessBytes() >= SNAPSHOT_BUDGET) throw new HttpError(507, "storage_full");
-  const b = body(input);
-  const one = (x: unknown, field: string) => {
-    const c = isObject(x) ? x : invalid(field);
-    return {
-      name: parseName(c.name),
-      record: parseRecord(c.record, `${field}.record`),
-      rulesVersion: parseRulesVersion(c.rules_version, c.record as CharacterRecord),
-      kind: parseKind(c.kind, "manual"),
-    };
-  };
-  const token = newToken();
-  if (b.character !== undefined) {
-    const c = one(b.character, "character");
-    transaction(() => {
-      const id = insertCharacter({ ownerId: null, author: viewer.publicId, ...c });
-      run(`INSERT INTO shares (token, character_id) VALUES (?1, ?2)`, [token, id]);
-    });
-    snapshotBytes = null;
-    return { token };
-  }
-  const w = isObject(b.warband) ? b.warband : invalid("warband");
-  if (!Array.isArray(w.characters) || w.characters.length > MAX_WARBAND) invalid("warband.characters");
-  const name = parseName(w.name);
-  const characters = (w.characters as unknown[]).map((c, i) => one(c, `warband.characters.${i}`));
-  transaction(() => {
-    const ids = characters.map((c) => insertCharacter({ ownerId: null, author: viewer.publicId, ...c }));
-    const id = insertWarband(null, name, ids);
-    run(`INSERT INTO shares (token, warband_id) VALUES (?1, ?2)`, [token, id]);
-  });
-  snapshotBytes = null;
-  return { token };
-}
-
 // ---------------------------------------------------------------------------
 // Import: the browser's characters move into the account
 // ---------------------------------------------------------------------------
 
-// Characters and warbands made signed out (kept in the browser) become the
-// account's, with their history (ImportBody in src/shared/api.ts). Like
-// speci absorbing a browser's reviews at sign-in, it's safe to repeat: a
-// local_id already imported into this account maps to what it became.
-// All or nothing: one bad record and nothing is imported.
+// Characters and warbands a browser kept itself (before visitors, November
+// 2026: localStorage) become the account's, with their history (ImportBody
+// in src/shared/api.ts); the browser sends them once, as a visitor or
+// signed in. It's safe to repeat: a local_id already imported into this
+// account maps to what it became. All or nothing: one bad record and
+// nothing is imported.
 export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
   const accountId = requireAccount(viewer);
   const b = body(input);
@@ -650,4 +609,32 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
     }
     return out;
   });
+}
+
+// ---------------------------------------------------------------------------
+// A visitor signing in: its things move into the account
+// ---------------------------------------------------------------------------
+
+// Every character and warband of account `from` becomes `to`'s, ids and
+// share links unchanged; versions `from` wrote name `to` as their author
+// (the same person). An import key `to` already has is dropped from the
+// moved one (both came from the same browser). Run inside a transaction.
+export function moveAccountData(from: string, to: string): void {
+  const fromPublic = get<{ public_id: string }>(`SELECT public_id FROM accounts WHERE id = ?1`, [from])?.public_id;
+  const toPublic = get<{ public_id: string }>(`SELECT public_id FROM accounts WHERE id = ?1`, [to])?.public_id;
+  if (!fromPublic || !toPublic) return;
+  for (const table of ["characters", "warbands"]) {
+    run(
+      `UPDATE ${table} SET import_key = NULL
+        WHERE owner_id = ?1 AND import_key IN (SELECT import_key FROM ${table} WHERE owner_id = ?2 AND import_key IS NOT NULL)`,
+      [from, to],
+    );
+  }
+  run(
+    `UPDATE character_versions SET author = ?3
+      WHERE author = ?2 AND character_id IN (SELECT id FROM characters WHERE owner_id = ?1)`,
+    [from, fromPublic, toPublic],
+  );
+  run(`UPDATE characters SET owner_id = ?2 WHERE owner_id = ?1`, [from, to]);
+  run(`UPDATE warbands SET owner_id = ?2 WHERE owner_id = ?1`, [from, to]);
 }

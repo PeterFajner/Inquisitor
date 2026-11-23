@@ -34,7 +34,7 @@ location / {
     proxy_pass http://127.0.0.1:3010;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
-    # The import after signing in carries every character a browser kept (2 MB cap in the app).
+    # A browser's one-time import of the characters it kept itself (2 MB cap in the app).
     client_max_body_size 3m;
     limit_req zone=inquisitor_writes burst=60 nodelay;
     limit_req_status 429;
@@ -47,12 +47,14 @@ location = /api/v1/account/passkey {
     limit_req zone=inquisitor_passkey burst=10 nodelay;
     limit_req_status 429;
 }
-location = /api/v1/share {
+# A browser's first save makes it a visitor (an account without passkeys):
+# new accounts are made only here and at the passkey step, both per-IP limited.
+location = /api/v1/account/visitor {
     proxy_pass http://127.0.0.1:3010;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 1m;
-    limit_req zone=inquisitor_share burst=5 nodelay;
+    client_max_body_size 1k;
+    limit_req zone=inquisitor_visitor burst=5 nodelay;
     limit_req_status 429;
 }
 location = /api/v1/rules/events {

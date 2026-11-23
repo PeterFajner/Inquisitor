@@ -1,6 +1,6 @@
 // A duplicated character's first version names the version it was copied
 // from (Version.source_id) but not its character: find it among the
-// characters this backend can list (the viewer's own, or this browser's).
+// characters this backend can list (the viewer's own).
 // One that came from someone else's share link isn't found (null).
 import type { Backend } from "../lib/characters.ts";
 
@@ -8,7 +8,7 @@ const found = new Map<string, Promise<string | null>>();
 
 /** The id of the character holding version `versionId`, or null. `skip`: a character not to look in (the duplicate itself). */
 export function findSource(backend: Backend, versionId: string, skip?: string): Promise<string | null> {
-  const key = `${backend.local ? "local" : "server"}:${versionId}`;
+  const key = versionId;
   let p = found.get(key);
   if (!p) {
     p = (async () => {

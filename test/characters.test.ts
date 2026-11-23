@@ -2,7 +2,7 @@
 // duplicate, share links, warbands, import, and who may see or change what.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { Browser, newAccount, server } from "./support/server.ts";
+import { Browser, db, newAccount, server } from "./support/server.ts";
 
 after(() => {
   server.closeAllConnections();
@@ -132,8 +132,6 @@ test("list mine: heads only, newest change first", async () => {
 
 test("permissions: another account or a stranger can't see or change it", async () => {
   for (const who of [player, stranger]) {
-    // Duplicating needs an account first.
-    const expect = who === stranger ? 401 : 404;
     assert.equal((await who.get(`/api/v1/characters/${charId}`)).status, 404);
     for (const [path, body] of [
       ["versions", { parent_id: root, record: record(6), kind: "manual" }],
@@ -145,7 +143,7 @@ test("permissions: another account or a stranger can't see or change it", async 
       const r = await who.post(`/api/v1/characters/${charId}/${path}`, body);
       assert.equal(r.status, 404, `${path}: ${JSON.stringify(r.body)}`);
     }
-    assert.equal((await who.post(`/api/v1/characters/${charId}/duplicate`)).status, expect);
+    assert.equal((await who.post(`/api/v1/characters/${charId}/duplicate`)).status, 404);
   }
   // Its page is a 404 for them too, and the owner's for the owner.
   assert.equal((await player.get(`/c/${charId}`)).status, 404);
@@ -231,24 +229,28 @@ test("share: revoking a link", async () => {
   assert.equal((await stranger.get(`/s/${t2}`)).status, 404);
 });
 
-test("share: a snapshot from a signed-out browser has no owner and can't be changed", async () => {
-  const r = await stranger.post("/api/v1/share", { character: { name: "Loose", record: record(3), kind: "roll" } });
-  assert.equal(r.status, 201);
-  const seen = (await stranger.get(`/api/v1/share/${r.body.token}`)).body.character;
+test("share: an ownerless snapshot (shared before visitors) is read-only through its link; no new ones are made", async () => {
+  db.prepare("INSERT INTO characters (id, owner_id, name) VALUES ('snap', NULL, 'Loose')").run();
+  db.prepare("INSERT INTO character_versions (id, character_id, parent_id, record, kind) VALUES ('snap-v', 'snap', NULL, ?, 'roll')").run(JSON.stringify(record(3)));
+  db.prepare("UPDATE characters SET head_id = 'snap-v' WHERE id = 'snap'").run();
+  db.prepare("INSERT INTO shares (token, character_id) VALUES ('snap-token', 'snap')").run();
+  const seen = (await stranger.get("/api/v1/share/snap-token")).body.character;
   assert.equal(seen.owner, null);
   assert.equal(seen.mine, false);
   assert.equal(seen.versions[0].author, null);
+  assert.equal((await stranger.get("/s/snap-token")).status, 200);
   assert.equal((await stranger.post(`/api/v1/characters/${seen.id}/name`, { name: "x" })).status, 404);
   assert.equal((await gm.post(`/api/v1/characters/${seen.id}/name`, { name: "x" })).status, 404);
-  assert.equal((await stranger.post(`/api/v1/share/${r.body.token}/delete`)).status, 404);
-  assert.equal((await stranger.post("/api/v1/share", { character: { record: {} } })).body.error, "invalid:character.record.v");
-
-  const w = await stranger.post("/api/v1/share", { warband: { name: "Band", characters: [{ record: record(1) }, { name: "B", record: record(2) }] } });
-  const band = (await stranger.get(`/api/v1/share/${w.body.token}`)).body;
-  assert.equal(band.kind, "warband");
-  assert.equal(band.warband.owner, null);
-  assert.equal(band.characters.length, 2);
-  assert.deepEqual(band.warband.character_ids, band.characters.map((c: { id: string }) => c.id));
+  assert.equal((await stranger.post("/api/v1/share/snap-token/delete")).status, 404);
+  // Copying it is a save: a visitor's at least.
+  const copier = new Browser();
+  assert.equal((await copier.post("/api/v1/share/snap-token/duplicate")).status, 401);
+  await copier.post("/api/v1/account/visitor");
+  const copy = await copier.post("/api/v1/share/snap-token/duplicate");
+  assert.equal(copy.status, 201);
+  assert.equal(copy.body.character.mine, true);
+  // POST /api/v1/share (snapshots from browsers that kept their own characters) is gone.
+  assert.equal((await stranger.post("/api/v1/share", { character: { name: "Loose", record: record(3) } })).status, 404);
 });
 
 test("warbands: create, read, reorder, rename, share, duplicate, delete", async () => {

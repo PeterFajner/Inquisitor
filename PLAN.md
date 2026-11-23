@@ -58,8 +58,21 @@ step below is done.
   newer one. Full history with the editor's passkey id; revert from history.
 - **Accounts**: speci's model. An account is a random id with passkeys
   (`@passwordless-id/webauthn`), RP ID `inquisitor.pfaj.ca`; no name or
-  email. Characters made before signing in live in the browser and move
-  into the account on sign-in.
+  email.
+- **Visitors** (owner, November 2026): nothing is stored in the browser;
+  every character and warband lives on the server. A browser's first save
+  makes it a visitor: an account with no passkeys, with the usual session
+  cookie (`POST /api/v1/account/visitor`, per-IP limited in nginx; page
+  views make none). "Create account" puts the passkey on the visitor's own
+  account, so everything stays; "Sign in" moves the visitor's characters and
+  warbands into the account signed into and drops the visitor; "Sign out"
+  ends the session, and the next save makes a new visitor. "Signed in" in
+  the UI means a passkey account, and only those edit the rules. The same
+  per-account limits apply to visitors. Characters browsers kept in
+  localStorage before this go to the server once, on load (as an import),
+  and are removed there once the server has them. Old visitors are not
+  cleaned up for now (`accounts.last_seen_at` records use; revisit at 1 GB
+  of storage).
 - **Output**: the GM's Word sheet (`BETTER_3_CHARACTERSPER_PAGE.doc`, three
   characters per page, as many pages as needed), filled with everything
   known: name line, stats and derived stats (Kbk, BIV, SS, Cnc, Spd, from

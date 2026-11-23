@@ -1,5 +1,4 @@
-// One warband (/w/<id>, or a warband kept in this browser, shown in the
-// builder's main column): its name, the book's warband rules it breaks (as
+// One warband (/w/<id>, shown in the builder's main column): its name, the book's warband rules it breaks (as
 // warnings: an icon and the book's sentence), its characters in order
 // (open, move, take out), and below them their sheets. Icons add
 // characters, duplicate it (with copies of its characters), share it, save
@@ -247,7 +246,7 @@ export function WarbandView(p: Props) {
           <IconButton label={W.duplicate} disabled={busy} onClick={() => void duplicate()}>
             <Copy size={ICON} />
           </IconButton>
-          <ShareButton disabled={busy || !members.length} link={() => shareWarband(warband.id, warband.name, members, p.backend.local)} />
+          <ShareButton disabled={busy || !members.length} link={() => shareWarband(warband.id)} />
           <ExportButtons disabled={busy || !members.length} rows={() => members} name={warband.name} />
           <IconButton label={confirmDelete ? W.confirmRemove : W.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
             {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}

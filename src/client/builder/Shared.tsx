@@ -1,14 +1,12 @@
 // A share link (/s/<token>): the character's sheet and what built it,
-// read-only; a warband's characters one after another. Signed in, an icon
-// copies it into the viewer's own characters.
+// read-only; a warband's characters one after another. An icon copies a
+// character into the viewer's own (a visitor's, if need be).
 import { CopyPlus } from "lucide-preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Character as ApiCharacter, Shared as SharedData } from "../../shared/api.ts";
 import { AccountButton } from "../components/account/AccountButton.tsx";
-import { account } from "../lib/account.ts";
 import { duplicateShared, headVersion } from "../lib/characters.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
-import { useStore } from "../lib/store.ts";
 import { BalanceLabel, usePinnedRules } from "./Builder.tsx";
 import { CharacterView } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
@@ -42,7 +40,6 @@ function ReadOnly({ rules, character }: { rules: Rules; character: ApiCharacter 
 }
 
 export function SharedView({ share }: { share: SharedData }) {
-  const { signedIn } = useStore(account);
   const [rules, setRules] = useState<Rules | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -51,7 +48,7 @@ export function SharedView({ share }: { share: SharedData }) {
   const characters = share.kind === "character" ? [share.character] : share.characters;
   // A warband's rows, for its warnings and the exports.
   const rows = useMemo(
-    () => characters.map((c) => ({ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at, local: false })),
+    () => characters.map((c) => ({ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at })),
     [share.token],
   );
   const builtMembers = useBuiltMembers(share.kind === "warband" ? rules : null, rows);
@@ -76,7 +73,7 @@ export function SharedView({ share }: { share: SharedData }) {
         </a>
         <span class="topbar-gap" />
         <ExportButtons disabled={!rules || !rows.length} rows={() => rows} name={share.kind === "warband" ? share.warband.name : undefined} />
-        {signedIn && share.kind === "character" && (
+        {share.kind === "character" && (
           <IconButton label={L.mine} disabled={busy} onClick={mine}>
             <CopyPlus size={ICON} />
           </IconButton>

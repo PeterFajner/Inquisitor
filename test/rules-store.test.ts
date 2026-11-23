@@ -128,6 +128,22 @@ test("writes need an account, and same origin", async () => {
   const r = await anon.post("/api/v1/rules/entries", { pack: "core", entry: academic("x"), base: transcribed });
   assert.equal(r.status, 401);
   assert.deepEqual(r.body, { error: "account_required", account: "required" });
+  // A visitor (an account without passkeys, which saves characters) doesn't edit the rules.
+  const visitor = new Browser();
+  assert.equal((await visitor.post("/api/v1/account/visitor")).status, 200);
+  assert.ok(visitor.cookies.get("inquisitor_session"));
+  for (const [path, body] of [
+    ["/api/v1/rules/entries", { pack: "core", entry: academic("x"), base: transcribed }],
+    ["/api/v1/rules/entries/delete", { pack: "core", kind: "talent", id: "academic", base: transcribed }],
+    ["/api/v1/rules/move", { pack: "core", kind: "talent", id: "academic", pos: { x: 1, y: 1 } }],
+    ["/api/v1/rules/revert", { pack: "core", kind: "talent", id: "academic", commit: transcribed }],
+    ["/api/v1/rules/packs", { pack: { id: "mine", name: "Mine" } }],
+  ] as const) {
+    const v = await visitor.post(path, body);
+    assert.equal(v.status, 401, path);
+    assert.equal(v.body.error, "account_required");
+  }
+  assert.equal((await anon.get("/api/v1/rules")).body.version, transcribed, "nothing was committed");
   const foreign = Object.assign(new Browser(), { cookies: editor.cookies, origin: "https://evil.test" });
   assert.equal((await foreign.post("/api/v1/rules/entries", { pack: "core", entry: academic("x"), base: transcribed })).status, 403);
 });

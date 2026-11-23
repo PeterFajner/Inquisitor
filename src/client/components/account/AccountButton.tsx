@@ -1,14 +1,14 @@
-// The account: one icon. Signed out it opens a small dialog with "Sign in"
-// and "Create account" (passkeys, src/client/lib/account.ts; the only words
-// it shows); signed in it offers "Sign out". The browser's characters go
-// along with the sign-in (importBody) and onSignedIn hears what came of it.
+// The account: one icon. Signed out (no account, or a visitor's) it opens a
+// small dialog with "Sign in" and "Create account" (passkeys,
+// src/client/lib/account.ts; the only words it shows); signed in it offers
+// "Sign out". A visitor's characters stay with either (the server keeps or
+// moves them).
 //
 // The passkey options and the WebAuthn library are fetched when the dialog
 // opens, so the tap that starts the ceremony still counts as a gesture
 // (Safari). Browsers without passkeys never see the icon (html.no-passkeys).
 import { LogOut, UserRound, UserRoundCheck } from "lucide-preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ImportBody } from "../../../shared/api.ts";
 import {
   account,
   loadWebauthn,
@@ -24,7 +24,6 @@ import { useStore } from "../../lib/store.ts";
 import "./account.css";
 
 type Props = {
-  importBody?: () => ImportBody | null;
   onSignedIn?: (r: SignedIn) => void;
   onSignedOut?: () => void;
 };
@@ -78,7 +77,7 @@ function AccountDialog(p: Props & { signedIn: boolean; onClose: () => void }) {
     setFailed(false);
     try {
       const opts = await (options.current[mode] ?? passkeyOptions(mode));
-      const r = await runPasskey(mode, opts, p.importBody?.() ?? undefined);
+      const r = await runPasskey(mode, opts);
       p.onSignedIn?.(r);
       p.onClose();
     } catch {

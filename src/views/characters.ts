@@ -1,19 +1,14 @@
 // Characters, warbands, share links and import: /api/v1 (shapes in
 // src/shared/api.ts; the rules in src/lib/characters.ts). Writes are POSTs
-// (same-origin checked in src/server.ts); signed out, the account's own
-// endpoints answer 401 {error: "account_required", account: "required"}.
+// (same-origin checked in src/server.ts). Without a session, the lists are
+// empty and the writes that make something new (create, import, copy from a
+// share link) answer 401 {error: "account_required", account: "required"}:
+// the browser gets a visitor (POST /api/v1/account/visitor) and tries again.
 import { currentViewer } from "../lib/accounts.ts";
 import * as chars from "../lib/characters.ts";
 import { readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
-import { rateLimit, RateWindow } from "../lib/limits.ts";
 import { API } from "../shared/api.ts";
 import { IMPORT_LIMIT } from "./account.ts";
-
-// Share-only snapshots are kept for good and need no account: a cap on the
-// body (a warband of typical characters fits easily), a global rate, and a
-// total budget (chars.SNAPSHOT_BUDGET).
-export const SNAPSHOT_LIMIT = 1024 * 1024;
-export const snapshotWindow = new RateWindow(120, 60 * 60_000);
 
 const v = currentViewer;
 
@@ -63,11 +58,6 @@ export function characterRoutes(router: Router): void {
       sendJson(ctx, { token, url: shareUrl(token) });
     })
     // Share links
-    .post(`${API}/share`, async (ctx) => {
-      rateLimit(snapshotWindow);
-      const { token } = chars.shareSnapshot(v(ctx), await readJson(ctx, SNAPSHOT_LIMIT));
-      sendJson(ctx, { token, url: shareUrl(token) }, 201);
-    })
     .get(`${API}/share/:token`, (ctx) => sendJson(ctx, chars.resolveShare(v(ctx), ctx.params.token)))
     .post(`${API}/share/:token/duplicate`, async (ctx) => sendJson(ctx, chars.duplicateShared(v(ctx), ctx.params.token, await optionalJson(ctx)), 201))
     .post(`${API}/share/:token/delete`, (ctx) => {

@@ -69,11 +69,10 @@ test("large bodies don't crash the server under the production heap cap", { time
       () => 0,
     );
   try {
-    // Signed out, 8 MB at the passkey step (it takes 64 KB) and at a snapshot (1 MB).
+    // Signed out, 8 MB at the passkey step (it takes 64 KB).
     const big = arrays(8 * 1024 * 1024, (x) => `{"step":"x","import":[${x}]}`);
     // (413, or the connection reset: the server stops reading past the cap)
     assert.ok([0, 413].includes(await post("/api/v1/account/passkey", big)));
-    assert.ok([0, 413].includes(await post("/api/v1/share", big)));
     assert.equal(await alive(), 200, s.stderr());
     // Signed in, imports just under the 2 MB cap, three at once: one parses, the others wait their turn (503).
     const imp = arrays(2 * 1024 * 1024 - 1, (x) => `{"characters":[],"warbands":[],"x":[${x}]}`);
@@ -81,9 +80,6 @@ test("large bodies don't crash the server under the production heap cap", { time
     assert.ok(statuses.every((x) => x === 200 || x === 503), String(statuses));
     assert.ok(statuses.includes(200), String(statuses));
     assert.equal(await alive(), 200, `the server died: ${s.stderr().split("\n").find((l) => /FATAL|heap/.test(l)) ?? s.stderr().slice(0, 300)}`);
-    // Snapshots just under 1 MB, one after another.
-    for (let i = 0; i < 3; i++) await post("/api/v1/share", arrays(1024 * 1024 - 1, (x) => `{"character":{"name":"x","record":[${x}]}}`));
-    assert.equal(await alive(), 200, s.stderr());
   } finally {
     s.kill();
   }

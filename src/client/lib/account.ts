@@ -1,8 +1,10 @@
-// Signing in (speci's model). Building characters needs no account: they
-// live in the browser. Signing in, or creating an account (a new passkey is
-// a new account), saves them: right after the sign-in the browser's
-// characters (`importBody`) go to POST /api/v1/import, which moves them
-// into the account (ImportResult maps their local ids to saved ids).
+// Accounts (speci's model). Everything saved lives on the server, in the
+// session's account. A browser gets a visitor (an account without passkeys)
+// on its first save (ensureVisitor; src/client/lib/characters.ts calls it
+// when a save answers 401). "Create account" puts a passkey on that same
+// account; "Sign in" brings the visitor's characters and warbands into the
+// account signed into. `account.signedIn` means a passkey account: a
+// visitor's page shows "Sign in" and "Create account".
 //
 // Browsers without passkeys (some in-app browsers) never see any of this:
 // the page marks <html class="no-passkeys"> before first paint, so CSS can
@@ -11,11 +13,12 @@
 // The ceremonies go through /api/v1/account/passkey (src/views/account.ts):
 //   {step: "<mode>-options"} -> {options}
 //   {step: "<mode>", response} -> {ok, account}
+// and a visitor is POST /api/v1/account/visitor.
 // The WebAuthn client is @passwordless-id/webauthn, loaded with import()
 // (loadWebauthn) when the sign-in control is shown: Safari wants the tap's
 // gesture still live when WebAuthn starts, so fetch the options and the
 // library first, then call runPasskey from the tap.
-import { API, type AccountInfo, type ImportBody, type ImportResult } from "../../shared/api.ts";
+import { API, type AccountInfo } from "../../shared/api.ts";
 import { api } from "./api.ts";
 import { store } from "./store.ts";
 
@@ -39,7 +42,7 @@ type RegisterOptions = {
 type SignInOptions = { challenge: string; domain: string; timeout: number; userVerification: "required" };
 export type PasskeyOptions = RegisterOptions | SignInOptions;
 
-export type SignedIn = { account: AccountInfo; imported?: ImportResult; import_error?: string };
+export type SignedIn = { account: AccountInfo };
 
 // Throws Error(<code>) when it doesn't work out.
 export async function passkeyOptions(mode: PasskeyMode): Promise<PasskeyOptions> {
@@ -61,7 +64,7 @@ const fromBase64url = (s: string): Uint8Array<ArrayBuffer> => {
 // One ceremony with options fetched earlier. On success the account store
 // says signed in. Throws Error(<code>): "passkey_rejected",
 // "passkey_unknown", "network"..., or the browser's own error (cancelled).
-export async function runPasskey(mode: PasskeyMode, options: PasskeyOptions, importBody?: ImportBody): Promise<SignedIn> {
+export async function runPasskey(mode: PasskeyMode, options: PasskeyOptions): Promise<SignedIn> {
   const { client } = await loadWebauthn();
   let response: unknown;
   if (mode === "sign-in") {
@@ -79,31 +82,27 @@ export async function runPasskey(mode: PasskeyMode, options: PasskeyOptions, imp
   const out = await api<SignedIn & { ok?: boolean }>(`${API}/account/passkey`, { json: { step: mode, response } });
   if (!out.ok) throw new Error(out.error);
   account.set({ signedIn: out.data.account.signed_in, publicId: out.data.account.public_id });
-  // The browser's characters follow in their own request (the passkey
-  // step takes small bodies only). A failed import doesn't undo the sign-in.
-  if (!importBody || mode === "add") return out.data;
-  try {
-    return { ...out.data, imported: await importCharacters(importBody) };
-  } catch (e) {
-    return { ...out.data, import_error: e instanceof Error ? e.message : String(e) };
-  }
+  return out.data;
 }
 
 // Options, then the ceremony: for when there's no gesture to keep alive.
-export async function signInWithPasskey(mode: PasskeyMode, importBody?: ImportBody): Promise<SignedIn> {
-  return runPasskey(mode, await passkeyOptions(mode), importBody);
+export async function signInWithPasskey(mode: PasskeyMode): Promise<SignedIn> {
+  return runPasskey(mode, await passkeyOptions(mode));
 }
 
-// The browser's characters into the signed-in account (after a sign-in
-// that didn't carry them, or to retry).
-// The server parses one large body at a time ("busy"): try again shortly.
-export async function importCharacters(body: ImportBody): Promise<ImportResult> {
-  for (let attempt = 1; ; attempt++) {
-    const out = await api<ImportResult>(`${API}/import`, { json: body });
-    if (out.ok) return out.data;
-    if (out.error !== "busy" || attempt >= 5) throw new Error(out.error);
-    await new Promise((done) => setTimeout(done, 1500 * attempt));
-  }
+// A session for this browser: its account if it has one, else a new
+// visitor. One request at a time (two saves at once make one visitor).
+let visitor: Promise<void> | null = null;
+export function ensureVisitor(): Promise<void> {
+  visitor ??= (async () => {
+    try {
+      const out = await api<SignedIn>(`${API}/account/visitor`, { method: "POST" });
+      if (!out.ok) throw new Error(out.error);
+    } finally {
+      visitor = null;
+    }
+  })();
+  return visitor;
 }
 
 // The session ended elsewhere (a 401 from a post): show it signed out.

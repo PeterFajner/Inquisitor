@@ -1,19 +1,15 @@
-// Where warbands live: signed out, in this browser (./local.ts); signed in,
-// in the account (/api/v1/warbands...). One interface for both, like the
-// characters' Backend (src/client/lib/characters.ts). A warband's members
-// are list rows (the head version is all the sheet, the warnings and the
-// exports need).
+// Warbands live on the server (/api/v1/warbands...), in the session's
+// account, like the characters (src/client/lib/characters.ts). A warband's
+// members are list rows (the head version is all the sheet, the warnings
+// and the exports need).
 import { API, type CharacterSummary, type NewWarband, type Warband } from "../../shared/api.ts";
-import { markSignedOut } from "../lib/account.ts";
-import { api, type Result } from "../lib/api.ts";
-import { localBackend, type ListRow } from "../lib/characters.ts";
-import { readWarbands, writeWarbands } from "./local.ts";
+import { api } from "../lib/api.ts";
+import { unwrap, withVisitor, type ListRow } from "../lib/characters.ts";
 
 export type WarbandWithMembers = { warband: Warband; members: ListRow[] };
 export type WarbandPatch = { name?: string; character_ids?: string[] };
 
 export interface WarbandBackend {
-  local: boolean;
   list(): Promise<Warband[]>;
   get(id: string): Promise<WarbandWithMembers>;
   create(body: NewWarband): Promise<Warband>;
@@ -23,68 +19,10 @@ export interface WarbandBackend {
   remove(id: string): Promise<void>;
 }
 
-const now = () => new Date().toISOString();
-const newId = (): string =>
-  typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
-
-function mutate(id: string, fn: (w: Warband) => void): Warband {
-  const all = readWarbands();
-  const w = all.find((x) => x.id === id);
-  if (!w) throw new Error("not_found");
-  fn(w);
-  w.updated_at = now();
-  writeWarbands(all);
-  return w;
-}
-
-export const localWarbands: WarbandBackend = {
-  local: true,
-  async list() {
-    return readWarbands().sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
-  },
-  async get(id) {
-    const warband = readWarbands().find((w) => w.id === id);
-    if (!warband) throw new Error("not_found");
-    const rows = new Map((await localBackend.list()).map((r) => [r.id, r]));
-    // A character deleted since simply isn't there any more.
-    const members = warband.character_ids.map((cid) => rows.get(cid)).filter((r): r is ListRow => !!r);
-    return { warband: { ...warband, character_ids: members.map((m) => m.id) }, members };
-  },
-  async create(body) {
-    const t = now();
-    const w: Warband = { id: newId(), name: body.name ?? "", owner: null, mine: true, character_ids: [...(body.character_ids ?? [])], created_at: t, updated_at: t };
-    writeWarbands([w, ...readWarbands()]);
-    return w;
-  },
-  async update(id, patch) {
-    return mutate(id, (w) => {
-      if (patch.name !== undefined) w.name = patch.name;
-      if (patch.character_ids) w.character_ids = [...new Set(patch.character_ids)];
-    });
-  },
-  async duplicate(id) {
-    const { warband, members } = await this.get(id);
-    const copies = [];
-    for (const m of members) copies.push((await localBackend.duplicate(m.id)).id);
-    return this.create({ name: warband.name, character_ids: copies });
-  },
-  async remove(id) {
-    writeWarbands(readWarbands().filter((w) => w.id !== id));
-  },
-};
-
-function unwrap<T>(r: Result<T>): T {
-  if (r.ok) return r.data;
-  if (r.status === 401) markSignedOut();
-  throw new Error(r.error);
-}
 const enc = encodeURIComponent;
-const row = (c: CharacterSummary): ListRow => ({ id: c.id, name: c.name, head: c.head, updated_at: c.updated_at, local: false });
+const row = (c: CharacterSummary): ListRow => ({ id: c.id, name: c.name, head: c.head, updated_at: c.updated_at });
 
-export const serverWarbands: WarbandBackend = {
-  local: false,
+export const warbands: WarbandBackend = {
   async list() {
     return unwrap(await api<{ warbands: Warband[] }>(`${API}/warbands`)).warbands;
   },
@@ -93,7 +31,7 @@ export const serverWarbands: WarbandBackend = {
     return { warband: out.warband, members: out.characters.map(row) };
   },
   async create(body) {
-    return unwrap(await api<{ warband: Warband }>(`${API}/warbands`, { json: body })).warband;
+    return unwrap(await withVisitor(() => api<{ warband: Warband }>(`${API}/warbands`, { json: body }))).warband;
   },
   async update(id, patch) {
     return unwrap(await api<{ warband: Warband }>(`${API}/warbands/${enc(id)}`, { json: patch })).warband;
@@ -105,8 +43,6 @@ export const serverWarbands: WarbandBackend = {
     unwrap(await api(`${API}/warbands/${enc(id)}/delete`, { method: "POST" }));
   },
 };
-
-export const warbandsFor = (signedIn: boolean): WarbandBackend => (signedIn ? serverWarbands : localWarbands);
 
 /** The members' ids with one moved by `by` places (clamped). */
 export function moved(ids: string[], id: string, by: number): string[] {

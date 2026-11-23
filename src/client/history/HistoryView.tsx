@@ -7,9 +7,8 @@
 // Icons on each card make it the head, open it in the builder, compare it
 // with the head (a panel, in the book's terms) or duplicate it.
 //
-// Used by /c/<id>/history (src/client/pages/history.tsx) and embeddable in
-// the builder for characters kept in this browser: it only shows; the
-// caller does the saving through the callbacks.
+// Used by /c/<id>/history (src/client/pages/history.tsx): it only shows;
+// the caller does the saving through the callbacks.
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   ArchiveRestore,

@@ -11,7 +11,7 @@ import { AccountButton } from "../components/account/AccountButton.tsx";
 import { HistoryView } from "../history/HistoryView.tsx";
 import { H } from "../history/labels.ts";
 import { findSource } from "../history/source.ts";
-import { serverBackend } from "../lib/characters.ts";
+import { characters } from "../lib/characters.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import "../history/page.css";
 
@@ -34,10 +34,10 @@ export function HistoryPage({ data }: { data: PageData }) {
     if (busy) return false;
     setBusy(true);
     try {
-      await serverBackend.setHead(char.id, versionId);
+      await characters.setHead(char.id, versionId);
       const v = char.versions.find((x) => x.id === versionId);
       const name = v && typeof v.record.name === "string" ? v.record.name : char.name;
-      if (name !== char.name) await serverBackend.rename(char.id, name);
+      if (name !== char.name) await characters.rename(char.id, name);
       setChar({ ...char, head_id: versionId, name });
       return true;
     } catch {
@@ -55,7 +55,7 @@ export function HistoryPage({ data }: { data: PageData }) {
     if (busy) return;
     setBusy(true);
     try {
-      const c = await serverBackend.duplicate(char.id, versionId);
+      const c = await characters.duplicate(char.id, versionId);
       location.assign(`/c/${enc(c.id)}`);
     } catch {
       setBusy(false);
@@ -63,7 +63,7 @@ export function HistoryPage({ data }: { data: PageData }) {
   };
 
   const sourceHref = async (versionId: string) => {
-    const id = await findSource(serverBackend, versionId, char.id);
+    const id = await findSource(characters, versionId, char.id);
     return id ? `/c/${enc(id)}/history#v=${enc(versionId)}` : null;
   };
 

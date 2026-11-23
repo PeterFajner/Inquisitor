@@ -88,7 +88,10 @@ ssh asterix "bash -c 'ps -o rss= -C node'"                     # memory, in KB
 asterix uses `/etc/nginx/conf.d/*.conf`. The locations are shared by both
 hosts (`inquisitor-app.inc`, included from each server block, with the
 icons' `inquisitor-static.inc`); the rate-limit zones are
-`inquisitor-zones.conf`.
+`inquisitor-zones.conf`. Install those two together: the locations name
+the zones (since November 2026, `inquisitor_visitor` limits new visitors
+per IP at `/api/v1/account/visitor`; the share-snapshot location and its
+`inquisitor_share` zone are gone).
 
 The preview (installed 2026-11-23; certificate via `certbot certonly
 --webroot -w /usr/share/nginx/html -d preview.inquisitor.pfaj.ca`):
@@ -123,7 +126,15 @@ site in `/var/www/inquisitor` is untouched by all of this.
 ## Accounts
 
 An account is a random id with passkeys; nothing else is stored about it
-(`db/migrations/001_accounts.sql`). Sessions are stored as the SHA-256 of
+(`db/migrations/001_accounts.sql`) but when it was made and last used
+(`003_visitors.sql`). A visitor is an account with no passkeys, made on a
+browser's first save. Not cleaned up yet (revisit at 1 GB); to see how
+many there are and how old:
+
+```bash
+sudo -u inquisitor node -e "const d=new (require('node:sqlite').DatabaseSync)('/opt/inquisitor/data/inquisitor.db');console.log(d.prepare(\"SELECT count(*) n, min(last_seen_at) oldest FROM accounts a WHERE NOT EXISTS (SELECT 1 FROM account_passkeys p WHERE p.account_id = a.id)\").get())"
+```
+ Sessions are stored as the SHA-256 of
 the cookie. To sign everyone out (in `bash` on asterix):
 
 ```bash

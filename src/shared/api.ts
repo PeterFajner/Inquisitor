@@ -82,6 +82,7 @@ export type Warband = {
   shares?: string[];
 };
 
+/** signed_in: the session's account has a passkey (a visitor's hasn't: signed_in false, public_id null). */
 export type AccountInfo = { signed_in: boolean; public_id: string | null };
 
 // What a share link (/s/<token>, GET /api/v1/share/<token>) shows.
@@ -104,9 +105,9 @@ export type NewVersion = {
 };
 export type NewWarband = { name?: string; character_ids?: string[] };
 
-// Characters and warbands kept in a browser before signing in, moved into
-// the account (POST /api/v1/import, or `import` on the passkey sign-in and
-// register steps). local_id is the browser's own id: importing the same one
+// Characters and warbands a browser kept itself (localStorage, before
+// visitors in November 2026), moved into the session's account once (POST
+// /api/v1/import, as a visitor or signed in). local_id is the browser's own id: importing the same one
 // again returns the same character instead of a copy. Versions keep their
 // tree (ids are the browser's, remapped); head names one of them (default:
 // the last). A warband's characters are local_ids from this import or ids of
@@ -124,11 +125,6 @@ export type ImportWarband = { local_id: string; name?: string; characters: strin
 export type ImportBody = { characters?: ImportCharacter[]; warbands?: ImportWarband[] };
 /** local_id -> server id. */
 export type ImportResult = { characters: Record<string, string>; warbands: Record<string, string> };
-
-// A read-only link to something that isn't saved in an account (POST /api/v1/share).
-export type ShareSnapshot =
-  | { character: NewCharacter }
-  | { warband: { name?: string; characters: NewCharacter[] } };
 
 export type ApiError = { error: string; account?: "required" };
 
@@ -155,8 +151,9 @@ export const MAX_NAME = 200;
 // ---------------------------------------------------------------------------
 // data/rules is a git repository; every write below is one commit of one
 // file, authored by the editor's public id (history shows "transcription"
-// for the book's transcription). Writes need a signed-in account (401
-// {error: "account_required", account: "required"}), are limited per
+// for the book's transcription). Writes need a signed-in account, one with a
+// passkey (a visitor's or no session: 401 {error: "account_required",
+// account: "required"}), are limited per
 // account (429 {error: "rate_limited"}) and answer RulesWriteResult. Each
 // commit is also sent to everyone on GET /api/v1/rules/events.
 

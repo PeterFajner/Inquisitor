@@ -11,7 +11,8 @@
 //   POST /api/v1/rules/move            canvas position only
 //   POST /api/v1/rules/revert          restore an entry as of a commit
 //   POST /api/v1/rules/packs           a new pack
-// Writes need a signed-in account and are rate limited per account.
+// Writes need a signed-in account, one with a passkey (not a visitor), and
+// are rate limited per account.
 import { currentViewer } from "../lib/accounts.ts";
 import { balanceFor } from "../lib/balance-store.ts";
 import { currentHeights } from "../lib/rules-heights.ts";
@@ -51,11 +52,12 @@ function limited(accountId: string): boolean {
 export const RULES_WRITES_PER_MINUTE_ALL = 300;
 const allWrites = new RateWindow(RULES_WRITES_PER_MINUTE_ALL, 60_000);
 
-// A signed-in, not rate-limited write: run `op` with the author's public id.
+// A not rate-limited write by an account with a passkey (visitors don't
+// edit the rules): run `op` with the author's public id.
 function write(op: (author: string, body: unknown) => Promise<unknown>) {
   return async (ctx: Ctx) => {
     const viewer = currentViewer(ctx);
-    if (!viewer.accountId || !viewer.publicId) throw new HttpError(401, "account_required");
+    if (!viewer.accountId || !viewer.publicId || !viewer.passkey) throw new HttpError(401, "account_required");
     if (limited(viewer.accountId) || !allWrites.hit()) {
       sendJson(ctx, { error: "rate_limited" }, 429, { "retry-after": "60" });
       return;

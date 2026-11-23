@@ -1,8 +1,10 @@
 // The builder ("/", "/c/<id>"): the character list and the selected
 // character's sheet, edited in place. Every edit is a new version (the
 // version tree in src/client/lib/characters.ts); undo/redo move the head
-// along the branch. Signed out, characters live in this browser; signed in,
-// in the account, and the browser's ones move there on sign-in.
+// along the branch. Characters live on the server, in the session's account
+// (a visitor's until "Create account" or "Sign in": src/client/lib/account.ts);
+// characters this browser kept itself before that go there once on load
+// (src/client/lib/legacy.ts).
 import { CircleArrowUp, Copy, History, Info, Menu, Plus, Redo2, ScrollText, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
@@ -11,17 +13,10 @@ import type { CharacterDiff } from "../../shared/engine/diff.ts";
 import type { ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { AccountButton } from "../components/account/AccountButton.tsx";
-import { account, importCharacters, type SignedIn } from "../lib/account.ts";
+import { account } from "../lib/account.ts";
 import { balanceText, distribution, quickDistribution } from "../lib/balance.ts";
-import {
-  backendFor,
-  clearImported,
-  headVersion,
-  localImportBody,
-  redoTarget,
-  undoTarget,
-  type ListRow,
-} from "../lib/characters.ts";
+import { characters as backend, headVersion, redoTarget, undoTarget, type ListRow } from "../lib/characters.ts";
+import { migrateLegacy } from "../lib/legacy.ts";
 import { loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 import { useStore } from "../lib/store.ts";
 import { CharacterView, type ViewEdits } from "./CharacterView.tsx";
@@ -35,11 +30,9 @@ import { ExportButtons } from "../export/ExportButtons.tsx";
 import { exportWord } from "../export/sheets.ts";
 import { ShareButton } from "../warband/ShareButton.tsx";
 import { shareCharacter } from "../warband/share.ts";
-import { warbandsFor } from "../warband/store.ts";
+import { warbands as wbBackend } from "../warband/store.ts";
 import { WarbandList } from "../warband/WarbandList.tsx";
 import { WarbandView } from "../warband/WarbandView.tsx";
-import { HistoryView } from "../history/HistoryView.tsx";
-import { findSource } from "../history/source.ts";
 import "./builder.css";
 
 const SELECTED = "inquisitor:selected";
@@ -58,15 +51,15 @@ const remembered = (): string | null => {
   }
 };
 
-/** /c/<id> for a saved character, / for one in this browser (or none). */
-function syncUrl(c: ApiCharacter | null, local: boolean) {
-  const path = c && !local ? `/c/${encodeURIComponent(c.id)}` : "/";
+/** /c/<id> for a character, / for none. */
+function syncUrl(c: ApiCharacter | null) {
+  const path = c ? `/c/${encodeURIComponent(c.id)}` : "/";
   if (location.pathname !== path) history.replaceState(null, "", path);
 }
 
-/** /w/<id> for a saved warband, / for one in this browser. */
-function syncWarbandUrl(id: string, local: boolean) {
-  const path = local ? "/" : `/w/${encodeURIComponent(id)}`;
+/** /w/<id> for a warband. */
+function syncWarbandUrl(id: string) {
+  const path = `/w/${encodeURIComponent(id)}`;
   if (location.pathname !== path) history.replaceState(null, "", path);
 }
 
@@ -181,7 +174,6 @@ function BalanceChip({ word, text }: { word: string; text: string }) {
 
 export function Builder({ data }: { data: PageData }) {
   const { signedIn } = useStore(account);
-  const backend = backendFor(signedIn);
   const [rules, setRules] = useState<Rules | null>(null);
   const [list, setList] = useState<ListRow[] | null>(null);
   const [char, setChar] = useState<ApiCharacter | null>(data.character ?? null);
@@ -207,12 +199,8 @@ export function Builder({ data }: { data: PageData }) {
     const t = setTimeout(() => setConfirmDelete(false), 4000);
     return () => clearTimeout(t);
   }, [confirmDelete]);
-  // The history canvas for a character kept in this browser (saved ones have /c/<id>/history).
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyFocus, setHistoryFocus] = useState<string | null>(null);
   const redoHint = useRef(new Map<string, string>());
   // Warbands (src/client/warband): the list under the characters; one shown instead of the character.
-  const wbBackend = warbandsFor(signedIn);
   const [warbands, setWarbands] = useState<Warband[]>([]);
   const [wb, setWb] = useState<string | null>(data.warband?.warband.id ?? null);
   const wbRef = useRef(wb);
@@ -222,30 +210,28 @@ export function Builder({ data }: { data: PageData }) {
     void loadRules().then(setRules, () => setRules(null));
   }, []);
 
-  // The list (and, signed in, the browser's characters into the account).
+  // The list (after this browser's own kept characters, if any, went to the server).
   const refresh = useCallback(async (select?: string | null) => {
-    const b = backendFor(account.get().signedIn);
-    if (!b.local) {
-      const body = localImportBody();
-      if (body) {
-        try {
-          clearImported(await importCharacters(body));
-        } catch {}
-      }
-    }
+    try {
+      const imported = await migrateLegacy();
+      // The selected character was one of them: select what it became.
+      const cur = remembered();
+      const mapped = imported && cur ? imported.characters[cur] : undefined;
+      if (mapped) remember(mapped);
+    } catch {}
     let rows: ListRow[] = [];
     try {
-      rows = await b.list();
+      rows = await backend.list();
     } catch {}
     setList(rows);
     let bands: Warband[] = [];
     try {
-      bands = await warbandsFor(!b.local).list();
+      bands = await wbBackend.list();
     } catch {}
     setWarbands(bands);
     const shownWb = wbRef.current;
     if (shownWb && !bands.some((w) => w.id === shownWb)) setWb(null);
-    else if (shownWb) syncWarbandUrl(shownWb, b.local);
+    else if (shownWb) syncWarbandUrl(shownWb);
     const want = select !== undefined ? select : remembered();
     const id = want && rows.some((r) => r.id === want) ? want : rows[0]?.id ?? null;
     const onWarband = !!wbRef.current && bands.some((w) => w.id === wbRef.current);
@@ -253,15 +239,15 @@ export function Builder({ data }: { data: PageData }) {
       setChar(null);
       if (!onWarband) {
         setCreating(true);
-        syncUrl(null, b.local);
+        syncUrl(null);
       }
       return;
     }
     try {
-      const c = await b.get(id);
+      const c = await backend.get(id);
       setChar(c);
       remember(c.id);
-      if (!onWarband) syncUrl(c, b.local);
+      if (!onWarband) syncUrl(c);
     } catch {
       setChar(null);
     }
@@ -327,8 +313,6 @@ export function Builder({ data }: { data: PageData }) {
 
   const select = async (id: string) => {
     setListOpen(false);
-    setHistoryOpen(false);
-    setHistoryFocus(null);
     setCreating(false);
     setUpdate(null);
     setWb(null);
@@ -336,7 +320,7 @@ export function Builder({ data }: { data: PageData }) {
       const c = await backend.get(id);
       setChar(c);
       remember(c.id);
-      syncUrl(c, backend.local);
+      syncUrl(c);
     } catch {}
   };
 
@@ -348,11 +332,10 @@ export function Builder({ data }: { data: PageData }) {
       const c = await backend.create({ name: "", record: rec, rules_version: rules.version, kind: mode === "random" ? "roll" : "manual" });
       setChar(c);
       setCreating(false);
-      setHistoryOpen(false);
       setWb(null);
       remember(c.id);
-      syncUrl(c, backend.local);
-      setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at, local: backend.local }, ...(l ?? [])]);
+      syncUrl(c);
+      setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at }, ...(l ?? [])]);
     } catch {
     } finally {
       setBusy(false);
@@ -364,11 +347,10 @@ export function Builder({ data }: { data: PageData }) {
     setBusy(true);
     try {
       const c = await backend.duplicate(char.id, char.head_id);
-      setHistoryOpen(false);
       setChar(c);
       remember(c.id);
-      syncUrl(c, backend.local);
-      setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at, local: backend.local }, ...(l ?? [])]);
+      syncUrl(c);
+      setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at }, ...(l ?? [])]);
     } catch {
     } finally {
       setBusy(false);
@@ -385,7 +367,6 @@ export function Builder({ data }: { data: PageData }) {
     setBusy(true);
     try {
       await backend.remove(char.id);
-      setHistoryOpen(false);
       remember(null);
       await refresh(null);
     } catch {
@@ -394,37 +375,6 @@ export function Builder({ data }: { data: PageData }) {
     }
   };
   useEffect(() => setConfirmDelete(false), [char?.id]);
-  useEffect(() => {
-    if (!backend.local) setHistoryOpen(false);
-  }, [backend.local]);
-
-  // --- local history ------------------------------------------------------------
-
-  const historySetHead = async (versionId: string) => {
-    if (char && versionId !== char.head_id) await moveHead(versionId, char.head_id);
-  };
-  const historyDuplicate = async (versionId: string) => {
-    if (!char || busy) return;
-    setBusy(true);
-    try {
-      const c = await backend.duplicate(char.id, versionId);
-      setChar(c);
-      remember(c.id);
-      setHistoryOpen(false);
-      setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at, local: backend.local }, ...(l ?? [])]);
-    } catch {
-    } finally {
-      setBusy(false);
-    }
-  };
-  const historySource = async (versionId: string) => {
-    if (!char) return;
-    const id = await findSource(backend, versionId, char.id);
-    if (!id) return;
-    await select(id);
-    setHistoryFocus(versionId);
-    setHistoryOpen(true);
-  };
 
   const openUpdate = async () => {
     if (!rules || !record || !head) return;
@@ -527,15 +477,8 @@ export function Builder({ data }: { data: PageData }) {
 
   // --- sign-in ------------------------------------------------------------------
 
-  const onSignedIn = (r: SignedIn) => {
-    if (r.imported) clearImported(r.imported);
-    const cur = char && remembered() === char.id ? char.id : null;
-    const mapped = cur && r.imported?.characters[cur];
-    if (mapped) remember(mapped);
-    const wbMapped = wb && r.imported?.warbands?.[wb];
-    if (wbMapped) setWb(wbMapped);
-    // refresh runs from the signedIn effect (and imports anything left).
-  };
+  // Signing in or out refreshes the list (the signedIn effect above): a
+  // visitor's characters keep their ids in the account signed into.
 
   const undoTo = char ? undoTarget(char) : null;
   const redoTo = char ? redoTarget(char, redoHint.current.get(char.head_id)) : null;
@@ -551,15 +494,14 @@ export function Builder({ data }: { data: PageData }) {
 
   const showWarband = (id: string) => {
     setListOpen(false);
-    setHistoryOpen(false);
     setCreating(false);
     setUpdate(null);
     setWb(id);
-    syncWarbandUrl(id, wbBackend.local);
+    syncWarbandUrl(id);
   };
   const leaveWarband = () => {
     setWb(null);
-    syncUrl(char, backend.local);
+    syncUrl(char);
   };
   const newWarband = async () => {
     if (busy) return;
@@ -584,10 +526,7 @@ export function Builder({ data }: { data: PageData }) {
         <a class="home" href="/" aria-label="Inquisitor" title="Inquisitor">
           <img src="/static/icon.svg" alt="" width={28} height={28} />
         </a>
-        <IconButton label={L.newCharacter} pressed={creating} onClick={() => {
-            setCreating(!creating);
-            setHistoryOpen(false);
-          }} disabled={!rules}>
+        <IconButton label={L.newCharacter} pressed={creating} onClick={() => setCreating(!creating)} disabled={!rules}>
           <Plus size={ICON} />
         </IconButton>
         <IconButton label={L.rules} href="/rules" class="rules-link">
@@ -605,25 +544,12 @@ export function Builder({ data }: { data: PageData }) {
             <IconButton label={L.duplicate} disabled={busy} onClick={duplicate}>
               <Copy size={ICON} />
             </IconButton>
-            <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char, backend.local)} />
+            <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char.id)} />
             <ExportButtons disabled={busy} rows={() => [{ name: char.name, head: headVersion(char) }]} />
-            {/* History: the history canvas at /c/<id>/history for saved characters; in place for this browser's. */}
-            {backend.local ? (
-              <IconButton
-                label={L.history}
-                pressed={historyOpen}
-                onClick={() => {
-                  setHistoryFocus(null);
-                  setHistoryOpen(!historyOpen);
-                }}
-              >
-                <History size={ICON} />
-              </IconButton>
-            ) : (
-              <IconButton label={L.history} href={`/c/${encodeURIComponent(char.id)}/history`}>
-                <History size={ICON} />
-              </IconButton>
-            )}
+            {/* History: the history canvas at /c/<id>/history. */}
+            <IconButton label={L.history} href={`/c/${encodeURIComponent(char.id)}/history`}>
+              <History size={ICON} />
+            </IconButton>
             {outdated && (
               <IconButton label={L.update} class="attention" pressed={!!update} onClick={() => (update ? setUpdate(null) : void openUpdate())}>
                 <CircleArrowUp size={ICON} />
@@ -634,7 +560,7 @@ export function Builder({ data }: { data: PageData }) {
             </IconButton>
           </span>
         )}
-        <AccountButton importBody={localImportBody} onSignedIn={onSignedIn} onSignedOut={() => remember(null)} />
+        <AccountButton onSignedOut={() => remember(null)} />
       </header>
 
       <div class="builder-body">
@@ -687,25 +613,7 @@ export function Builder({ data }: { data: PageData }) {
               }}
             />
           )}
-          {!wb && historyOpen && backend.local && char && (
-            <div class="builder-history">
-              <HistoryView
-                key={char.id}
-                versions={char.versions}
-                headId={char.head_id}
-                rules={rules}
-                busy={busy}
-                focus={historyFocus}
-                onSetHead={historySetHead}
-                onOpen={(id) => {
-                  void historySetHead(id).then(() => setHistoryOpen(false));
-                }}
-                onDuplicate={historyDuplicate}
-                onSource={(id) => void historySource(id)}
-              />
-            </div>
-          )}
-          {!wb && !historyOpen && rules && built && record && char && (
+          {!wb && rules && built && record && char && (
             <>
               <CharacterView
                 key={char.id}
@@ -727,7 +635,6 @@ export function Builder({ data }: { data: PageData }) {
                   disabled={!rules}
                   onClick={() => {
                     setCreating(true);
-                    setHistoryOpen(false);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
