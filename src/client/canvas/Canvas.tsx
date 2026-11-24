@@ -38,6 +38,8 @@ export type CanvasCard = {
 export type CanvasWire = {
   from: string;
   to: string;
+  /** A route of its own (world points, first to last), drawn as straight lines with rounded turns, instead of a curve between facing sides. */
+  points?: readonly Point[];
   fromSide?: Side;
   toSide?: Side;
   /** Extra class on the path (the default stroke is --wire). */
@@ -126,6 +128,18 @@ export type CanvasProps = {
   drawCard?: (g: CanvasRenderingContext2D, card: CanvasCard, scale: number) => void;
   /** Screen pixels around the viewport whose cards stay mounted. */
   overscan?: number;
+  /**
+   * Draws over the drawn cards and under the mounted ones, every frame: in
+   * world units (the view's transform set), `vis` the visible world rect,
+   * `drawn(id)` whether a card shows its drawing there (not mounted, or the
+   * cards' layer is hidden). Keep it quick: it runs on every frame of a pan.
+   */
+  drawOver?: (g: CanvasRenderingContext2D, v: View, vis: Rect, dpr: number, drawn: (id: string) => boolean) => void;
+  /** Something drawOver drew that is a link, under a world point: its target card's id (taps and clicks there call onLink, the pointer shows a hand). */
+  linkAt?: (p: Point, v: View) => string | null;
+  onLink?: (id: string) => void;
+  /** Whether drawOver covers a card at this view (e.g. with an index): no selection outline, wire or wire mark is drawn for it. */
+  covered?: (id: string, v: View) => boolean;
   /** Outline the cards at each wire's ends and point to those off screen (for a few wires at a time: the selected card's). */
   wireMarks?: boolean;
   /** The card under the mouse pointer (null when none), whenever it changes. */
@@ -372,17 +386,6 @@ export function Canvas(props: CanvasProps) {
       g.strokeStyle = look.line;
       g.stroke();
     }
-    // Wires: widths and dashes in screen pixels (non-scaling, as the SVG strokes were).
-    for (const w of wireList.current) {
-      if (!intersects(w.box, vis)) continue;
-      g.strokeStyle = w.look.stroke;
-      g.globalAlpha = w.look.alpha;
-      g.lineWidth = w.look.width / v.k;
-      g.setLineDash(w.look.dash.map((d) => d / v.k));
-      g.stroke(w.path);
-    }
-    g.globalAlpha = 1;
-    g.setLineDash([]);
     const r = 12, round = r * v.k >= 1.5 && typeof g.roundRect === "function";
     const t = tiles.current;
     // Drawn cards: their tiles; plain boxes only where no tile is drawn yet.
@@ -412,7 +415,27 @@ export function Canvas(props: CanvasProps) {
       g.fill();
       g.restore();
     }
-    const sel = phList.current[phSelected.current];
+    // The caller's drawing over the drawn cards (titles, indexes), then wires over that (they run between cards).
+    if (P.current.drawOver) {
+      const mounted = levels.current, hid = hidRef.current;
+      g.save();
+      P.current.drawOver(g, v, vis, dpr, (id) => hid || !mounted.has(id));
+      g.restore();
+      g.setTransform(v.k * dpr, 0, 0, v.k * dpr, v.x * dpr, v.y * dpr);
+    }
+    // Wires: widths and dashes in screen pixels (non-scaling, as the SVG strokes were).
+    const covered = P.current.covered;
+    for (const w of wireList.current) {
+      if (!intersects(w.box, vis) || covered?.(w.from, v) || covered?.(w.to, v)) continue;
+      g.strokeStyle = w.look.stroke;
+      g.globalAlpha = w.look.alpha;
+      g.lineWidth = w.look.width / v.k;
+      g.setLineDash(w.look.dash.map((d) => d / v.k));
+      g.stroke(w.path);
+    }
+    g.globalAlpha = 1;
+    g.setLineDash([]);
+    const sel = covered?.(phIds.current[phSelected.current], v) ? undefined : phList.current[phSelected.current];
     if (sel && t) {
       // As a mounted card's outline (canvas.css): 3px, 3px out.
       const px = 1 / v.k;
@@ -472,7 +495,7 @@ export function Canvas(props: CanvasProps) {
     for (const w of wireList.current) {
       const ends: [string, string][] = [[w.from, w.to], [w.to, w.from]];
       for (const [id, other] of ends) {
-        if (skip.has(id) || done.has(id)) continue;
+        if (skip.has(id) || done.has(id) || P.current.covered?.(id, v) || P.current.covered?.(other, v)) continue;
         done.add(id);
         const r = rectOf(id), o = rectOf(other);
         if (!r || !o) continue;
@@ -1015,6 +1038,11 @@ export function Canvas(props: CanvasProps) {
     const move = (e: PointerEvent) => {
       const prev = pointers.current.get(e.pointerId);
       if (!prev) {
+        if (e.pointerType === "mouse" && !e.buttons && P.current.linkAt && gesture.current.mode === "none") {
+          const onUi = (e.target as Element).closest(".cv-ui, .cv-minimap, .cv-card");
+          const link = !onUi && P.current.linkAt(toWorld(viewRef.current, local(e)), viewRef.current);
+          root.classList.toggle("is-link", !!link);
+        }
         if (e.pointerType === "mouse" && !e.buttons && P.current.onHover && gesture.current.mode === "none") {
           const el = (e.target as Element).closest<HTMLElement>(CARD);
           hover(el ? el.dataset.id ?? null : (e.target as Element).closest(".cv-ui, .cv-minimap") ? null : placeholderAt(local(e))?.id ?? null);
@@ -1072,7 +1100,11 @@ export function Canvas(props: CanvasProps) {
         setDrag(null);
       }
       // A tap or click that didn't move: on a placeholder selects it, on the background selects nothing.
-      const tapAt = () => P.current.onSelect?.(placeholderAt(local(e))?.id ?? null);
+      const tapAt = () => {
+        const link = P.current.linkAt?.(toWorld(viewRef.current, local(e)), viewRef.current);
+        if (link) P.current.onLink?.(link);
+        else P.current.onSelect?.(placeholderAt(local(e))?.id ?? null);
+      };
       if (g.mode === "pending-pan" && g.id === e.pointerId && !(e.target as Element).closest?.(CARD) && e.type === "pointerup") tapAt();
       if (g.mode === "pan" && g.id === e.pointerId && !suppressClick.current && e.type === "pointerup") tapAt();
       if (g.mode === "pending-card" && g.id === e.pointerId && e.type === "pointerup" && !(e.target as Element).closest?.(CARD)) P.current.onSelect?.(g.card);
@@ -1310,7 +1342,7 @@ export function Canvas(props: CanvasProps) {
     for (const w of wires) {
       const a = rectOf(w.from), b = rectOf(w.to);
       if (!a || !b) continue;
-      const p = wirePath(a, b, [w.fromSide, w.toSide]);
+      const p = w.points && w.points.length > 1 ? polyPath(w.points) : wirePath(a, b, [w.fromSide, w.toSide]);
       const box = { x: p.box.x - 1, y: p.box.y - 1, w: p.box.w + 2, h: p.box.h + 2 };
       list.push({ path: new Path2D(p.d), box, look: lookOf(w), from: w.from, to: w.to });
     }
@@ -1433,6 +1465,26 @@ export function Canvas(props: CanvasProps) {
       )}
     </div>
   );
+}
+
+/** Straight lines through the points, each turn rounded (up to 12 world units, half the shorter leg). */
+function polyPath(ps: readonly Point[]): { d: string; box: Rect } {
+  let d = `M${ps[0].x} ${ps[0].y}`;
+  for (let i = 1; i < ps.length - 1; i++) {
+    const a = ps[i - 1], b = ps[i], c = ps[i + 1];
+    const r = Math.min(12, Math.hypot(b.x - a.x, b.y - a.y) / 2, Math.hypot(c.x - b.x, c.y - b.y) / 2);
+    const u = (p: Point, q: Point) => {
+      const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      return { x: (q.x - p.x) / l, y: (q.y - p.y) / l };
+    };
+    const i1 = u(b, a), o1 = u(b, c);
+    d += `L${b.x + i1.x * r} ${b.y + i1.y * r}Q${b.x} ${b.y} ${b.x + o1.x * r} ${b.y + o1.y * r}`;
+  }
+  const z = ps[ps.length - 1];
+  d += `L${z.x} ${z.y}`;
+  const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  return { d, box: { x: x0, y: y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 } };
 }
 
 type SlotProps = {
