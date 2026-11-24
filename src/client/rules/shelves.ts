@@ -157,25 +157,38 @@ export function columns(cards: readonly { id: string; w: number; h: number }[], 
   return { cols, w, h };
 }
 
-export function layoutShelves(regions: readonly ShelfRegion[], cards: readonly ShelfCard[], opts: ShelfOptions = {}): ShelfLayout {
-  const o = { ...SHELF_DEFAULTS, ...opts };
-  const rank = opts.shelfRank ?? (() => 0);
-  const byId = new Map(cards.map((c) => [c.id, c]));
-  // Each region's shelves, in order, each with its cards A–Z.
-  type S = { label: string; name: string; cards: ShelfCard[]; memo: Map<number, Packed> };
-  const regionShelves = new Map<string, S[]>(regions.map((r) => [r.id, []]));
+/** A region's shelf: the book's group, its label ("" for none: the region's own title, or no group), its cards A–Z. */
+export type ShelfGroup<C extends ShelfCard = ShelfCard> = { region: string; name: string; label: string; cards: C[] };
+
+/**
+ * The cards on their shelves: region by region (in `regions` order), each
+ * region's shelves in book order (`rank`, ties A–Z), each shelf's cards A–Z.
+ * What the canvas lays out, and what the rules page lists. Pure.
+ */
+export function groupShelves<C extends ShelfCard>(regions: readonly ShelfRegion[], cards: readonly C[], rank: (region: string, shelf: string) => number = () => 0): ShelfGroup<C>[] {
+  const regionShelves = new Map<string, ShelfGroup<C>[]>(regions.map((r) => [r.id, []]));
   const titles = new Map(regions.map((r) => [r.id, r.title]));
   for (const c of cards) {
     const list = regionShelves.get(c.region);
     if (!list) continue;
     let s = list.find((x) => x.name === c.shelf);
-    if (!s) list.push((s = { name: c.shelf, label: c.shelf === titles.get(c.region) ? "" : c.shelf, cards: [], memo: new Map() }));
+    if (!s) list.push((s = { region: c.region, name: c.shelf, label: c.shelf === titles.get(c.region) ? "" : c.shelf, cards: [] }));
     s.cards.push(c);
   }
   for (const [region, list] of regionShelves) {
     list.sort((a, b) => rank(region, a.name) - rank(region, b.name) || compareNames(a.name, b.name));
     for (const s of list) s.cards.sort((a, b) => compareNames(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
+  return [...regionShelves.values()].flat();
+}
+
+export function layoutShelves(regions: readonly ShelfRegion[], cards: readonly ShelfCard[], opts: ShelfOptions = {}): ShelfLayout {
+  const o = { ...SHELF_DEFAULTS, ...opts };
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  // Each region's shelves, in order, each with its cards A–Z.
+  type S = ShelfGroup & { memo: Map<number, Packed> };
+  const regionShelves = new Map<string, S[]>(regions.map((r) => [r.id, []]));
+  for (const g of groupShelves(regions, cards, opts.shelfRank)) regionShelves.get(g.region)!.push({ ...g, memo: new Map() });
   const packed = (s: S, k: number) => {
     const kk = Math.min(k, s.cards.length);
     let p = s.memo.get(kk);
