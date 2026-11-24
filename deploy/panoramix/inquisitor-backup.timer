@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Inquisitor backup
+
+[Timer]
+# panoramix's clock is Atlantic: 06:15 here is 05:15 on asterix, after its
+# 04:40 snapshot, and clear of the 05:15 viewpoint and 05:45 speci backups.
+OnCalendar=*-*-* 06:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

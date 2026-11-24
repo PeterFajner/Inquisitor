@@ -141,10 +141,44 @@ the cookie. To sign everyone out (in `bash` on asterix):
 sudo -u inquisitor node -e "new (require('node:sqlite').DatabaseSync)('/opt/inquisitor/data/inquisitor.db').exec('DELETE FROM account_sessions')"
 ```
 
-## Backups (to do before the switch)
+## Backups
 
-Same pattern as speci: a nightly SQLite online backup on asterix into
-`/opt/inquisitor/data/backups/` (don't copy `inquisitor.db` itself while the
-app runs: it's in WAL mode), pulled by panoramix and copied to OneDrive,
-add-only. The rules repo (`data/rules`, step 1) is backed up the same way and
-never mirrored to GitHub.
+Same pattern as speci: asterix keeps a week of snapshots, panoramix pulls
+and archives them, and rclone copies them to OneDrive under
+`Automated Backups/Inquisitor`. Every step is add-only, so a broken source
+can't erase good backups, and the OneDrive token stays off internet-facing
+asterix. The rules repo has no remote and is never mirrored to GitHub: the
+bundles are its only off-box copies.
+
+- **asterix, 04:40 Eastern** (`inquisitor-snapshot.timer`, after speci's
+  04:30): `dist/scripts/backup.js` (`scripts/backup.ts`) writes a SQLite
+  online backup of the database to
+  `/opt/inquisitor/data/backups/inquisitor-YYYY-MM-DD.db` (safe while the
+  app runs; don't copy `inquisitor.db` itself, it's in WAL mode) and a
+  verified `git bundle --all` of the rules repo to `rules-YYYY-MM-DD.bundle`
+  beside it; 7 of each kept. A second or so, a few MB of memory.
+- **panoramix, 06:15 Atlantic** (05:15 on asterix; `inquisitor-backup.timer`,
+  `/root/inquisitor-backup.sh` from `deploy/panoramix/`): rsyncs `backups/`
+  into `/mnt/cache/backups/inquisitor-backups/` (add-only), gzips each new
+  snapshot and copies each new bundle into
+  `/mnt/cache/backups/inquisitor-archives/{db,rules}/`, then `rclone copy`s
+  to `OneDrive:Automated Backups/Inquisitor/{db,rules}`. Logs to
+  `/var/log/inquisitor-backup.log`.
+
+Install (the snapshot script ships with `deploy/deploy.sh`, in `dist/`):
+
+```bash
+scp deploy/inquisitor-snapshot.service deploy/inquisitor-snapshot.timer asterix:/etc/systemd/system/
+ssh asterix "bash -c 'systemctl daemon-reload && systemctl enable --now inquisitor-snapshot.timer'"
+scp deploy/panoramix/inquisitor-backup.sh panoramix:/root/
+scp deploy/panoramix/inquisitor-backup.service deploy/panoramix/inquisitor-backup.timer panoramix:/etc/systemd/system/
+ssh panoramix "bash -c 'chmod 700 /root/inquisitor-backup.sh && systemctl daemon-reload && systemctl enable --now inquisitor-backup.timer'"
+```
+
+Restore: stop `inquisitor`, put a snapshot (gunzipped) in place of
+`/opt/inquisitor/data/inquisitor.db`, remove any `inquisitor.db-wal`/`-shm`;
+for the rules, `git clone rules-YYYY-MM-DD.bundle` (check it first with
+`git bundle verify` inside any repo) and put the clone at
+`/opt/inquisitor/data/rules` (`git remote remove origin` in it, so it stays
+remote-less); `chown -R inquisitor:inquisitor /opt/inquisitor/data`, start
+`inquisitor`.

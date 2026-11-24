@@ -1,0 +1,8 @@
+[Unit]
+Description=Inquisitor backup (pull from asterix + OneDrive copy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/inquisitor-backup.sh

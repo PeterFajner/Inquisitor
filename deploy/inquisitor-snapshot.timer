@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly Inquisitor snapshot
+
+[Timer]
+# After speci's 04:30 snapshot (asterix's clock is Eastern).
+OnCalendar=*-*-* 04:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,20 @@
+# Nightly snapshot of Inquisitor's database and rules repo into
+# /opt/inquisitor/data/backups (7 of each kept). panoramix's
+# inquisitor-backup.timer pulls them and copies them to OneDrive
+# (deploy/panoramix/, DEPLOY.md).
+[Unit]
+Description=Inquisitor nightly database and rules snapshot
+
+[Service]
+Type=oneshot
+User=inquisitor
+Group=inquisitor
+WorkingDirectory=/opt/inquisitor
+Environment=DATABASE_PATH=/opt/inquisitor/data/inquisitor.db
+Environment=RULES_DIR=/opt/inquisitor/data/rules
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist/scripts/backup.js
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/inquisitor/data
