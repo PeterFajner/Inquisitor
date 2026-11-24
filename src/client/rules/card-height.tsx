@@ -43,8 +43,8 @@ function engineFor(webkit: boolean): { layout: Layout; body: FElement } {
 
 /** A card's size as drawn on the canvas (not selected), with what it depends on: its
  * own width, or a wider one if a table in it would scroll sideways otherwise;
- * and where everything in it went (`ops`, src/shared/layout/paint.ts). */
-export function cardHeight(key: string, entry: Entry, meta: EntryMeta | undefined, names: Names, webkit = false): CardHeight & { ops: PaintOp[] } {
+ * and, with `paint`, where everything in it went (`ops`, src/shared/layout/paint.ts). */
+export function cardHeight(key: string, entry: Entry, meta: EntryMeta | undefined, names: Names, webkit = false, paint = true): CardHeight & { ops: PaintOp[] } {
   const engine = engineFor(webkit);
   const log = new Map<string, string>();
   const ctx = { ...ctxOf(entry, recordingNames(names, log)), go };
@@ -59,7 +59,7 @@ export function cardHeight(key: string, entry: Entry, meta: EntryMeta | undefine
   let h = 0;
   let ops: PaintOp[] = [];
   for (const x of widths) {
-    const m = engine.layout.measure(slot.childNodes[0], x, true);
+    const m = engine.layout.measure(slot.childNodes[0], x, paint);
     [w, h, ops] = [x, m.h, m.ops ?? []];
     if (!m.overflow) break;
   }
