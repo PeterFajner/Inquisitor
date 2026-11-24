@@ -15,12 +15,16 @@
 // - Natural weapons (the engine's `weapons`) are rows too, by their profile.
 // - "# Rld": an item's reloads, with the character's reloads effects.
 // - Game Notes: the character's attributes ("Warp Strength 5") and gameplay
-//   notes (the book's prose).
+//   notes (the book's prose); a roll the book makes at the start of each game
+//   is its sentence, then the table unrolled ("1-10 The gods are angry; …")
+//   for the GM to roll at the table.
+// - A roll that led to an item with nothing to choose from is a line in Other
+//   Equipment/Bionics/Etc, named by what was rolled ("Heavy weapon (Common)").
 // - Armour: the engine's AV per hit location (best piece plus extra AV),
 //   with any force field's dice after it.
 import { deriveStats } from "./engine/derived.ts";
 import type { Character, LocationArmour, Owned, OwnedItem } from "./engine/build.ts";
-import type { Location } from "./rules/schema.ts";
+import type { Location, Table } from "./rules/schema.ts";
 import type { Compendium } from "./rules/compendium.ts";
 import type { Item } from "./rules/schema.ts";
 import { STATS } from "./rules/schema.ts";
@@ -106,6 +110,18 @@ export function abilityOf(name: string, text: string | undefined): SheetAbility 
   if (effect && !/[.!?)]$/.test(effect)) effect += ".";
   return { name, effect };
 }
+
+/** A table as the book prints it, a line per row: "1-10 The gods are angry; …" (the column's ranges for a table with columns). */
+export function tableLines(t: Table, column?: string): string[] {
+  return t.rows.map((r) => {
+    const range = r.range ?? (column ? r.ranges?.[column] : undefined) ?? Object.values(r.ranges ?? {})[0];
+    const at = range ? (range[0] === range[1] ? `${range[0]}` : `${range[0]}-${range[1]}`) : "";
+    return [at, prose(r.label)].filter(Boolean).join(" ");
+  });
+}
+
+/** "Heavy weapon (Common)": a roll that came to nothing to choose from. */
+export const emptyLine = (e: { name: string; variants: string[] }): string => (e.variants.length ? `${e.name} (${e.variants.join(", ")})` : e.name);
 
 /** An armour cell: the AV, plus any force field dice ("6+D10"); blank for none. */
 export function armourCell(a: LocationArmour): string {
@@ -204,6 +220,12 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
     }
   }
 
+  // What a roll led to with nothing to choose from: still on the sheet, so the GM sees the roll happened.
+  for (const e of ch.empty ?? []) {
+    sheet.other.push(emptyLine(e));
+    refs.other.push({ kind: "item", id: "", overridden: false, fixed: true });
+  }
+
   // Natural weapons (claws, horns…): rows by their profile, as items are.
   for (const w of ch.weapons ?? []) {
     const asItem = { kind: "item", id: w.source, name: w.name, group: "", source: { page: 0 }, profile: w.profile } as unknown as Item;
@@ -223,6 +245,11 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
   sheet.gameNotes = [
     ...(ch.attributes ?? []).map((a) => `${a.name} ${a.value}`),
     ...ch.notes.filter((n) => n.kind === "gameplay").map((n) => prose(n.text)),
+    // Rolled at the start of each game: the book's sentence, then the table to roll on.
+    ...(ch.eachGame ?? []).flatMap((g) => {
+      const t = c.tables.get(g.table);
+      return [prose(g.text), ...(t ? [t.name, ...tableLines(t)] : [])];
+    }),
   ];
   return { sheet, refs };
 }

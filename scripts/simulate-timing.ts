@@ -4,13 +4,13 @@
 // `node scripts/simulate-timing.ts [--n=10000]` (or the compiled
 // dist/scripts/simulate-timing.js on the server).
 import { loadAllPacksIsolated } from "../src/lib/rules-files.ts";
-import { buildCompendium } from "../src/shared/rules/compendium.ts";
+import { buildCompendium, withoutHidden } from "../src/shared/rules/compendium.ts";
 import { simulate } from "../src/shared/engine/balance.ts";
 
 const a = process.argv.find((x) => x.startsWith("--n="));
 const n = a ? Number(a.slice(4)) : 10_000;
 const t0 = performance.now();
-const c = buildCompendium(loadAllPacksIsolated());
+const c = buildCompendium(withoutHidden(loadAllPacksIsolated()));
 console.log(`load ${Math.round(performance.now() - t0)} ms`);
 const rows: [string, number][] = [];
 let failed = 0;

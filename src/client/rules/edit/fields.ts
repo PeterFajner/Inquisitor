@@ -3,7 +3,7 @@
 // name, a condition, nested effects…). A type with no spec here (a newer
 // format) is edited as its JSON.
 import {
-  Ban, Brain, Calculator, Coins, CornerDownRight, Cpu, Dices, Equal, FileText, Hash, Infinity as InfinityIcon, KeyRound, Layers,
+  Ban, Brain, CalendarSync, Calculator, Coins, CornerDownRight, Cpu, Dices, Equal, FileText, Hash, Infinity as InfinityIcon, KeyRound, Layers,
   ListChecks, MapPin, Minus, Package, Percent, Plus, RefreshCw, Repeat2, Shield, Split, Star, StickyNote, Swords, Tag, TriangleAlert, Users,
   X, Zap,
 } from "lucide-preact";
@@ -108,6 +108,7 @@ export const EFFECT_FIELDS: Record<string, Field[]> = {
     f("rerollDuplicates", { k: "bool" }, L.random, Repeat2),
     f("qty", { k: "dice" }, L.qty, Hash),
     f("rerollUnless", { k: "json" }, L.filter, Tag),
+    f("eachGame", { k: "long" }, L.text, CalendarSync),
   ],
   when: [
     f("when", { k: "cond" }, L.if, Split, true),

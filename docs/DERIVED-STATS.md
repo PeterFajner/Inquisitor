@@ -115,8 +115,9 @@ these are rules in the data, not part of `deriveStats`:
   tables, InqLRBpart1.pdf p.42) and encumbrance ("For every 25 points, or part,
   that their equipment is more than their Encumbrance value they are at -1
   Speed (minimum 1)", InqLRBpart2.pdf p.42).
-- Base Injury value: the Loyalist guide's mutations "Scales" ("+1 Base Injury
-  Value") and "Rotting Flesh" ("-1 to its Base Injury Value"), guide p.92.
+- Base Injury value: the Loyalist guide's mutation "Scales" ("+1 Base Injury
+  Value"), guide p.92. (Its "Rotting Flesh", "-1 to its Base Injury Value",
+  is corrected to the articles' "Injuries are always moved up one level".)
 
 ## Worked examples
 

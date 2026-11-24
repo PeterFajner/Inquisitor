@@ -288,6 +288,7 @@ export type RollEffect = {
   qty?: Dice;
   rerollUnless?: { profile: string; includes: string };
   matchAvailability?: boolean;
+  eachGame?: string; // the book's "At the beginning of each game, … roll …": not rolled at creation
 };
 
 export type WhenEffect = { when: Condition; then: Effect[]; else?: Effect[] };
@@ -568,6 +569,11 @@ export const Effect: z.ZodType<Effect> = z.lazy(() =>
       qty: Dice.optional(),
       rerollUnless: z.strictObject({ profile: z.string(), includes: z.string() }).optional(),
       matchAvailability: z.boolean().optional(),
+      // "At the beginning of each game, … roll on …": the book's sentence. The
+      // roll isn't made when the character is built: the character shows this
+      // sentence instead of a result, and the GM's sheet lists the table
+      // unrolled (docs/RULES-FORMAT.md, "Rolled each game").
+      eachGame: z.string().min(1).optional(),
     }),
     z.strictObject({ when: Condition, then: EffectArray, else: EffectArray.optional() }),
     z.strictObject({ id: Id, alignment: z.array(Alignment).min(1) }),
@@ -715,6 +721,9 @@ const base = {
   // power points for the balance score (talents, abilities, items, …);
   // estimated, then tuned on the canvas
   points: z.number().optional(),
+  // kept in the data but shown nowhere: not served to the app (no pickers,
+  // random rolls, balance or rules canvas); docs/RULES-FORMAT.md, "Hidden entries"
+  hidden: z.boolean().optional(),
 };
 
 export const Subtype = z.strictObject({

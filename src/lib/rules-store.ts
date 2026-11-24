@@ -24,7 +24,7 @@ import {
   withPos,
 } from "./rules-files.ts";
 import { Broadcaster } from "./events.ts";
-import { buildCompendium, checkCompendium, entryKey, KIND_DIRS, type PackEntries } from "../shared/rules/compendium.ts";
+import { buildCompendium, checkCompendium, entryKey, KIND_DIRS, withoutHidden, type PackEntries } from "../shared/rules/compendium.ts";
 import { Entry, Id, Pack } from "../shared/rules/schema.ts";
 import type { EntryMeta, EntryVersion, RulesEvent, RulesIssue, RulesPayload, RulesWriteResult } from "../shared/api.ts";
 
@@ -163,7 +163,8 @@ const stripped = (e: Entry | null): unknown => {
 
 function load(): Store {
   const version = rulesVersion();
-  const packs = loadAllPacksIsolated();
+  // Hidden entries (`hidden: true`) stay in the files but the app never sees them.
+  const packs = withoutHidden(loadAllPacksIsolated());
   // One pass over the whole history: each file's last commit and its last
   // transcription commit.
   const files = new Map<string, FileLog>();
@@ -333,7 +334,9 @@ function checkBase(s: Store, path: string, now: Entry | null, base: unknown, pac
 }
 
 // Apply a committed change to memory and tell everyone.
-function applied(s: Store, pack: string, kind: string, id: string, path: string, next: Entry | null, c: { commit: string; at: string }, author: string): RulesWriteResult {
+function applied(s: Store, pack: string, kind: string, id: string, path: string, written: Entry | null, c: { commit: string; at: string }, author: string): RulesWriteResult {
+  // An entry saved hidden leaves the app's rules like a deleted one.
+  const next = written?.hidden ? null : written;
   const p = packEntries(s, pack);
   const i = p.entries.findIndex((e) => e.kind === kind && e.id === id);
   if (next) {

@@ -18,6 +18,7 @@ import type { Distribution } from "../shared/engine/balance.ts";
 import { BALANCE_N, BALANCE_SEED, balanceKey, type FromChild, type ToChild } from "./balance-key.ts";
 import { RULES_DIR } from "./rules-files.ts";
 import { rulesPayload } from "./rules-store.ts";
+import { buildCompendium } from "../shared/rules/compendium.ts";
 
 const WATCH_MS = 30_000;
 /** Kept result files (older rules are of no use). */
@@ -71,12 +72,19 @@ const mtime = (f: string) => {
   }
 };
 
-/** Every archetype/subtype of the current rules. */
+/**
+ * Every archetype/subtype of the current rules, as the app stacks them (an
+ * article's archetype replaces the book's with the same id) and serves them
+ * (hidden entries left out), as scripts/balance-warm.ts simulates them.
+ */
+let pairsOf: { version: string; pairs: string[] } | null = null;
 function pairs(): string[] {
-  const out: string[] = [];
-  for (const { entries } of rulesPayload().packs)
-    for (const e of entries) if (e.kind === "archetype") for (const s of e.subtypes) out.push(`${e.id}/${s.id}`);
-  return [...new Set(out)];
+  const p = rulesPayload();
+  if (pairsOf?.version !== p.version) {
+    const c = buildCompendium(p.packs);
+    pairsOf = { version: p.version, pairs: [...c.archetypes.values()].flatMap((a) => a.subtypes.map((s) => `${a.id}/${s.id}`)) };
+  }
+  return pairsOf.pairs;
 }
 
 const childScript = (): string => {

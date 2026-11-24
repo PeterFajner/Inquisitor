@@ -309,6 +309,8 @@ export function CharacterView({
   const prose = ch.notes.filter((n) => n.kind !== "gameplay");
   const talents = ch.talents.filter((t) => !fromBoons(t));
   const items = ch.items;
+  // A roll that came to nothing to choose from ("Heavy weapon (Common)"): shown, so the GM sees it happened.
+  const empty = ch.empty ?? [];
 
   return (
     <div class="char-view">
@@ -348,7 +350,7 @@ export function CharacterView({
               <Things c={c} list={ch.mutations} />
             </Section>
           )}
-          {items.length > 0 && (
+          {items.length + empty.length > 0 && (
             <Section title="Equipment">
               <ul class="csec-list">
                 {items.map((t) => {
@@ -361,6 +363,12 @@ export function CharacterView({
                     </li>
                   );
                 })}
+                {empty.map((e) => (
+                  <li class="empty-result">
+                    <b>{e.name}</b>
+                    {e.variants.length > 0 && ` (${e.variants.join(", ")})`}
+                  </li>
+                ))}
               </ul>
             </Section>
           )}

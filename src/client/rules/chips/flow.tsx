@@ -2,7 +2,7 @@
 // chance, roll, if, wielded, trade, and the generators (gear, powers,
 // bionics).
 import type { ComponentChildren } from "preact";
-import { ArrowLeftRight, Brain, Infinity as InfinityIcon, CircleDashed, Cpu, CornerDownRight, Dices, Hand, ListChecks, Package, Percent, Split } from "lucide-preact";
+import { ArrowLeftRight, Brain, CalendarSync, Infinity as InfinityIcon, CircleDashed, Cpu, CornerDownRight, Dices, Hand, ListChecks, Package, Percent, Split } from "lucide-preact";
 import type {
   BionicsEffect, ChanceEffect, Condition, Effect, GearEffect, OptionalEffect, PickEffect, PickFilter, PowersEffect, RollEffect,
   TradeEffect, WhenEffect, WieldedEffect,
@@ -159,6 +159,8 @@ register("roll", {
         <span class="tn">{ctx.names.name("table", e.roll)}</span>
         {col && <span class="note">{col}</span>}
         {e.qty !== undefined && <V>×{String(e.qty)}</V>}
+        {/* rolled at the start of each game: the book's sentence */}
+        {e.eachGame !== undefined && <Ic icon={CalendarSync} label={e.eachGame} />}
       </>
     );
     if (ctx.go && ctx.names.has("table", e.roll))

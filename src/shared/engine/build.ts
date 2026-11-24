@@ -122,6 +122,10 @@ export type RollResult = {
   lost?: boolean; // gear: a Common item downgraded, so lost
 };
 export type Note = { text: string; kind: "gameplay" | "gm" | "unfit"; proposal?: string; source: string; section?: string };
+/** A roll the book makes at the start of each game (a roll's `eachGame`): not rolled now; `text` is the book's sentence. */
+export type EachGame = { key: string; table: string; text: string; source: string };
+/** An item pick under a table roll with nothing to choose from: named by the results that led to it ("Heavy weapon", ["Common"]). */
+export type EmptyResult = { key: string; name: string; variants: string[]; source: string };
 
 /** One armour effect as worn: a piece (best per location counts) or extra AV on top. */
 export type ArmourPiece = {
@@ -154,6 +158,8 @@ export type Character = {
   powers: Owned[];
   items: OwnedItem[];
   rolls: RollResult[]; // every table result (boons: table "boons"), row labels
+  eachGame: EachGame[]; // rolls left for the start of each game
+  empty: EmptyResult[]; // item picks a roll led to with nothing to choose from
   notes: Note[];
   warnings: string[];
   overridden: {
@@ -189,6 +195,7 @@ export type LogEntry = {
   reused: boolean; // came from the input record unchanged
   forced?: boolean; // an override forced this choice
   rerolled?: boolean; // this result was re-rolled (a duplicate, or gear the character can't have)
+  eachGame?: boolean; // not rolled: the book rolls it at the start of each game (result: its sentence)
   section?: string; // the archetype's section (or the rule) it is met in, by the book's name
 };
 
@@ -471,6 +478,8 @@ class Pass {
   options: ChosenOption[] = [];
   alignment?: Alignment;
   rolls: RollResult[] = [];
+  eachGame: EachGame[] = [];
+  empty: EmptyResult[] = [];
   notes: Note[] = [];
 
   // constraints met this pass (compared with the lookahead)
@@ -1234,6 +1243,12 @@ class Pass {
     }
     const kind = e.pool!;
     const cands = this.poolOf(kind, e.filter);
+    // A roll that led to an item with nothing to choose from (no Common heavy
+    // weapon exists): the character still shows what was rolled.
+    if (kind === "item" && !cands.length && !open && count > 0 && !x.preset && !this.forced.has(key)) {
+      const chain = this.rolledChain(scope.parent);
+      if (chain.length) this.empty.push({ key, name: chain[0], variants: chain.slice(1), source: src.id });
+    }
     const { ids } = this.choose(
       key,
       {
@@ -1260,6 +1275,20 @@ class Pass {
       const qty = kind === "item" ? qtyOf() : 1;
       this.grant(kind, id, { ...this.origin(src, scope), key }, inner, qty, e.implanted ? { implanted: true } : {});
     }
+  }
+
+  /** The table results that led to `key`, outermost first, through chances and choices ("Heavy weapon", "Common"). */
+  rolledChain(key: string | undefined): string[] {
+    const byKey = new Map(this.log.map((l) => [l.key, l]));
+    const results = new Map(this.rolls.map((r) => [r.key, r.label]));
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (let k = key; k !== undefined && !seen.has(k); k = byKey.get(k)?.parent) {
+      seen.add(k);
+      const r = results.get(k);
+      if (r !== undefined) out.unshift(r);
+    }
+    return out;
   }
 
   intoTarget(into: string, src: Source, key: string): NonNullable<Owned["chosen"]> | undefined {
@@ -1425,6 +1454,22 @@ class Pass {
     const table = this.c.tables.get(e.roll);
     if (!table) {
       this.warn(`${key}: no table "${e.roll}"`);
+      return;
+    }
+    if (e.eachGame !== undefined) {
+      // Rolled at the start of each game, not now: the book's sentence stands
+      // where the result would (the GM's sheet lists the table).
+      this.eachGame.push({ key, table: table.id, text: e.eachGame, source: src.id });
+      this.log.push({
+        key,
+        parent: scope.parent,
+        type: "dice",
+        label: table.name,
+        result: [e.eachGame],
+        reused: true,
+        eachGame: true,
+        ...(this.section ? { section: this.section } : {}),
+      });
       return;
     }
     let wanted: string | undefined;
@@ -1989,6 +2034,8 @@ class Pass {
       powers: [],
       items: [],
       rolls: this.rolls,
+      eachGame: this.eachGame,
+      empty: this.empty,
       notes: this.notes,
       warnings: this.warnings,
       overridden: { stats: [], alignment: false, added: [], removed: [], choices: [...this.forcedUsed] },

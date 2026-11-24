@@ -93,6 +93,23 @@ sections:                    # the profile rows, in book order, with the book's 
 
 Cherubim-style fixed stat lines use numbers: `stats: { WS: 10, BS: 0, … }`.
 
+### Hidden entries
+
+Any entry may be `hidden: true`: it stays in the data (and `npm run
+rules:check` checks it) but appears nowhere. The server leaves it out of
+the rules it serves, so it is in no picker, random roll or balance
+simulation, and not on the rules canvas. Use it for material an article
+prints that isn't for building characters (Crone World's Bestiary and
+Special Characters, Hivequake's Newpitt Bestiary). Nothing visible may
+refer to a hidden entry: `rules:check` also checks the rules without them.
+
+```yaml
+id: newpitt-bestiary
+kind: archetype
+name: Newpitt Bestiary
+hidden: true
+```
+
 A subtype chosen by a roll ("Roll a D10. On a 1-3: they're a Rookie…")
 gives the archetype a `subtypeDie` and each subtype a `range`; the builder
 rolls it with `rollSubtype()` (key `<archetype>/@subtype`):
@@ -417,6 +434,20 @@ quality (lower-case option id: `crude`, `average`, `advanced`).
   gear: { count: D6+3, availability: [Common, Rare], require: [[Close combat weapon], [Pistol, Basic weapon, Heavy weapon], [Armour]] }
 ```
 
+A roll the book makes at the start of each game, not when the character is
+made, carries the book's sentence as `eachGame`:
+
+```yaml
+- id: gifts                                                              # Gifted Of Chaos
+  roll: gifted-of-chaos-table
+  eachGame: At the beginning of each game, this character makes a roll on the Gifted Of Chaos table.
+```
+
+The builder doesn't roll it: the character shows the sentence where the
+result would be, and the GM's sheet lists the table unrolled under it
+(docs/ENGINE.md, "The sheet"). A chance rolled each game that changes
+nothing at creation (Reptilian's "30% chance that it's cold") stays prose.
+
 `downgrade` stays a number for every result. `only` and `require` name
 generator rows. `matchAvailability`: under a gear result, rows whose items
 are of another availability are rolled again (items with none fit any).
@@ -460,7 +491,7 @@ generated result N steps and chooses its item. Random mode never trades.
 ### Derived values and attributes
 
 ```yaml
-- { derived: BIV, add: 1 }                              # Scales; Rotting Flesh -1
+- { derived: BIV, add: 1 }                              # Scales
 - { derived: BIV, counts: { T: 20 } }                   # Autosanguination: "counts their Toughness as 20 higher"
 - { derived: SS, counts: { T: -10 } }                   # Electro-grafts
 - { derived: Spd, add: 1 }                              # Glavian Bio-circuitry

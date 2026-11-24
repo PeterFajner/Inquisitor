@@ -122,6 +122,8 @@ type Character = {
   talents, exotics, mutations, powers: Owned[];          // { kind, id, name, from: Origin[], overridden? }
   items: (Owned & { qty })[];
   rolls: { key, table, label, availability?, lost? }[]; // every table result (boons: table "boons")
+  eachGame: { key, table, text, source }[];             // rolls left for the start of each game (a roll's `eachGame`)
+  empty: { key, name, variants, source }[];             // item picks a roll led to with nothing to choose from
   notes: { text, kind: "gameplay" | "gm" | "unfit", proposal?, source, section? }[];
   warnings: string[];
   overridden: { stats, alignment, added, removed, choices };
@@ -159,7 +161,14 @@ label, faces?, total?, result, reused, forced?, rerolled? }`. `label` and
 names. `parent` is the decision whose outcome led to this one (the pick
 that chose the option, the table roll whose row holds the effect).
 `rerolled` marks a result rolled again (a duplicate, or gear the character
-can't have).
+can't have). `eachGame` marks a roll the book makes at the start of each
+game: no dice, and its result is the book's sentence.
+
+A roll that leads to an item pick with nothing to choose from (Dead Or
+Alive's Heavy weapon on a Common: the book has no Common heavy weapon)
+leaves an `empty` result named by the table results that led to it,
+outermost first (`{ name: "Heavy weapon", variants: ["Common"] }`), so the
+character shows "Heavy weapon (Common)" and the GM sees the roll happened.
 
 ### Pending choices
 
@@ -340,7 +349,8 @@ the book's text:
   join with " / ".
 - **Melee rows**: profiles with `Reach`: `Reach Damage Parry Penalty`, the
   item's text; natural weapons.
-- **Other Equipment/Bionics/Etc**: every other item.
+- **Other Equipment/Bionics/Etc**: every other item, then any `empty`
+  result ("Heavy weapon (Common)").
 - Every item and ability shows its variants (one group per unit, joined by
   "; ") and what was picked into it in brackets, and `×qty`.
 - **Starting row**: final stats and the derived values.
@@ -348,7 +358,10 @@ the book's text:
   "Name (variants)" and the entry's text ("Word of the Emperor (Curse Of
   Undoing; Litany Of Spite)").
 - **Name line**: archetype, subtype, the archetype's own options, alignment.
-- **Game Notes**: attributes ("Warp Strength 5") and gameplay prose.
+- **Game Notes**: attributes ("Warp Strength 5") and gameplay prose; then
+  for each roll made at the start of each game (`eachGame`), the book's
+  sentence, the table's name and its rows unrolled ("1-10 The gods are
+  angry; …"), for the GM to roll at the table.
 
 Profiles follow `profileWhen` for this character's final stats.
 

@@ -5,7 +5,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { listPacks, loadPack, RULES_DIR } from "../src/lib/rules-files.ts";
-import { buildCompendium, type PackEntries } from "../src/shared/rules/compendium.ts";
+import { buildCompendium, withoutHidden, type PackEntries } from "../src/shared/rules/compendium.ts";
 import { simulate, type Distribution } from "../src/shared/engine/balance.ts";
 
 const flag = (name: string, dflt: number) => {
@@ -38,7 +38,7 @@ const visit = (id: string, seen: Set<string>) => {
   stack.push(p);
 };
 for (const id of loaded.keys()) visit(id, new Set());
-const c = buildCompendium(stack);
+const c = buildCompendium(withoutHidden(stack)); // hidden entries are never simulated
 
 const distributions: Record<string, Distribution> = {};
 const failures: Record<string, string> = {};

@@ -53,7 +53,7 @@ export function Decisions({ log, rolls, record, edit, alias }: { log: LogEntry[]
           const result = e.result.filter(Boolean).join(", ");
           const showResult = result && !(e.type === "dice" && result === String(e.total));
           return (
-            <tr class={`log-row${e.rerolled ? " rerolled" : ""}${e.forced ? " forced" : ""}${lost.has(e.key) ? " lost" : ""}`} style={{ "--depth": depth.get(e.key) ?? 0 }}>
+            <tr class={`log-row${e.rerolled ? " rerolled" : ""}${e.forced ? " forced" : ""}${lost.has(e.key) ? " lost" : ""}${e.eachGame ? " each-game" : ""}`} style={{ "--depth": depth.get(e.key) ?? 0 }}>
               <th scope="row" class="log-label">
                 {alias?.[e.label] ?? e.label}
               </th>
@@ -79,9 +79,11 @@ export function Decisions({ log, rolls, record, edit, alias }: { log: LogEntry[]
                       <PenLine size={ICON_SM} />
                     </IconButton>
                   )}
-                  <IconButton small label={`${L.reroll}: ${e.label}`} onClick={() => edit.reroll(e.key)}>
-                    <Dices size={ICON_SM} />
-                  </IconButton>
+                  {!e.eachGame && (
+                    <IconButton small label={`${L.reroll}: ${e.label}`} onClick={() => edit.reroll(e.key)}>
+                      <Dices size={ICON_SM} />
+                    </IconButton>
+                  )}
                 </td>
               )}
             </tr>

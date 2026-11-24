@@ -53,6 +53,15 @@ export function packOrder(stack: PackEntries[]): PackEntries[] {
   return out;
 }
 
+/**
+ * The packs without their hidden entries (`hidden: true`): what the app is
+ * served and simulates. Hidden entries stay in the data (and are checked)
+ * but appear nowhere: no picker, random roll, balance or rules canvas.
+ */
+export function withoutHidden(packs: PackEntries[]): PackEntries[] {
+  return packs.map((p) => (p.entries.some((e) => e.hidden) ? { ...p, entries: p.entries.filter((e) => !e.hidden) } : p));
+}
+
 // Later packs override earlier ones entry by entry; a pack always comes after
 // the packs it extends.
 export function buildCompendium(given: PackEntries[]): Compendium {

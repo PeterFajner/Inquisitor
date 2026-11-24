@@ -4,8 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { loadPack } from "../src/lib/rules-files.ts";
-import { buildCompendium, checkCompendium, type Compendium } from "../src/shared/rules/compendium.ts";
-import type { Effect } from "../src/shared/rules/schema.ts";
+import { buildCompendium, checkCompendium, withoutHidden, type Compendium } from "../src/shared/rules/compendium.ts";
+import { Entry, type Effect } from "../src/shared/rules/schema.ts";
 import * as dice from "../src/shared/engine/dice.ts";
 import { rollDie, seededRoller, splitmix32 } from "../src/shared/engine/rng.ts";
 import { build, BuildError, difficultyWithin, invalidateCompendium as invalidate, rollSubtype, type BuildResult } from "../src/shared/engine/build.ts";
@@ -1133,4 +1133,85 @@ test("packs: a pack stacks after the packs it extends, whatever the given order"
   assert.deepEqual(c.packs.map((p) => p.id), ["book", "article"]);
   assert.equal(c.talents.get("t")?.name, "Article's");
   assert.equal(c.origin.get("talent/t"), "article");
+});
+
+// A roll the book makes each game, a roll that comes to nothing to choose
+// from, and hidden entries (docs/RULES-FORMAT.md).
+const EACH_GAME = "At the beginning of each game, this character makes a roll on the Gifts table.";
+function playCompendium(): Compendium {
+  const fixed = { WS: "50", BS: "50", S: "50", T: "50", I: "50", Wp: "50", Sg: "50", Nv: "50", Ld: "50" };
+  const entries = [
+    { id: "dodge", kind: "talent", name: "Dodge", source: { page: 1 }, text: "Dodge." },
+    { id: "gifted", kind: "talent", name: "Gifted", source: { page: 1 }, text: EACH_GAME, effects: [{ id: "gifts", roll: "gifts", eachGame: EACH_GAME }] },
+    { id: "lascannon", kind: "item", name: "Lascannon", group: "Ranged Weapons", category: "Heavy weapon", availability: "Rare", source: { page: 1 } },
+    {
+      id: "gifts", kind: "table", name: "Gifts", die: "D6", source: { page: 1 },
+      rows: [
+        { range: [1, 3], label: "+10 WS", effects: [{ stat: "WS", add: 10 }] },
+        { range: [4, 6], label: "Dodge", effects: [{ talent: "dodge" }] },
+      ],
+    },
+    {
+      id: "heavy-availability", kind: "table", name: "Weapon availability", die: "D6", source: { page: 1 },
+      rows: [
+        { range: [1, 3], label: "Common", effects: [{ id: "common", pick: 1, pool: "item", filter: { category: ["Heavy weapon"], availability: ["Common"] } }] },
+        { range: [4, 6], label: "Rare", effects: [{ id: "rare", pick: 1, pool: "item", filter: { category: ["Heavy weapon"], availability: ["Rare"] } }] },
+      ],
+    },
+    {
+      id: "equipment", kind: "table", name: "Equipment table", die: "D6", source: { page: 1 },
+      rows: [{ range: [1, 6], label: "Heavy weapon", effects: [{ id: "heavy-weapon", roll: "heavy-availability" }] }],
+    },
+    {
+      id: "hunter", kind: "archetype", name: "Hunter", source: { page: 1 },
+      subtypes: [{ id: "hunter", name: "Hunter", stats: fixed }],
+      sections: [
+        { name: "Equipment", effects: [{ id: "equipment", roll: "equipment" }] },
+        { name: "Talents", effects: [{ talent: "gifted" }] },
+      ],
+    },
+    { id: "beasts", kind: "archetype", name: "Bestiary", hidden: true, source: { page: 2 }, subtypes: [{ id: "rat", name: "Giant Rat", stats: fixed }], sections: [] },
+  ];
+  const pack = { pack: { id: "play", name: "Play" }, entries: entries.map((e) => Entry.parse(e)) };
+  const c = buildCompendium(withoutHidden([pack]));
+  assert.deepEqual(checkCompendium(c), []);
+  return c;
+}
+
+test("rolled each game: not rolled now; the book's sentence instead of a result; the sheet lists the table", () => {
+  const c = playCompendium();
+  const b = build(c, newRecord(["play"], "hunter", "hunter"), { mode: "random", roll: seededRoller(1) });
+  const ch = b.character;
+  assert.deepEqual(ch.eachGame, [{ key: "gifted/gifts", table: "gifts", text: EACH_GAME, source: "gifted" }]);
+  assert.ok(!ch.rolls.some((r) => r.table === "gifts"), "no Gifts result");
+  assert.equal(ch.stats.WS.final, 50);
+  assert.deepEqual(ids(ch.talents), ["gifted"]);
+  const e = b.log.find((l) => l.key === "gifted/gifts")!;
+  assert.deepEqual([e.eachGame, e.result, e.faces], [true, [EACH_GAME], undefined]);
+  assert.equal(b.record.dice["gifted/gifts"], undefined, "no dice stored");
+  const notes = sheetCharacter(ch, c).gameNotes;
+  assert.deepEqual(notes.slice(notes.indexOf(EACH_GAME)), [EACH_GAME, "Gifts", "1-3 +10 WS", "4-6 Dodge"]);
+  // replaying the record rolls nothing
+  assert.deepEqual(build(c, b.record, { mode: "random", roll: noRolls }).character, ch);
+});
+
+test("a roll that comes to nothing to choose from still shows what was rolled", () => {
+  const c = playCompendium();
+  const r = newRecord(["play"], "hunter", "hunter");
+  const common = build(c, { ...r, dice: { "hunter/equipment": [6], "hunter/equipment>equipment/heavy-weapon": [2] } }, { mode: "random", roll: noRolls });
+  assert.deepEqual(common.character.items, []);
+  assert.deepEqual(common.character.empty.map(({ name, variants }) => ({ name, variants })), [{ name: "Heavy weapon", variants: ["Common"] }]);
+  assert.deepEqual(sheetCharacter(common.character, c).other, ["Heavy weapon (Common)"]);
+  const rare = build(c, { ...r, dice: { "hunter/equipment": [6], "hunter/equipment>equipment/heavy-weapon": [5] } }, { mode: "random", roll: noRolls });
+  assert.deepEqual(ids(rare.character.items), ["lascannon"]);
+  assert.deepEqual(rare.character.empty, []);
+});
+
+test("hidden entries: checked, but left out of the rules the app gets", () => {
+  const c = playCompendium();
+  assert.ok(c.archetypes.has("hunter"));
+  assert.ok(!c.archetypes.has("beasts"));
+  const pack = { pack: { id: "p", name: "P" }, entries: [Entry.parse({ id: "t", kind: "talent", name: "T", hidden: true, source: { page: 1 }, text: "T." })] };
+  assert.equal(withoutHidden([pack])[0].entries.length, 0);
+  assert.equal(pack.entries.length, 1, "the data keeps it");
 });

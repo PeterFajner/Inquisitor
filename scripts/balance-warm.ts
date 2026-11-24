@@ -6,12 +6,13 @@
 //   fork("scripts/balance-warm.ts", [key])
 import { loadAllPacksIsolated } from "../src/lib/rules-files.ts";
 import { BALANCE_N, BALANCE_SEED, balanceKey, type FromChild, type ToChild } from "../src/lib/balance-key.ts";
-import { buildCompendium } from "../src/shared/rules/compendium.ts";
+import { buildCompendium, withoutHidden } from "../src/shared/rules/compendium.ts";
 import { simulate } from "../src/shared/engine/balance.ts";
 
 const expected = process.argv[2];
 const send = (m: FromChild) => process.send?.(m);
-const packs = loadAllPacksIsolated();
+// as the server serves them (rules-store.ts): hidden entries left out
+const packs = withoutHidden(loadAllPacksIsolated());
 const key = balanceKey(packs);
 if (key !== expected) {
   send({ key, done: true });

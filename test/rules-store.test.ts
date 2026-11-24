@@ -336,6 +336,32 @@ test("a commit made outside the server is picked up", async () => {
   assert.equal(p.meta.core["talent/academic"].edited, false);
 });
 
+test("hidden entries stay in the files but aren't served: no rules canvas, picker or balance pair", async () => {
+  put("core/archetypes/beasts.yaml", {
+    id: "beasts",
+    kind: "archetype",
+    name: "Bestiary",
+    hidden: true,
+    source: { page: 16 },
+    subtypes: [{ id: "rat", name: "Giant Rat", stats }],
+    sections: [],
+  });
+  put("core/rules/specials.yaml", { id: "specials", kind: "rule", name: "Special Characters", hidden: true, source: { page: 20 }, text: "Rumours." });
+  sh("add", "-A");
+  execFileSync("git", ["-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "hidden"], {
+    env: { ...process.env, GIT_AUTHOR_NAME: "transcription", GIT_AUTHOR_EMAIL: "t@example.test", GIT_COMMITTER_NAME: "transcription", GIT_COMMITTER_EMAIL: "t@example.test" },
+  });
+  const p = await rules();
+  assert.equal(p.version, sh("rev-parse", "HEAD"));
+  const served = p.packs.flatMap((x: any) => x.entries.map((e: any) => `${e.kind}/${e.id}`));
+  assert.ok(served.includes("archetype/sage"));
+  assert.ok(!served.includes("archetype/beasts") && !served.includes("rule/specials"), served.join(", "));
+  assert.equal(p.meta.core["archetype/beasts"], undefined);
+  const balance = (a: string, s: string) => anon.get(`/api/v1/balance?version=${p.version}&archetype=${a}&subtype=${s}`);
+  assert.equal((await balance("beasts", "rat")).status, 404);
+  assert.notEqual((await balance("sage", "sage")).status, 404);
+});
+
 test("writes are serialised: concurrent moves all land", async () => {
   const ids = ["academic", "awareness", "dodge"];
   const rs = await Promise.all(ids.map((id, i) => editor.post("/api/v1/rules/move", { pack: "core", kind: "talent", id, pos: [100 + i, 0] })));
