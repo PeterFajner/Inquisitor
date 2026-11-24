@@ -5,11 +5,12 @@
 // edited). Selected, it offers edit (signed in) and history.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { ArrowDown, ArrowUp, Coins, FilePenLine, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
+import { ArrowDown, ArrowUp, Coins, CornerUpLeft, FilePenLine, History, Infinity as Unrestricted, Lock, Pencil, Play, Quote, Split, Tag, X } from "lucide-preact";
 import type { EntryMeta } from "../../shared/api.ts";
 import { STATS, type Archetype, type Effect, type Entry, type Item, type Table } from "../../shared/rules/schema.ts";
 import { Chip, condText, Effects, EffectChip, Ic, KIND_ICON, KIND_LABEL } from "./chips/index.ts";
 import { Arrow } from "./chips/ui.tsx";
+import { Ref } from "./chips/basic.tsx";
 import { cap, type Ctx } from "./ctx.ts";
 import { Icon } from "./icon.tsx";
 import { L } from "./labels.ts";
@@ -111,7 +112,12 @@ export function Body({ e, ctx }: { e: Entry; ctx: Ctx }): ComponentChildren {
     case "archetype":
       return <ArchetypeBody e={e} ctx={ctx} />;
     case "table":
-      return <TableBody e={e} ctx={ctx} />;
+      return (
+        <>
+          <TableBody e={e} ctx={ctx} />
+          <RolledBy table={e.id} ctx={ctx} />
+        </>
+      );
     case "item":
       return <ItemBody e={e} ctx={ctx} />;
     default:
@@ -143,6 +149,20 @@ export function Body({ e, ctx }: { e: Entry; ctx: Ctx }): ComponentChildren {
         </>
       );
   }
+}
+
+// The cards that roll on a table, each a link to its card.
+function RolledBy({ table, ctx }: { table: string; ctx: Ctx }) {
+  const by = ctx.names.rolledBy(table);
+  if (!by.length) return null;
+  return (
+    <div class="flow rc-by">
+      <Ic icon={CornerUpLeft} label={L.rolledBy} />
+      {by.map(([kind, id]) => (
+        <Ref kind={kind} id={id} ctx={ctx} />
+      ))}
+    </div>
+  );
 }
 
 // An entry's effects, leaving out gameplay prose that only repeats its text.

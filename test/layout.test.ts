@@ -136,6 +136,7 @@ const names = (map: Record<string, string>): Names => ({
   die: () => "D100",
   columns: () => [],
   list: () => [],
+  rolledBy: () => [],
 });
 
 test("card sizes: content keys, widths to try, and records that hold while their names do", () => {

@@ -1,7 +1,7 @@
 // What a chip needs to know beyond its effect: the book names of the
 // entries it refers to (across every visible pack), the entry's own option
 // and subtype names, and each table's die.
-import type { Compendium } from "../../shared/rules/compendium.ts";
+import { effectLists, walkEffects, type Compendium } from "../../shared/rules/compendium.ts";
 import type { Effect, Entry, Option } from "../../shared/rules/schema.ts";
 
 export type RefKind = "talent" | "exotic" | "item" | "mutation" | "power" | "table" | "archetype" | "rule";
@@ -14,6 +14,8 @@ export type Names = {
   list(kind: RefKind): [string, string][];
   /** A table's columns. */
   columns(table: string): string[];
+  /** The entries that roll on a table ([kind, id], A–Z by name). */
+  rolledBy(table: string): [RefKind, string][];
 };
 
 const MAPS: Record<RefKind, keyof Compendium> = {
@@ -27,9 +29,21 @@ const MAPS: Record<RefKind, keyof Compendium> = {
   rule: "rules",
 };
 
+/** Tables an entry rolls on (roll effects, bionics). */
+export function rollTargets(e: Entry): string[] {
+  const out = new Set<string>();
+  for (const { effects } of effectLists(e))
+    walkEffects(effects, (x) => {
+      if ("roll" in x && typeof x.roll === "string") out.add(x.roll);
+      if ("bionics" in x) out.add(x.bionics.table ?? "bionics-table");
+    });
+  return [...out];
+}
+
 export function namesOf(c: Compendium): Names {
   const lists = new Map<RefKind, [string, string][]>();
   const map = (k: RefKind) => c[MAPS[k]] as Map<string, Entry>;
+  let rollers: Map<string, [RefKind, string][]> | null = null;
   return {
     name: (k, id) => map(k).get(id)?.name ?? id,
     has: (k, id) => map(k).has(id),
@@ -38,6 +52,21 @@ export function namesOf(c: Compendium): Names {
       return e ? String(e.die) : null;
     },
     columns: (t) => c.tables.get(t)?.columns ?? [],
+    rolledBy(t) {
+      if (!rollers) {
+        rollers = new Map();
+        for (const k of Object.keys(MAPS) as RefKind[])
+          for (const e of map(k).values())
+            for (const to of rollTargets(e)) {
+              if (k === "table" && to === e.id) continue;
+              let l = rollers.get(to);
+              if (!l) rollers.set(to, (l = []));
+              l.push([k, e.id]);
+            }
+        for (const l of rollers.values()) l.sort((a, b) => map(a[0]).get(a[1])!.name.localeCompare(map(b[0]).get(b[1])!.name) || (a[1] < b[1] ? -1 : 1));
+      }
+      return rollers.get(t) ?? [];
+    },
     list(k) {
       let l = lists.get(k);
       if (!l) {

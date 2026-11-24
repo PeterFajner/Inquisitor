@@ -40,6 +40,8 @@ export const L = {
   conflict: "Changed by someone else",
   invalid: "Not valid",
   search: "Search",
+  /** A table's back-links: the cards that roll on it (approved, November 2026). */
+  rolledBy: "Rolled on by",
   points: "Points",
   page: "Page",
   name: "Name",

@@ -89,6 +89,11 @@ export function recordingNames(names: Names, log: Map<string, string>): Names {
       log.set(`l ${k}`, fnv1a(JSON.stringify(v)));
       return v;
     },
+    rolledBy(t) {
+      const v = names.rolledBy(t);
+      log.set(`r ${t}`, v.map((x) => x.join("/")).join("\u0001"));
+      return v;
+    },
   };
 }
 
@@ -109,6 +114,8 @@ export function depValue(names: Names, dep: string): string {
       return names.columns(what).join("\u0001");
     case "l":
       return fnv1a(JSON.stringify(names.list(what as RefKind)));
+    case "r":
+      return names.rolledBy(what).map((x) => x.join("/")).join("\u0001");
   }
   return "";
 }
