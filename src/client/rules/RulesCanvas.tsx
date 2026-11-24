@@ -5,8 +5,10 @@
 // so a first visit lays everything out at once. Cards too small to read
 // aren't mounted but drawn from their geometry (./greek.ts), and mounted
 // (fading in over the drawing) once their text would be readable; saved positions (entry.pos)
-// are ignored and cards aren't dragged. Wires join every
-// archetype and table to the tables it rolls on. Signed in, cards can be
+// are ignored and cards aren't dragged. Wires join an
+// archetype or table to the tables it rolls on, drawn only for the selected
+// and the hovered card (the cards at their ends outlined, or pointed to
+// from the edge when off screen). Signed in, cards can be
 // edited, created and deleted; edits from others arrive live and the
 // changed card is highlighted.
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
@@ -282,7 +284,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
   );
 
   // Wires: archetypes and tables to every table they roll on (the topmost visible pack's).
-  const wires: CanvasWire[] = useMemo(() => {
+  const allWires: CanvasWire[] = useMemo(() => {
     const out: CanvasWire[] = [];
     for (const { key, it } of ordered) {
       if (it.entry.kind !== "archetype" && it.entry.kind !== "table") continue;
@@ -290,20 +292,27 @@ export function RulesCanvas({ data }: { data: PageData }) {
         const pack = compendium.origin.get(`table/${t}`);
         if (!pack) continue;
         const to = keyOf(pack, "table", t);
-        if (to !== key) out.push({ from: key, to, class: it.entry.kind === "archetype" ? "rw rw-a" : "rw" });
+        if (to !== key) out.push({ from: key, to, class: "rw" });
       }
     }
     return out;
   }, [ordered, compendium]);
 
-  // Fly to a card an entry names.
+  // Shown only in context: the selected card's wires, and the hovered card's (all of them at once are a tangle).
+  const [hovered, setHovered] = useState<Key | null>(null);
+  const wires = useMemo(
+    () => (selected || hovered ? allWires.filter((w) => w.from === selected || w.to === selected || w.from === hovered || w.to === hovered) : []),
+    [allWires, selected, hovered],
+  );
+
+  // A card an entry names: selected, and brought into view at the same zoom (a click never zooms).
   const go = useCallback(
     (kind: RefKind, id: string) => {
       const pack = compendium.origin.get(`${kind}/${id}`);
       if (!pack) return;
       const key = keyOf(pack, kind, id);
       setSelected(key);
-      show(api.current, key);
+      api.current?.flyTo(key, { keepZoom: true });
     },
     [compendium],
   );
@@ -503,6 +512,8 @@ export function RulesCanvas({ data }: { data: PageData }) {
             placeholderBelow={readableAt(dpr)}
             overscan={OVERSCAN}
             wires={wires}
+            wireMarks
+            onHover={setHovered as (id: string | null) => void}
             regions={regions}
             selected={selected}
             onSelect={setSelected}

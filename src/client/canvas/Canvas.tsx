@@ -126,6 +126,10 @@ export type CanvasProps = {
   drawCard?: (g: CanvasRenderingContext2D, card: CanvasCard, scale: number) => void;
   /** Screen pixels around the viewport whose cards stay mounted. */
   overscan?: number;
+  /** Outline the cards at each wire's ends and point to those off screen (for a few wires at a time: the selected card's). */
+  wireMarks?: boolean;
+  /** The card under the mouse pointer (null when none), whenever it changes. */
+  onHover?: (id: string | null) => void;
   minimap?: boolean;
   controls?: boolean;
   labels?: Partial<CanvasLabels>;
@@ -144,6 +148,12 @@ const DEFAULT_H = 120;
 const LABEL_PX = 26;
 // Milliseconds of rendering per frame (or idle slice) for mounting cards and hidden measuring.
 const BUDGET = 8;
+// Milliseconds a frame may spend mounting cards while a zoom is under way (cards kept ahead, below).
+const ZOOM_BUDGET = 5;
+// Cards mounted ahead while zooming in, from this fraction of the mount zoom, and the most kept mounted but hidden.
+const AHEAD_FROM = 1 / 8;
+const KEEP_MAX = 64;
+const AHEAD_MAX_MS = 40;
 const idle: (f: () => void) => void =
   typeof requestIdleCallback === "function" ? (f) => requestIdleCallback(f, { timeout: 200 }) : (f) => setTimeout(f, 16);
 const KEY_PAN = 80;
@@ -185,9 +195,7 @@ export function Canvas(props: CanvasProps) {
   limitsRef.current = limits;
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const backRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
-  const frontRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLElement>(null);
   // The tabs' bottom edge: what a fit leaves clear at the top (read once per resize, not per fit).
   const insetRef = useRef(-1);
@@ -241,10 +249,30 @@ export function Canvas(props: CanvasProps) {
   // 2D canvas, redrawn with the view: hundreds of elements would cost the
   // browser's compositor time on every frame of a pan.
   const phCanvas = useRef<HTMLCanvasElement>(null);
+  // Region titles and wire marks, over the cards.
+  const topCanvas = useRef<HTMLCanvasElement>(null);
   const phList = useRef<Rect[]>([]);
   const phIds = useRef<string[]>([]);
   const phSelected = useRef(-1);
   const phColors = useRef<{ box: string; sel: string; ink: string; font: string } | null>(null);
+  // Each region class's fill and border, as a .cv-region element with that class would have them.
+  const regionLooks = useRef(new Map<string, { fill: string; line: string }>());
+  const regionLook = (cls: string | undefined) => {
+    const key = cls ?? "";
+    let look = regionLooks.current.get(key);
+    if (!look) {
+      const root = rootRef.current;
+      if (!root) return { fill: "transparent", line: "transparent" };
+      const el = document.createElement("div");
+      el.className = cls ? `cv-region cv-probe ${cls}` : "cv-region cv-probe";
+      root.appendChild(el);
+      const cs = getComputedStyle(el);
+      look = { fill: cs.backgroundColor, line: cs.borderTopColor };
+      el.remove();
+      regionLooks.current.set(key, look);
+    }
+    return look;
+  };
   // Cards drawn by the caller (drawCard), into tiles drawn when the main thread is idle.
   const tiles = useRef<Tiles | null>(null);
   if (props.drawCard && !tiles.current)
@@ -258,16 +286,23 @@ export function Canvas(props: CanvasProps) {
     tiles.current?.invalidate();
   }
   const tileWork = useRef(0);
-  const farRef = useRef(false);
-  const setFar = (far: boolean) => {
-    if (far === farRef.current) return;
-    farRef.current = far;
-    worldRef.current?.classList.toggle("is-far", far);
+  // Cards mounted but hidden (visibility), over their drawings: mounted ahead
+  // while zooming in, or kept after zooming out (most recently used last).
+  // The whole layer of cards is hidden below the mount zoom (`hidRef`), so
+  // crossing it shows what's mounted at once.
+  const kept = useRef(new Map<string, number>());
+  const keptTick = useRef(0);
+  const hidRef = useRef(false);
+  const setHid = (hid: boolean) => {
+    if (hid === hidRef.current) return;
+    hidRef.current = hid;
+    worldRef.current?.classList.toggle("is-hid", hid);
   };
   const phLabels = useRef<(string | undefined)[]>([]);
 
   // Wires are drawn on the same canvas, under the boxes; each one styled as an SVG path with its class and style would be.
-  const wireList = useRef<{ path: Path2D; box: Rect; look: WireLook }[]>([]);
+  const wireList = useRef<{ path: Path2D; box: Rect; look: WireLook; from: string; to: string }[]>([]);
+  const hoverRef = useRef<string | null>(null);
   const looks = useRef(new Map<string, WireLook>());
   const lookOf = (w: CanvasWire): WireLook => {
     const style = typeof w.style === "string" ? w.style : w.style ? JSON.stringify(w.style) : "";
@@ -299,9 +334,12 @@ export function Canvas(props: CanvasProps) {
     if (!cv || !s) return;
     const dpr = window.devicePixelRatio || 1;
     const W = Math.round(s.w * dpr), H = Math.round(s.h * dpr);
-    if (cv.width !== W || cv.height !== H) {
-      cv.width = W;
-      cv.height = H;
+    const top = topCanvas.current;
+    for (const c of [cv, top]) {
+      if (c && (c.width !== W || c.height !== H)) {
+        c.width = W;
+        c.height = H;
+      }
     }
     const g = cv.getContext("2d");
     if (!g) return;
@@ -319,6 +357,21 @@ export function Canvas(props: CanvasProps) {
     g.clearRect(0, 0, W, H);
     g.setTransform(v.k * dpr, 0, 0, v.k * dpr, v.x * dpr, v.y * dpr);
     const vis = visibleRect(v, s, 8);
+    // Regions (as .cv-region: a border of 1 screen pixel, at least 1 world pixel; corners 12 world pixels, at least 8 on screen).
+    const px = 1 / v.k;
+    const bw = Math.max(1, px), rr = Math.max(12, 8 * px);
+    g.lineWidth = bw;
+    for (const r of P.current.regions ?? []) {
+      if (!intersects(r, vis)) continue;
+      const look = regionLook(r.class);
+      g.beginPath();
+      if (typeof g.roundRect === "function") g.roundRect(r.x + bw / 2, r.y + bw / 2, r.w - bw, r.h - bw, rr - bw / 2);
+      else g.rect(r.x, r.y, r.w, r.h);
+      g.fillStyle = look.fill;
+      g.fill();
+      g.strokeStyle = look.line;
+      g.stroke();
+    }
     // Wires: widths and dashes in screen pixels (non-scaling, as the SVG strokes were).
     for (const w of wireList.current) {
       if (!intersects(w.box, vis)) continue;
@@ -376,6 +429,7 @@ export function Canvas(props: CanvasProps) {
       else g.rect(sel.x, sel.y, sel.w, sel.h);
       g.fill();
     }
+    drawTop(v, vis, dpr);
     // Card names once they'd be legible (LABEL_PX world pixels, at least 7 on screen), unless the cards are drawn.
     if (!t && LABEL_PX * v.k >= 7) {
       g.fillStyle = phColors.current.ink;
@@ -387,10 +441,90 @@ export function Canvas(props: CanvasProps) {
       });
     }
   }, []);
+  // Over the cards: region titles (as .cv-region-title: 600 weight, 1.1 line
+  // height, 0.3em above the region; 18 screen pixels, at least 28 world
+  // pixels, at most a twelfth of the region's width), and with wireMarks the
+  // cards at the drawn wires' ends outlined, or pointed to from the edge.
+  function drawTop(v: View, vis: Rect, dpr: number) {
+    const cv = topCanvas.current, s = sizeRef.current, c = phColors.current;
+    const g = cv?.getContext("2d");
+    if (!g || !s || !c) return;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, cv!.width, cv!.height);
+    g.setTransform(v.k * dpr, 0, 0, v.k * dpr, v.x * dpr, v.y * dpr);
+    g.fillStyle = c.ink;
+    g.textBaseline = "alphabetic";
+    for (const r of P.current.regions ?? []) {
+      const fs = Math.max(28, Math.min(18 / v.k, r.w / 12));
+      if (!intersects({ x: r.x, y: r.y - 1.4 * fs, w: r.w * 2, h: 1.4 * fs }, vis)) continue;
+      g.font = `600 ${fs}px ${c.font}`;
+      g.fillText(r.title, r.x, r.y - 0.48 * fs);
+    }
+    if (!P.current.wireMarks || !wireList.current.length) return;
+    const px = 1 / v.k;
+    const skip = new Set([P.current.selected ?? "", hoverRef.current ?? ""]);
+    const done = new Set<string>();
+    // (Clear of the tab bar at the top.)
+    const inner = visibleRect(v, s, -14);
+    const bar = inset() / v.k;
+    inner.y += bar;
+    inner.h -= bar;
+    for (const w of wireList.current) {
+      const ends: [string, string][] = [[w.from, w.to], [w.to, w.from]];
+      for (const [id, other] of ends) {
+        if (skip.has(id) || done.has(id)) continue;
+        done.add(id);
+        const r = rectOf(id), o = rectOf(other);
+        if (!r || !o) continue;
+        g.strokeStyle = g.fillStyle = w.look.stroke;
+        g.globalAlpha = Math.min(1, w.look.alpha + 0.2);
+        if (intersects(r, vis)) {
+          // An outline, 3 screen pixels out (as a selected card's, thinner).
+          g.lineWidth = 2 * px;
+          g.beginPath();
+          if (typeof g.roundRect === "function") g.roundRect(r.x - 3 * px, r.y - 3 * px, r.w + 6 * px, r.h + 6 * px, 12 + 3 * px);
+          else g.rect(r.x - 3 * px, r.y - 3 * px, r.w + 6 * px, r.h + 6 * px);
+          g.stroke();
+          continue;
+        }
+        // Off screen: a small arrowhead at the edge, on the line from the other end (or the centre) towards it.
+        const from = intersects(o, vis) ? center(o) : center(vis);
+        const to = center(r);
+        const dx = to.x - from.x, dy = to.y - from.y;
+        let t = 1;
+        if (dx > 0) t = Math.min(t, (inner.x + inner.w - from.x) / dx);
+        if (dx < 0) t = Math.min(t, (inner.x - from.x) / dx);
+        if (dy > 0) t = Math.min(t, (inner.y + inner.h - from.y) / dy);
+        if (dy < 0) t = Math.min(t, (inner.y - from.y) / dy);
+        const tip = { x: from.x + dx * t, y: from.y + dy * t };
+        const a = Math.atan2(dy, dx), L = 11 * px, Wd = 6 * px;
+        g.beginPath();
+        g.moveTo(tip.x, tip.y);
+        g.lineTo(tip.x - L * Math.cos(a) + Wd * Math.sin(a), tip.y - L * Math.sin(a) - Wd * Math.cos(a));
+        g.lineTo(tip.x - L * Math.cos(a) - Wd * Math.sin(a), tip.y - L * Math.sin(a) + Wd * Math.cos(a));
+        g.closePath();
+        g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+  }
   const requestDraw = useCallback(() => {
     if (!drawFrame.current) drawFrame.current = requestAnimationFrame(drawPh);
   }, [drawPh]);
   useEffect(() => () => cancelAnimationFrame(drawFrame.current), []);
+  // Drawn colours follow the page's theme.
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const on = () => {
+      phColors.current = null;
+      regionLooks.current.clear();
+      looks.current.clear();
+      requestDraw();
+    };
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
   // Tiles are drawn when the main thread is idle, a few milliseconds at a time.
   function scheduleTiles() {
     if (tileWork.current) return;
@@ -424,6 +558,7 @@ export function Canvas(props: CanvasProps) {
   const [keyboard, setKeyboard] = useState(false);
 
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  const indexOf = useMemo(() => new Map(cards.map((c, i) => [c.id, i])), [cards]);
   const byIdRef = useRef(byId);
   byIdRef.current = byId;
   const dragRef = useRef(drag);
@@ -470,27 +605,80 @@ export function Canvas(props: CanvasProps) {
     }
   }, []);
   useEffect(() => () => clearTimeout(zoomTimer.current), []);
-  const invK = useRef(NaN);
-  const setInv = (k: number) => {
-    if (k === invK.current) return;
-    invK.current = k;
-    backRef.current?.style.setProperty("--cv-inv", String(1 / k));
-    frontRef.current?.style.setProperty("--cv-inv", String(1 / k));
+  // Mounting ahead while zooming in (see apply): the rect the zoom is heading for, and the point it keeps still.
+  const ahead = useRef<{ rect: Rect; focal: Point } | null>(null);
+  const aheadFrame = useRef(0);
+  // Milliseconds a card costs to mount per world pixel of its height (learnt from the mounts ahead), and the last batch's height.
+  const aheadRate = useRef(0.004);
+  const aheadH = useRef(0);
+  const aheadT0 = useRef(0);
+  const aheadRest = useRef(0);
+  const aheadSamples = useRef(0);
+  const lastZoomAt = useRef(0);
+  const aheadPump = () => {
+    aheadFrame.current = 0;
+    const a = ahead.current;
+    if (!a) return;
+    const todo: { id: string; d: number }[] = [];
+    for (const c of P.current.cards) {
+      if (levels.current.has(c.id) || kept.current.has(c.id)) continue;
+      const r = rectOf(c.id)!;
+      if (!intersects(r, a.rect)) continue;
+      // (From the point to the card's nearest edge: a tall card under it comes first.)
+      const dx = Math.max(r.x - a.focal.x, 0, a.focal.x - r.x - r.w), dy = Math.max(r.y - a.focal.y, 0, a.focal.y - r.y - r.h);
+      todo.push({ id: c.id, d: Math.hypot(dx, dy) });
+    }
+    if (!todo.length) return;
+    todo.sort((x, y) => x.d - y.d);
+    // A frame's worth (by each card's expected cost), nearest first; while the
+    // zoom is still changing a smaller one, and no card that would take more
+    // than AHEAD_MAX_MS (a slow device's biggest cards wait for it to pause).
+    const now = performance.now();
+    const active = now - lastZoomAt.current < 40;
+    // (After a batch that overran, as many frames' worth rest before the next.)
+    if (active && now < aheadRest.current) {
+      aheadFrame.current = requestAnimationFrame(aheadPump);
+      return;
+    }
+    const budget = active ? ZOOM_BUDGET : BUDGET;
+    let cost = 0, h = 0;
+    for (const t of todo) {
+      const th = rectOf(t.id)!.h, c = th * aheadRate.current;
+      // (Until the cost is learnt, small cards only.)
+      if (active && (c > AHEAD_MAX_MS || (aheadSamples.current < 3 && th > 1200))) continue;
+      if (h && cost + c > budget) break;
+      keep(t.id);
+      cost += c;
+      h += th;
+    }
+    if (!h) {
+      aheadFrame.current = requestAnimationFrame(aheadPump);
+      return;
+    }
+    aheadH.current = h;
+    aheadT0.current = performance.now();
+    setMountTick((n) => n + 1);
   };
+  /** Marks a card kept (mounted, hidden below the mount zoom), most recently used; the least recently used beyond KEEP_MAX go. */
+  const keep = (id: string) => {
+    kept.current.delete(id);
+    kept.current.set(id, ++keptTick.current);
+    for (const old of kept.current.keys()) {
+      if (kept.current.size <= KEEP_MAX) break;
+      kept.current.delete(old);
+    }
+  };
+  useEffect(() => () => cancelAnimationFrame(aheadFrame.current), []);
   const requestPump = () => {
     if (pending.current.length && !mountFrame.current) mountFrame.current = requestAnimationFrame(pump);
   };
 
   // Moves the layers to the view; re-renders only when the mounted window must change.
   const apply = useCallback((v: View) => {
-    viewRef.current = v;
     const t = `translate(${v.x}px, ${v.y}px) scale(${v.k})`;
+    const v0 = viewRef.current;
+    viewRef.current = v;
     if (worldRef.current) worldRef.current.style.transform = t;
-    if (backRef.current) backRef.current.style.transform = t;
-    if (frontRef.current) frontRef.current.style.transform = t;
-    // Region borders and titles keep their screen size through --cv-inv; changing
-    // it restyles and repaints those big layers, so a zoom sets it once it rests.
-    if (Math.abs(v.k - lastK.current) <= 1e-9 || !winRef.current) setInv(v.k);
     const s = sizeRef.current;
     if (!s) return;
     miniRef.current?.place();
@@ -501,18 +689,30 @@ export function Canvas(props: CanvasProps) {
     // step is what made zooming slow. The window catches up once the zoom rests.
     const zooming = Math.abs(v.k - lastK.current) > 1e-9;
     lastK.current = v.k;
-    // Drawn cards: mounted ones zoomed in a gesture below where they'd be
-    // unmounted are hidden over their drawings, their layer's content not
-    // rendered (one element's style, not every card's): scaled far down, the
-    // browser repaints them at every step. Unmounted once the zoom rests.
-    setFar((zooming || zoomingRef.current) && !!winRef.current && !!tiles.current && v.k < 0.9 * (P.current.placeholderBelow ?? 0.32));
+    const T = P.current.placeholderBelow ?? 0.32;
+    // Drawn cards: below the mount zoom the cards' layer is hidden over their
+    // drawings (one element's class; from 10% below it once shown), whatever
+    // is mounted in it: scaled far down, the browser would repaint them at
+    // every step. Crossing it shows at once what's mounted.
+    if (tiles.current) setHid(v.k < (hidRef.current ? T : 0.9 * T));
     if (zooming && winRef.current) {
       zoomingRef.current = true;
+      lastZoomAt.current = performance.now();
+      // Zooming in towards (or past) the mount zoom: the cards it will show,
+      // about the point the zoom keeps still, are mounted ahead (hidden until
+      // it's crossed), a few each frame, nearest that point first.
+      if (tiles.current && v.k > v0.k && v.k >= AHEAD_FROM * T) {
+        const vis = visibleRect(v, s);
+        const f = Math.abs(v.k - v0.k) > 1e-9 ? { x: (v0.x - v.x) / (v.k - v0.k), y: (v0.y - v.y) / (v.k - v0.k) } : center(vis);
+        const F = { x: clamp(f.x, vis.x, vis.x + vis.w), y: clamp(f.y, vis.y, vis.y + vis.h) };
+        const q = Math.min(1, v.k / T);
+        ahead.current = { rect: { x: F.x + (vis.x - F.x) * q, y: F.y + (vis.y - F.y) * q, w: vis.w * q, h: vis.h * q }, focal: F };
+        if (!aheadFrame.current) aheadFrame.current = requestAnimationFrame(aheadPump);
+      }
       clearTimeout(zoomTimer.current);
       zoomTimer.current = window.setTimeout(() => {
         zoomingRef.current = false;
-        setFar(false);
-        setInv(viewRef.current.k);
+        ahead.current = null;
         updateWin(viewRef.current);
         requestPump();
         requestDraw();
@@ -769,7 +969,8 @@ export function Canvas(props: CanvasProps) {
       if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return;
       stopFlight();
       const p = local(e);
-      const cardEl = target.closest<HTMLElement>(CARD);
+      // (Cards hidden below the mount zoom are their drawings: as placeholders.)
+      const cardEl = hidRef.current ? null : target.closest<HTMLElement>(CARD);
       // A card drawn as a placeholder (on the placeholder canvas, not an element).
       const ph = cardEl ? null : placeholderAt(p);
       const touch = e.pointerType !== "mouse";
@@ -805,9 +1006,21 @@ export function Canvas(props: CanvasProps) {
       if (touch) gesture.current = { mode: "pending-pan", id: e.pointerId, start: p };
       else startPan(e.pointerId);
     };
+    const hover = (id: string | null) => {
+      if (id === hoverRef.current) return;
+      hoverRef.current = id;
+      P.current.onHover?.(id);
+      requestDraw();
+    };
     const move = (e: PointerEvent) => {
       const prev = pointers.current.get(e.pointerId);
-      if (!prev) return;
+      if (!prev) {
+        if (e.pointerType === "mouse" && !e.buttons && P.current.onHover && gesture.current.mode === "none") {
+          const el = (e.target as Element).closest<HTMLElement>(CARD);
+          hover(el ? el.dataset.id ?? null : (e.target as Element).closest(".cv-ui, .cv-minimap") ? null : placeholderAt(local(e))?.id ?? null);
+        }
+        return;
+      }
       const p = local(e);
       pointers.current.set(e.pointerId, p);
       const g = gesture.current;
@@ -918,6 +1131,8 @@ export function Canvas(props: CanvasProps) {
     root.addEventListener("focusin", onFocusIn);
     root.addEventListener("pointerdown", down);
     root.addEventListener("pointermove", move);
+    const leave = () => hover(null);
+    root.addEventListener("pointerleave", leave);
     root.addEventListener("pointerup", up);
     root.addEventListener("pointercancel", up);
     root.addEventListener("lostpointercapture", up);
@@ -930,6 +1145,7 @@ export function Canvas(props: CanvasProps) {
       root.removeEventListener("focusin", onFocusIn);
       root.removeEventListener("pointerdown", down);
       root.removeEventListener("pointermove", move);
+      root.removeEventListener("pointerleave", leave);
       root.removeEventListener("pointerup", up);
       root.removeEventListener("pointercancel", up);
       root.removeEventListener("lostpointercapture", up);
@@ -971,7 +1187,9 @@ export function Canvas(props: CanvasProps) {
   // Preact's onFocusIn doesn't map to "focusin".)
   const focusIn = useRef<(e: FocusEvent) => void>(() => {});
   focusIn.current = (e: FocusEvent) => {
-    if ((e.target as Element).matches?.(":focus-visible")) setKeyboard(true);
+    // Only keyboard focus moves the view: a click or tap on a card selects it and nothing else.
+    if (!(e.target as Element).matches?.(":focus-visible")) return;
+    setKeyboard(true);
     const el = (e.target as Element).closest<HTMLElement>(CARD);
     const s = sizeRef.current;
     if (!el || !s || gesture.current.mode !== "none") return;
@@ -992,12 +1210,6 @@ export function Canvas(props: CanvasProps) {
     P.current.onSelect?.(el.dataset.id!);
   };
 
-  const onDblClick = (e: MouseEvent) => {
-    if ((e.target as Element).closest(".cv-card, .cv-ph, .cv-ui, .cv-minimap")) return;
-    const b = rootRef.current!.getBoundingClientRect();
-    api.zoomBy(2, { x: e.clientX - b.left, y: e.clientY - b.top });
-  };
-
   // Mounts the next few pending cards (see `levels`).
   const pump = useCallback(() => {
     mountFrame.current = 0;
@@ -1015,10 +1227,20 @@ export function Canvas(props: CanvasProps) {
     setMountTick((n) => n + 1);
   }, []);
   useLayoutEffect(() => {
+    // What a mount costs includes laying the new cards out (else done later in the frame, uncounted).
+    if (mountT0.current || aheadT0.current) worldRef.current?.lastElementChild?.getBoundingClientRect();
     if (mountT0.current) {
       const l = mountLevel.current;
       mountN.current[l] = adaptCount(mountN.current[l], performance.now() - mountT0.current, BUDGET, 40);
       mountT0.current = 0;
+    }
+    if (aheadT0.current) {
+      const took = performance.now() - aheadT0.current;
+      const rate = took / Math.max(1, aheadH.current);
+      aheadRate.current = aheadSamples.current++ ? 0.7 * aheadRate.current + 0.3 * rate : rate;
+      aheadRest.current = performance.now() + Math.max(0, took - ZOOM_BUDGET);
+      aheadT0.current = 0;
+      if (ahead.current && !aheadFrame.current) aheadFrame.current = requestAnimationFrame(aheadPump);
     }
     if (pending.current.length && !mountFrame.current && !zoomingRef.current) mountFrame.current = requestAnimationFrame(pump);
     requestDraw();
@@ -1029,9 +1251,10 @@ export function Canvas(props: CanvasProps) {
   void sizeTick;
   const visibleCards = win ? cards.filter((c) => intersects(rectOf(c.id)!, win.rect) || c.id === drag?.id || c.id === selected) : [];
   const placeholders: CanvasCard[] = [];
-  const mounted: { c: CanvasCard; level: Level }[] = [];
+  const mounted: { c: CanvasCard; level: Level; kept?: boolean }[] = [];
   {
     const next = new Map<string, Level>();
+    const keeping = !!props.drawCard;
     const waiting: typeof pending.current = [];
     for (const c of visibleCards) {
       if (win!.lod) {
@@ -1042,6 +1265,9 @@ export function Canvas(props: CanvasProps) {
       const urgent = c.id === selected || c.id === drag?.id;
       const want: Level = !urgent && cheap && props.renderCheap && sz ? 1 : 2;
       let have = levels.current.get(c.id);
+      // A card kept mounted (ahead of a zoom, or since one) joins the window as it is.
+      if (!have && want === 2 && kept.current.has(c.id)) have = 2;
+      kept.current.delete(c.id);
       if (urgent) have = want;
       if (have !== want) waiting.push({ id: c.id, rect: rectOf(c.id)!, want });
       if (have) {
@@ -1049,8 +1275,19 @@ export function Canvas(props: CanvasProps) {
         mounted.push({ c, level: have });
       } else placeholders.push(c);
     }
+    // Zoomed out past the mount zoom: the window's cards are kept (hidden), so zooming back in shows them at once.
+    if (keeping && win?.lod) for (const id of levels.current.keys()) if (!next.has(id)) keep(id);
     levels.current = next;
     pending.current = waiting;
+    // At rest above it, what's kept outside the window goes.
+    if (win && !win.lod) kept.current.clear();
+    for (const id of kept.current.keys()) {
+      const c = byId.get(id);
+      if (!c) kept.current.delete(id);
+      else if (!next.has(id)) mounted.push({ c, level: 2, kept: true });
+    }
+    // In the cards' order, kept or not: a kept card joining the window isn't moved in the DOM (moving it lays it out again).
+    mounted.sort((a, b) => indexOf.get(a.c.id)! - indexOf.get(b.c.id)!);
     // Every card not mounted is drawn, not only the window's: while a zoom
     // leaves the window behind (see apply), the rest of the board still shows.
     const drawn = cards.filter((c) => !next.has(c.id));
@@ -1075,7 +1312,7 @@ export function Canvas(props: CanvasProps) {
       if (!a || !b) continue;
       const p = wirePath(a, b, [w.fromSide, w.toSide]);
       const box = { x: p.box.x - 1, y: p.box.y - 1, w: p.box.w + 2, h: p.box.h + 2 };
-      list.push({ path: new Path2D(p.d), box, look: lookOf(w) });
+      list.push({ path: new Path2D(p.d), box, look: lookOf(w), from: w.from, to: w.to });
     }
     return list;
   }, [win, wires, sizeTick, drag, cards]);
@@ -1098,11 +1335,11 @@ export function Canvas(props: CanvasProps) {
       role="group"
       aria-label={labels.canvas}
       onKeyDown={onKeyDown}
-      onDblClick={onDblClick}
     >
-      <div ref={backRef} class="cv-layer cv-back">
+      {/* Regions and their titles are drawn (on the canvases); the titles are headings for assistive technology. */}
+      <div class="cv-sr">
         {regions.map((r) => (
-          <div key={r.id} class={r.class ? `cv-region ${r.class}` : "cv-region"} data-region={r.id} style={{ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` }} />
+          <h2 key={r.id}>{r.title}</h2>
         ))}
       </div>
       <canvas ref={phCanvas} class="cv-phs" aria-hidden="true" />
@@ -1125,7 +1362,7 @@ export function Canvas(props: CanvasProps) {
               />
             );
           })}
-        {mounted.map(({ c, level }) => {
+        {mounted.map(({ c, level, kept }) => {
           const d = drag?.id === c.id ? drag : null;
           return (
             <CardSlot
@@ -1137,7 +1374,7 @@ export function Canvas(props: CanvasProps) {
               size={level === 1 ? sizes.current.get(c.id)! : null}
               selected={c.id === selected}
               dragging={!!d}
-              fade={!!props.drawCard}
+              fade={!!props.drawCard && !kept}
               render={renderCard}
               renderCheap={props.renderCheap}
               observer={observer}
@@ -1146,14 +1383,8 @@ export function Canvas(props: CanvasProps) {
           );
         })}
       </div>
-      {/* Region titles over everything, so one that grows past its gap when zoomed out stays readable. */}
-      <div ref={frontRef} class="cv-layer cv-front">
-        {regions.map((r) => (
-          <div key={r.id} class="cv-region-label" style={{ left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, "--rw": `${r.w}px` }}>
-            <h2 class="cv-region-title">{r.title}</h2>
-          </div>
-        ))}
-      </div>
+      {/* Region titles and wire marks over the cards. */}
+      <canvas ref={topCanvas} class="cv-phs cv-top" aria-hidden="true" />
       {props.measure && <div ref={measureRef} class="cv-measure" aria-hidden="true" inert />}
       {bar ? (
         <header class="cv-ui cv-bar" ref={tabsRef}>
@@ -1266,3 +1497,4 @@ class CardSlot extends Component<SlotProps> {
     );
   }
 }
+

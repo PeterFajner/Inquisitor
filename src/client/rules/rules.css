@@ -160,8 +160,8 @@ button.chip:hover { filter: brightness(0.96); }
 .prof td { padding: 3px 6px; text-align: center; background: var(--surface-2); white-space: pre-line; }
 
 /* wires: archetype → table in the accent tone, table → table in the wire tone */
-.cv-wire.rw { stroke: var(--wire); stroke-dasharray: 5 4; }
-.cv-wire.rw-a { stroke: var(--accent); stroke-dasharray: none; opacity: 0.7; }
+/* Only the selected (or hovered) card's wires are drawn: thin, under the cards; the cards at their ends are outlined in the same colour. */
+.cv-wire.rw { stroke: var(--wire); stroke-width: 1.25px; }
 
 /* ---- panels (editor, history) ---- */
 .rules-panel {

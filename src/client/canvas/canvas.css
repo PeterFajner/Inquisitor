@@ -18,33 +18,16 @@
    repainted every mounted card at its start and end; Chrome re-rasters them
    sharp once a zoom rests. */
 .cv-layer { will-change: transform; }
-.cv.is-moving .cv-card, .cv.is-moving .cv-ph { pointer-events: none; }
-.cv.is-dragging .cv-card, .cv.is-dragging .cv-ph { pointer-events: auto; }
+/* (No pointer-events: none on the cards while moving: an inherited property,
+   toggling it restyled every mounted card at the start and end of every move.) */
 .cv:not(.is-ready) .cv-layer { visibility: hidden; }
 
-/* Regions: an area under the cards (back layer); their titles sit above the
-   cards (front layer). --cv-inv (1/zoom) is set on those two small layers
-   only (not the cards'), so titles stay readable when zoomed out. */
-.cv-front { pointer-events: none; }
-.cv-region {
-  position: absolute;
-  border: max(1px, calc(1px * var(--cv-inv, 1))) solid var(--line);
-  border-radius: max(12px, calc(8px * var(--cv-inv, 1)));
-  background: var(--surface-2);
-}
-.cv-region-label { position: absolute; height: 0; }
-.cv-region-title {
-  position: absolute;
-  margin: 0;
-  bottom: 100%;
-  left: 0;
-  padding-bottom: 0.3em;
-  white-space: nowrap;
-  font: 600 max(28px, min(calc(18px * var(--cv-inv, 1)), calc(var(--rw) / 12))) / 1.1 var(--font);
-  color: var(--ink-2);
-  transform-origin: 0 100%;
-  pointer-events: none;
-}
+/* Regions and their titles are drawn on the canvases (big transformed
+   layers were re-rastered by WebKit at every step of a zoom); a hidden
+   .cv-region with a region's class gives its fill and border colour. */
+.cv-region { background: var(--surface-2); border: 1px solid var(--line); }
+.cv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.cv-top { pointer-events: none; }
 
 /* Wires are drawn on the placeholder canvas; .cv-wire (plus the caller's class/style) on a hidden probe path gives each its look. */
 .cv-probe { position: absolute; width: 0; height: 0; visibility: hidden; pointer-events: none; }
@@ -67,11 +50,11 @@
 .cv-ph:focus-visible { outline: 2px solid var(--focus); }
 .cv-card.is-drag { z-index: 1; box-shadow: var(--shadow); }
 /* A card mounted over its drawing (drawCard) fades in: its text seems to sharpen in place. */
-.cv-card.cv-in { animation: cv-in 0.18s ease-out both; }
+.cv-card.cv-in { animation: cv-in 0.1s ease-out both; }
 @keyframes cv-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cv-card.cv-in { animation: none; } }
-/* Zoomed (in a gesture) below where they'd be unmounted: hidden over their drawings (the browser would repaint them at every step). */
-.cv-world.is-far { content-visibility: hidden; }
+/* Below the mount zoom (with drawCard) mounted cards are hidden over their drawings: those kept for zooming back in, or mounted ahead of it. */
+.cv-world.is-hid { opacity: 0; }
 .cv-measure { position: absolute; left: -100000px; top: 0; visibility: hidden; pointer-events: none; contain: layout style; }
 .cv-measure > .cv-card { position: relative; }
 
