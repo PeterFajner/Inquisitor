@@ -47,11 +47,17 @@ step below is done.
 - **History**: every edit of a character (manual, re-roll, Luna) is a
   version; the history is a branching tree shown on the same canvas engine
   as the rules.
-- **Rules canvas**: one big pannable canvas, regions in book order
-  (Character Archetypes, Boons, Talents & Exotic Abilities, Equipment,
-  Psychic Powers, Mutations), tab icons fly to regions. Cards show rules
+- **Rules canvas**: one big pannable canvas laid out as shelves (owner,
+  November 2026; docs/CANVAS.md): a region per kind across every book
+  (Character Archetypes, Talents & Exotic Abilities, Equipment, Psychic
+  Powers, Mutations, Tables, Rules), the book's groups as labelled shelves,
+  cards A–Z; tab icons fly to regions. Far out, each region's A–Z index;
+  nearer, each card's title over its drawing; close up, the cards. The
+  packs menu filters the books (an article's cards carry its mark), a search
+  icon finds a card by name. Cards show rules
   visually as chips (effects) with the book's prose for gameplay-only text;
-  wires join archetypes to the tables they roll on. The book's original
+  the selected card's wires join it to the tables it rolls on and the cards
+  rolling on it, and a table lists those ("Rolled on by"). The book's original
   wording sits behind a quote icon with its page, marked stale once the
   card is edited. Anyone signed in edits; edits and card moves are live for
   everyone (SSE); a save against a stale version is refused and handed the

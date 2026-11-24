@@ -1,7 +1,7 @@
 # The canvas engine
 
 `src/client/canvas/` is an infinite, pannable and zoomable canvas for
-Preact. The rules canvas (~900 cards in the book's regions) and the
+Preact. The rules canvas (~960 cards on shelves, below) and the
 character history tree are built on it. It has no text of its own: region
 titles come from the caller (the book's section names), and every control
 is an icon with an `aria-label` and the same text as its `title`.
@@ -13,7 +13,7 @@ src/client/canvas/
   Minimap.tsx    the minimap (internal)
   tiles.ts       cards drawn ahead into tiles (drawCard; internal)
   geometry.ts    pure maths: transforms, zoom, fit, culling, fly path, wires
-  layout.ts      layoutRegions: masonry placement into regions
+  layout.ts      layoutRegions: masonry placement into regions (the rules canvas has its own: src/client/rules/shelves.ts)
   canvas.css     styles (base.css tokens only)
 test/canvas.test.ts  tests of geometry.ts and layout.ts
 ```
@@ -89,8 +89,11 @@ The canvas fills its container (`height: 100%`): give the parent a height.
 | `cards: CanvasCard[]` | `{id, x, y, w, h?, label?}`: world position of the top-left corner, width (the card is laid out at that CSS width), an estimated height until it's measured, an accessible name (also drawn on its placeholder, and the name of its keyboard stand-in). Order = Tab order. |
 | `renderCheap?(card, size)`, `cheapBelow?` | A cheaper rendering, fixed to the card's measured size, used for measured, unselected cards while the settled zoom is below `cheapBelow` (default 0.5). |
 | `renderCard(card, {selected})` | The card's content: ordinary Preact children (HTML, so text is selectable and accessible). **Keep it stable** (`useCallback`): a card re-renders only when its card object, position, selection or `renderCard` changes. Give a card a new object when its content changes. |
-| `wires?: CanvasWire[]` | `{from, to, fromSide?, toSide?, class?, style?}`: a curve between two cards (by id), drawn under the cards (every wire given: pass only those to show; the rules canvas passes the selected and the hovered card's). Sides default to the facing ones (`left`/`right`/`top`/`bottom`). Default stroke `--wire`; style per wire with `class` or `style` (e.g. `{stroke: "var(--accent)", strokeDasharray: "4 4"}`): wires are drawn on the placeholder canvas, each with the stroke, width, dashes and opacity a hidden `<path class="cv-wire …">` computes to (read once per class/style). Wires whose box is off screen aren't drawn. |
+| `wires?: CanvasWire[]` | `{from, to, fromSide?, toSide?, points?, class?, style?}`: a curve between two cards (by id), or with `points` a route of the caller's (world points, first to last: straight lines with rounded turns), drawn under the mounted cards and over the drawn ones (every wire given: pass only those to show; the rules canvas passes the selected card's, routed along the gutters). Sides default to the facing ones (`left`/`right`/`top`/`bottom`). Default stroke `--wire`; style per wire with `class` or `style` (e.g. `{stroke: "var(--accent)", strokeDasharray: "4 4"}`): wires are drawn on the placeholder canvas, each with the stroke, width, dashes and opacity a hidden `<path class="cv-wire …">` computes to (read once per class/style). Wires whose box is off screen aren't drawn. |
 | `wireMarks?` | Outlines the cards at the drawn wires' ends (thin, in the wire's colour; not the selected or hovered card) and, for an end off screen, draws a small arrowhead at the edge of the view pointing towards it (on the line from the other end; clear of the tab bar). For a few wires at a time. |
+| `drawOver?(g, view, vis, dpr, drawn)` | Draws over the drawn cards and under the mounted ones, every frame (the view's transform set; `vis` the visible world rect; `drawn(id)` whether the card shows its drawing there: not mounted, or the cards' layer hidden). Before the wires and the selection outline. Keep it quick: it runs on every frame of a pan. The rules canvas draws its indexes, shelf labels and titles here. |
+| `linkAt?(p, view)`, `onLink?(id)` | Something drawOver drew that is a link (a name in an index): the card id under a world point. A tap or click there calls `onLink` instead of selecting; the mouse pointer is a hand over it (`.cv.is-link`). |
+| `covered?(id, view)` | Whether drawOver covers a card at this view (an index over it): its selection outline, wires and wire marks aren't drawn. |
 | `onHover?(id \| null)` | The card under the mouse pointer (mounted or drawn), whenever it changes; null off the cards. Mouse only (not touch, not while a button is down). |
 | `regions?: CanvasRegion[]` | `{id, title, icon?, x, y, w, h, class?}`: a titled area under the cards, drawn on the placeholder canvas (fill and border as a `.cv-region` element with the region's `class` computes them). The title is drawn above the region's top-left corner, on a canvas over the cards (each is also an `<h2>` for assistive technology, visually hidden), and grows as you zoom out so it stays readable (up to a twelfth of the region's width): leave `regionGap` room for it. A region with an `icon` gets a tab in the tab bar (top left, or in the bar between `barStart` and `barEnd`) that flies to it; the tab of the region under the viewport's centre has `aria-current="true"`. |
 | `selected?`, `onSelect?(id \| null)` | Controlled selection. A click/tap on a card selects it (not when the click ended a text selection); a click/tap on the background or Escape selects nothing; Enter/Space on a focused card selects it. Selected cards get `data-selected` and `aria-current`. |
@@ -232,6 +235,23 @@ fit, mid zoom and readable in WebKit at 1512×982 and 1728×1117 at 2× run
 at a 16.7 ms median with a p95 of 18–20 ms (at fit they had a p95 of
 27–80 ms and frames over 100 ms before the regions and titles were drawn).
 
+With the shelves (November 2026; `scratchpad` scripts: Playwright,
+wheel events every 8 ms, rAF frame times, panning 2 s at fit, 0.12 (the
+indexes), 0.3 (titles) and 1, zooming 1 → fit and back in 2 s, pinching
+about 0.25 (index ↔ titles) and 0.6 (mounting); 960 cards), before → after:
+
+| | 1280 × 800 at 1× | 960 × 600 at 2× (a Nexus 7's) |
+|---|---|---|
+| Chrome | 16.7 ms median, p95 16.8 everywhere → the same | the same → the same |
+| Chrome, CPU slowed 6× | p95 16.8 (fit 0.021) → p95 33 at fit (0.046), 16.8 elsewhere | pan at fit: median 16.7, p95 33 (fit 0.020) → median 33, p95 50 (fit 0.031); zooming and the 0.25 pinch p95 16.8 → 33; elsewhere 16.7 |
+| WebKit | 17 ms median, p95 17–20 → the same (p95 18–19) | the same |
+
+Headless Chrome draws canvases in software here (no GPU: chrome://gpu),
+and a slowed CPU slows that too: far out, the frame is the canvases' pixel
+fill (the JavaScript is ~0.5 ms a frame), and the shelves' board, being
+compact, covers more of the screen at fit (5 tiles a frame, 1.2 MP, where
+it was 3, 0.8 MP); a phone's or tablet's Chrome draws canvases on the GPU.
+
 Earlier, in headless Chrome with the 964 cards of `data/rules`
 (`scratchpad` scripts, rAF frame times while wheel-panning/zooming each
 frame): at 1280×800 and 390×844, with the CPU slowed 6×, panning at fit,
@@ -309,6 +329,91 @@ ahead of a zoom, it's already there and simply shown).
   geometry's (left and right edges, baseline): within 1 px for every card
   but one whose text has a character the fonts lack (drawn by a system
   font, its width only guessed).
+
+## The rules canvas's layout: shelves (src/client/rules/shelves.ts)
+
+The rules canvas lays its cards out as a bookcase, so a card is found the
+way it would be in the book's index:
+
+- **Regions by kind, across every book**: Character Archetypes, Talents &
+  Exotic Abilities, Equipment, Psychic Powers, Mutations, Tables, Rules
+  (./regions.ts; "Tables" and "Rules" approved by the owner). An article's
+  entries go in the same region as the book's.
+- **Shelves** within a region: the book's own groups (an item's or
+  ability's `group`, a table's or rule's `group`: the book's section it's
+  printed under, docs/RULES-FORMAT.md; talents, exotic abilities and
+  mutations without one under the book's heading for them; an article's
+  rules under the article). A shelf's label is the group's name (none when
+  it's the region's own title, or for archetypes, which the book doesn't
+  group). Shelves are in book order: the first page the book has anything
+  of that group on, then groups only articles have, in pack order.
+- **A–Z** within a shelf (case, accents and punctuation aside), down
+  balanced columns read top to bottom, then left to right, like a
+  dictionary's: the cut between columns is where the tallest column is
+  lowest (bisection on its height), each column as wide as its widest card.
+- **Stacks**: a region's shelves flow down a stack and on into the next,
+  side by side (one card, The Gizmo, is 12,000 px tall: with every shelf
+  in one stack the rest of Equipment spread 73 columns wide). Each region
+  is as narrow as it can be within a height common to all, and that height
+  is chosen (from the cards' area, then a few corrections) so the whole
+  board is about 1.6 times as wide as it is tall. 21,000 × 13,000 world
+  pixels for the 960 cards; fit is zoom 0.046 at 1280 × 800.
+
+**The server bakes heights, not positions.** Positions depend on which
+books are shown (the books filter, below) and the browser has every card's
+height (the server's, `GET /api/v1/rules/heights`) before it lays anything
+out; laying out the 960 cards takes 2–6 ms (Node, M-series), so it is
+done in the browser whenever the shown books change, and not baked per
+filter. `layoutShelves` is pure and deterministic (test/shelves.test.ts).
+
+**The books filter** is the packs menu (Packs.tsx): hiding a book
+removes its cards and the layout closes up. The card under the viewport's
+centre (or the selected card, if it's in view and stays) keeps its place
+on screen (`anchorOf`, `keepStill`), also while the cards whose sizes
+that changes (a table's back-links) are worked out.
+
+**Marks**: each article pack has a shape (./marks.ts: circle, square,
+triangle, diamond, star, then outlined ones, in pack order; the book's own
+cards have none), in the card's bottom-right corner (outside the card's own
+layout, so heights are unchanged; drawn there too when the card is drawn),
+before its name in the index, after its title, and beside the pack in the
+menu, with the pack's name as `aria-label` and tooltip.
+
+**What a card shows follows the zoom**, drawn with the canvas's `drawOver`
+(text in device pixels at whole pixel sizes, so the glyphs drawn for one
+frame are reused while zooming):
+
+| zoom (any screen) | shows |
+|---|---|
+| far out | each region's **A–Z index** over it, once its names would be 9 CSS px: every shelf's label as a heading over its names (a heading never alone at a column's foot), in the columns that let the names be largest (`indexLayout`). A name is a link: a click or tap selects its card and flies there. The selected card's name is picked out, and those its wires join are outlined. |
+| from 0.25 | each drawn card's **title** in 36-world-pixel type over the top of its drawing (`wrap`, up to three lines), and shelf labels above their cards |
+| from the mount zoom (0.67 at 1×, 0.33 at 2×) | the cards themselves (unchanged, below) |
+
+The index gives way to the titles at the same zoom (0.25), in the same
+frame: both are drawn every frame, so nothing appears late. A title is
+drawn for every drawn card, under the mounted ones, so a card not mounted
+yet still shows its title.
+
+**Wires** join the selected card to the tables it rolls on and the cards
+that roll on it (a table's back-links), at right angles (`route`): out of
+the card's side by its title, along its column's gutter to the band above
+or below its shelf's cards, along that band to the gap beside its stack,
+along the gaps (and the board's top padding or its foot, or the region's,
+to a stack that isn't the next) to the other card's, and in the same way.
+The shortest of those, never across a card. Under an index they aren't
+drawn (`covered`).
+
+**Search** (Search.tsx): an icon (aria-label "Search") opens a field with
+no placeholder; typing lists the shown cards whose names hold it (names
+starting with it first, then a word starting with it, then the rest; A–Z),
+each with its kind's icon and its book's mark; choosing one (click, tap,
+arrows and Enter) selects it and flies there.
+
+**Back-links**: a table's card ends with a row of the cards that roll on
+it, after an icon with "Rolled on by" as its aria-label and tooltip, each
+a link that flies to its card. They're part of the card (and of its
+height): `Names.rolledBy` is recorded among the names a card looked up, so
+a height still holds only while the same cards roll on the table.
 
 ## Layout helper
 

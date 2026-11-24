@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { conflictFields, diffEntries, merge, textDiff } from "../src/client/rules/diff.ts";
 import { blankEffect, blankEntry, freshId, idsIn, kebab } from "../src/client/rules/edit/blank.ts";
-import { regionOf } from "../src/client/rules/regions.ts";
+import { regionOf, shelfOf, shelfRanker } from "../src/client/rules/regions.ts";
 import { Effect, Entry } from "../src/shared/rules/schema.ts";
 
 const talent = (over: Record<string, unknown> = {}) =>
@@ -68,12 +68,30 @@ test("textDiff keeps the changed words with a little context", () => {
   assert.ok(d.after.endsWith("…") || d.after.trim().length > 0);
 });
 
-test("regions: by kind, tables and rules by page, other packs their own", () => {
-  assert.equal(regionOf("loyalist", talent()), "talents");
-  assert.equal(regionOf("loyalist", { ...talent(), kind: "table", source: { page: 22 } } as unknown as Entry), "boons");
-  assert.equal(regionOf("loyalist", { ...talent(), kind: "rule", source: { page: 98 } } as unknown as Entry), "house-rule");
-  assert.equal(regionOf("loyalist", { ...talent(), kind: "table", source: { page: 92 } } as unknown as Entry), "mutations");
-  assert.equal(regionOf("homebrew", talent()), "pack:homebrew");
+test("regions by kind across every book; shelves are the book's groups", () => {
+  assert.equal(regionOf(talent()), "talents");
+  assert.equal(regionOf({ ...talent(), kind: "exotic" } as Entry), "talents");
+  assert.equal(regionOf({ ...talent(), kind: "table", source: { page: 22 } } as unknown as Entry), "tables");
+  assert.equal(regionOf({ ...talent(), kind: "rule", source: { page: 98 } } as unknown as Entry), "rules");
+  assert.equal(shelfOf(talent(), "Loyalist"), "Talents");
+  assert.equal(shelfOf(talent({ group: "Psyker Talents" }), "Loyalist"), "Psyker Talents");
+  assert.equal(shelfOf({ ...talent(), kind: "rule" } as Entry, "Crone World"), "Crone World");
+  assert.equal(shelfOf({ ...talent(), kind: "table", group: "Armour" } as unknown as Entry, "Dead or Alive"), "Armour");
+  assert.equal(shelfOf({ ...talent(), kind: "archetype" } as unknown as Entry, "Loyalist"), "");
+  // Book order: the first page the book has the shelf on (any kind), then articles' own shelves by pack.
+  const rank = shelfRanker(
+    [
+      { pack: "loyalist", entry: talent({ group: "Psyker Talents", source: { page: 34 } }) },
+      { pack: "loyalist", entry: talent({ source: { page: 24 } }) },
+      { pack: "crone-world", entry: { ...talent(), kind: "rule", source: { page: 2 } } as Entry },
+      { pack: "dead-or-alive", entry: { ...talent(), kind: "table", group: "Talents", source: { page: 3 } } as unknown as Entry },
+    ],
+    ["loyalist", "dead-or-alive", "crone-world"],
+    (id) => (id === "crone-world" ? "Crone World" : id),
+  );
+  assert.ok(rank("talents", "Talents") < rank("talents", "Psyker Talents"));
+  assert.equal(rank("tables", "Talents"), 24);
+  assert.ok(rank("rules", "Crone World") > 1000);
 });
 
 test("blanks: ids are unique, every effect type's blank fits the schema once its references are chosen", () => {

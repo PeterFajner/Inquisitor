@@ -1,61 +1,66 @@
-// The canvas's regions: the book's sections in book order (their titles are
-// the book's headings), then one region per extra rule pack, titled with the
-// pack's name. A loyalist entry goes to its section by kind, or (tables and
-// prose rules) by the page it's on.
+// The canvas's regions, by kind across every book (an article's entries go
+// in the same region as the book's), and their shelves (./shelves.ts): the
+// book's own groups. Titles are the book's headings ("Tables" and "Rules"
+// approved by the owner, November 2026).
 import type { ComponentType } from "preact";
-import { Brain, Dna, Gavel, Gift, Layers, ListOrdered, Package, ScrollText, Sparkles, Users } from "lucide-preact";
+import { Brain, Dices, Dna, Gavel, Package, Sparkles, Users } from "lucide-preact";
 import type { Entry } from "../../shared/rules/schema.ts";
 
 export type RegionDef = {
   id: string;
   title: string;
   icon: ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" }>;
-  /** First and last PDF page of the section. */
-  pages?: [number, number];
-  /** Columns of the masonry layout (default: the count that gives the region the layout's aspect). */
-  columns?: number;
 };
 
-// Pages from data/source/pages: each section starts with its heading.
-export const BOOK_REGIONS: RegionDef[] = [
-  { id: "steps", title: "Steps To Create a Warrior Band", icon: ListOrdered, pages: [1, 3] },
-  { id: "archetypes", title: "Character Archetypes", icon: Users, pages: [4, 21] },
-  { id: "boons", title: "Boons", icon: Gift, pages: [22, 23] },
-  { id: "talents", title: "Talents & Exotic Abilities", icon: Sparkles, pages: [24, 37] },
-  { id: "equipment", title: "Equipment", icon: Package, pages: [38, 81] },
-  { id: "powers", title: "Psychic Powers", icon: Brain, pages: [82, 91] },
-  { id: "mutations", title: "Mutations", icon: Dna, pages: [92, 93] },
-  { id: "methodology", title: "Methodology & Explanations", icon: ScrollText, pages: [94, 97] },
-  { id: "house-rule", title: "The One Recommended House Rule & Tips", icon: Gavel, pages: [98, 98] },
+export const REGIONS: RegionDef[] = [
+  { id: "archetypes", title: "Character Archetypes", icon: Users },
+  { id: "talents", title: "Talents & Exotic Abilities", icon: Sparkles },
+  { id: "equipment", title: "Equipment", icon: Package },
+  { id: "powers", title: "Psychic Powers", icon: Brain },
+  { id: "mutations", title: "Mutations", icon: Dna },
+  { id: "tables", title: "Tables", icon: Dices },
+  { id: "rules", title: "Rules", icon: Gavel },
 ];
 
-const BY_KIND: Partial<Record<Entry["kind"], string>> = {
+const BY_KIND: Record<Entry["kind"], string> = {
   archetype: "archetypes",
   talent: "talents",
   exotic: "talents",
   item: "equipment",
   power: "powers",
   mutation: "mutations",
+  table: "tables",
+  rule: "rules",
 };
+
+/** The book's headings for an entry with no group of its own (p. 24, 28, 92). */
+const KIND_SHELF: Partial<Record<Entry["kind"], string>> = { talent: "Talents", exotic: "Exotic Abilities", mutation: "Mutations" };
 
 export const BASE_PACK = "loyalist";
 
-export const packRegionId = (pack: string) => `pack:${pack}`;
-export const PACK_ICON = Layers;
+/** The region an entry goes in. */
+export const regionOf = (e: Entry): string => BY_KIND[e.kind];
 
-/** The region an entry of a pack goes in. */
-export function regionOf(pack: string, e: Entry): string {
-  if (pack !== BASE_PACK) return packRegionId(pack);
-  const page = e.source?.page ?? 0;
-  if (e.kind === "table" || e.kind === "rule") {
-    const r = BOOK_REGIONS.find((r) => r.pages && page >= r.pages[0] && page <= r.pages[1]);
-    if (r) return r.id;
-  }
-  return BY_KIND[e.kind] ?? BOOK_REGIONS.find((r) => r.pages && page >= r.pages[0] && page <= r.pages[1])?.id ?? "steps";
+/** The shelf it goes on: its group, else its kind's heading, else (an article's rule) the article. */
+export function shelfOf(e: Entry, packName: string): string {
+  const g = "group" in e ? e.group : undefined;
+  if (g) return g;
+  if (e.kind === "archetype") return "";
+  return KIND_SHELF[e.kind] ?? packName;
 }
 
-/** Book order within a region: page, then kind, then the order the entries came in. */
-const KIND_ORDER: Record<Entry["kind"], number> = { rule: 0, archetype: 1, table: 2, talent: 3, exotic: 4, item: 5, power: 6, mutation: 7 };
-export function bookOrder(a: Entry, b: Entry): number {
-  return (a.source?.page ?? 0) - (b.source?.page ?? 0) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+/**
+ * Shelves in book order: a shelf ranks by the first page the book has
+ * anything of it on (any kind: Talents' tables shelve where the talents
+ * are), then those only articles have, in the order of their packs.
+ */
+export function shelfRanker(items: Iterable<{ pack: string; entry: Entry }>, packOrder: readonly string[], packName: (id: string) => string): (region: string, shelf: string) => number {
+  const page = new Map<string, number>();
+  const pack = new Map<string, number>();
+  for (const { pack: p, entry } of items) {
+    const s = shelfOf(entry, packName(p));
+    if (p === BASE_PACK) page.set(s, Math.min(page.get(s) ?? Infinity, entry.source?.page ?? 0));
+    else pack.set(s, Math.min(pack.get(s) ?? Infinity, packOrder.indexOf(p)));
+  }
+  return (_region, shelf) => page.get(shelf) ?? 1000 + (pack.get(shelf) ?? 0);
 }
