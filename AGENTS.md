@@ -50,10 +50,10 @@ Word sheet. See PLAN.md for the design and its decisions.
   downgrade; the labels "Rolls" (the rolls section's toggle) and "Balance
   details" (the balance chip's (i)); "* Should have GM approval before
   use." under an asterisked archetype's character (the book's p. 3);
-  on the rules canvas, the region titles "Tables" and "Rules" and the
-  label "Rolled on by" (a table's back-links; owner, November 2026); the
-  label "Search" (the search icon, its field and results; owner, November
-  2026).
+  on the rules page, the tab titles "Tables" and "Rules" (the shelved
+  rules canvas's region titles) and the label "Rolled on by" (a table's
+  back-links; owner, November 2026); the label "Search" (the search icon,
+  its field and results; owner, November 2026).
   The look is the 2023 site's (dark cards on a dark-red mosaic, red for
   what can be changed, the Inquisitor title face): keep it.
   Anything else needs the owner's approval first: don't add

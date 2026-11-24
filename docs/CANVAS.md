@@ -1,5 +1,21 @@
 # The canvas engine
 
+> **The rules canvas is shelved** (owner, November 2026). The owner liked it,
+> but judged the GM, who has to read rules from it, would find panning and
+> zooming hard going; /rules is now an ordinary page instead: a tab per
+> region (the same titles, in the same order), each tab's shelves one under
+> another with their cards A–Z in columns, and a Table of Contents in a
+> sidebar (src/client/rules/RulesBook.tsx; "The rules page", below). The
+> canvas's code is kept so it can come back: src/client/canvas (still used by
+> the character history tree) and src/client/rules/RulesCanvas.tsx, with
+> shelves.ts (whose grouping the page shares), greek.ts and marks.ts. What
+> only it needed on the server is gone: the cards' geometry is no longer
+> baked or served (`GET /api/v1/rules/geometry`; the bake works out heights
+> only), so a revived canvas draws its small cards as plain boxes until that
+> is restored (git history: src/client/rules/bake.ts, src/lib/rules-heights.ts,
+> src/views/rules.ts before the shelving). The heights bake stays: the page
+> sizes every card's slot from it.
+
 `src/client/canvas/` is an infinite, pannable and zoomable canvas for
 Preact. The rules canvas (~960 cards on shelves, below) and the
 character history tree are built on it. It has no text of its own: region
@@ -447,3 +463,65 @@ placeholder canvas; `.cv-top` the one over the cards), `.cv-sr` (the
 visually hidden region headings), `.cv-world` (`.is-hid`), `.cv-ph`
 (keyboard stand-ins), `.cv-card` (`.is-drag`; `data-level` 1 cheap, 2
 full), `.cv-tabs`, `.cv-bar`, `.cv-controls`, `.cv-minimap`.
+
+## The rules page (src/client/rules/RulesBook.tsx), which replaced the rules canvas
+
+A tab per region (./regions.ts), each one page of its shelves
+(`groupShelves`, the canvas's grouping and A–Z order) with the cards
+(the same `Card`) in columns (`masonry` in book.ts: each card where it sits
+highest, ties left, so it reads across then down; a wide card spans two
+columns; one column under 656 px), and a Table of Contents in a sidebar
+(open by default from 900 px; over the page below). Addresses are
+`#<pack>:<kind>/<id>` (a card) or `#<region>` (a tab); a link, a search
+result or a Table of Contents entry pushes one, a click on a card replaces
+it. How it stays quick on a slow tablet:
+
+- **Slots sized ahead**: every card sits in an absolutely placed slot of
+  its known height (the server's baked height at the card's own width, held
+  as its `min-height`; in one column, where the card is the page's width,
+  an estimate until it's measured), with `content-visibility: auto` and
+  `contain-intrinsic-block-size: auto <h>px` (of the content box: inside the
+  slot's padding, which leaves room for the shadow and outline it would
+  otherwise clip). Off-screen cards cost no style, layout or paint.
+- **Heights not known ahead are measured once, out of sight**: a card
+  mounted without a known height is drawn regardless (`.fresh`:
+  `content-visibility: visible` with `contain: layout style paint`, the
+  containment `auto` gives a drawn card, so its text doesn't move a pixel
+  when it goes back) until a ResizeObserver has its height; its column then
+  makes room, and if that moves what's in view the page scrolls by as much.
+  So nothing jumps while reading or scrolling.
+- **Every tab is made ready ahead**: the tab shown mounts the cards in and
+  near view at once and the rest nearest first in idle time; once it's done,
+  the other tabs are built one by one in idle time (off screen and `inert`
+  while being made: inert set while a page is still small, since toggling it
+  on a big one costs WebKit ~50 ms), then put away with
+  `content-visibility: hidden`, which keeps their layout, so a switch only
+  shows one (display: none and visibility: hidden restyle a whole tab when
+  shown). All 960 cards mounted: ~40 MB of JS heap, ~58,000 elements.
+  The Table of Contents of each tab is kept the same way.
+- **The cards in view are drawn in the switch's first frame** ("awake", for
+  two frames): Chrome otherwise finds the `auto` cards of a page just shown
+  on screen only a frame later, after a frame of blank slots.
+- A card re-renders only when its entry, state or what it looks up in other
+  entries (the names the heights bake records it looked up) changes; moving
+  its slot doesn't re-render it (the card's icons read their colour with
+  getComputedStyle when rendered).
+
+Measured (November 2026; Playwright 1.49, headless; tab switch = click to
+the next frame; scrolling = `scrollBy` every frame for 4 s on Equipment's
+421 cards; every tab already made ready, which takes 1.3–2.3 s at 6×):
+
+| | tab switch | scrolling (40 / 120 px a frame) | link to a card on another tab |
+|---|---|---|---|
+| Chrome, CPU 6× slower, 1280×800 | 42–101 ms (Equipment the slowest) | median 16.7 ms, p95 16.8 | 76 ms |
+| Chrome, 6×, 960×600 at 2× (a Nexus 7 across) | 45–92 ms | median 16.7, p95 16.7 | 79 ms |
+| Chrome, 6×, 600×960 at 2× (upright, one column) | 37–62 ms | median 16.7, p95 16.8 | 63 ms |
+| WebKit, 1280×800 / 960×600 / 600×960 | 20–41 ms | median 17, p95 17–18 | 235–254 ms |
+
+In every case: no frame with an empty card in view, no layout shift (and
+screencasts of switches show the first frame is the settled one), and a card
+linked to lands at the top under the bar and stays there. Switching before
+the other tabs are ready (1.5 s after load) is as quick. Left open: in
+WebKit a link to a part of a page not shown before costs one ~200 ms layout
+(a repeated jump, a switch or a plain scroll there doesn't); its cause
+isn't found yet.

@@ -38,7 +38,7 @@ step below is done.
   rules change);
   the top and bottom 5% are over- and underpowered (owner, November 2026;
   ±1σ flagged about one in four). Power = stats plus points per talent, ability, item,
-  mutation and power (points editable on the canvas).
+  mutation and power (points editable on the rules page).
 - **Luna** (shelved by the owner, November 2026; not built for now) (`gpt-6-luna`, server-side, its own OpenAI key): a one-shot
   prompt box that makes a character, with follow-up prompts that edit it.
   Its output is a character record, validated by the engine; rule breaks
@@ -47,21 +47,32 @@ step below is done.
 - **History**: every edit of a character (manual, re-roll, Luna) is a
   version; the history is a branching tree shown on the same canvas engine
   as the rules.
-- **Rules canvas**: one big pannable canvas laid out as shelves (owner,
-  November 2026; docs/CANVAS.md): a region per kind across every book
-  (Character Archetypes, Talents & Exotic Abilities, Equipment, Psychic
-  Powers, Mutations, Tables, Rules), the book's groups as labelled shelves,
-  cards A–Z; tab icons fly to regions. Far out, each region's A–Z index;
-  nearer, each card's title over its drawing; close up, the cards. The
-  packs menu filters the books (an article's cards carry its mark), a search
-  icon finds a card by name. Cards show rules
-  visually as chips (effects) with the book's prose for gameplay-only text;
-  the selected card's wires join it to the tables it rolls on and the cards
-  rolling on it, and a table lists those ("Rolled on by"). The book's original
-  wording sits behind a quote icon with its page, marked stale once the
-  card is edited. Anyone signed in edits; edits and card moves are live for
-  everyone (SSE); a save against a stale version is refused and handed the
-  newer one. Full history with the editor's passkey id; revert from history.
+- **Rules page** (owner, November 2026; src/client/rules/RulesBook.tsx): a
+  tab per kind across every book (Character Archetypes, Talents & Exotic
+  Abilities, Equipment, Psychic Powers, Mutations, Tables, Rules), each one
+  ordinary scrolling page: the book's groups as headed shelves in book
+  order, cards A–Z in columns (one on a phone). A sidebar holds the tab's
+  Table of Contents (the shelves and their cards' names; a name scrolls to
+  its card, the reader's place is picked out), opened and closed with an
+  icon (remembered per browser; open on wide screens, over the page on a
+  phone). The packs menu filters the books (an article's cards carry its
+  mark), a search icon finds a card by name; a link between cards (a chip's
+  reference, a table's "Rolled on by") switches tab, scrolls to the card and
+  flashes it; every card has its own address (#<pack>:<kind>/<id>), so back,
+  forward and shared links work. Cards show rules visually as chips
+  (effects) with the book's prose for gameplay-only text. The book's
+  original wording sits behind a quote icon with its page, marked stale once
+  the card is edited. Anyone signed in edits; edits are live for everyone
+  (SSE); a save against a stale version is refused and handed the newer
+  one. Full history with the editor's passkey id; revert from history.
+- **Rules canvas: shelved** (owner, November 2026). The rules were first one
+  big pannable, zoomable canvas laid out as shelves (docs/CANVAS.md: regions
+  by kind, A–Z indexes far out, drawn cards, wires between a card and the
+  tables it rolls on). The owner liked it, but judged the GM would find it
+  hard to use (panning and zooming to read a rule), so the rules page above
+  replaced it. Its code stays (src/client/canvas, src/client/rules/
+  RulesCanvas.tsx) so it can come back; the server no longer bakes or serves
+  the cards' geometry it drew small cards from.
 - **Accounts**: speci's model. An account is a random id with passkeys
   (`@passwordless-id/webauthn`), RP ID `inquisitor.pfaj.ca`; no name or
   email.
@@ -100,5 +111,6 @@ step below is done.
 2. The builder: sheet UI, random and freeform modes, warbands, `.docx` and
    print export.
 3. Passkey accounts, saved and shared characters, the history canvas.
-4. The rules canvas with live editing and git history.
+4. The rules canvas with live editing and git history (since replaced by
+   the rules page: a tab per kind, a Table of Contents; the canvas shelved).
 5. ~~The Luna box.~~ Shelved.

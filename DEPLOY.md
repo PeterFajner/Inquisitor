@@ -50,7 +50,7 @@ rsync -az data/rules/ asterix:/opt/inquisitor/data/rules/
 ssh asterix "bash -c 'chown -R inquisitor:inquisitor /opt/inquisitor/data/rules'"
 ```
 
-From then on the server's copy is the database (edits on the canvas are
+From then on the server's copy is the database (edits on the rules page are
 commits there); fetch it back with `git -C data/rules pull
 ssh://asterix/opt/inquisitor/data/rules` before editing locally, and ship
 local commits only while nobody is editing (stop the service, check the
