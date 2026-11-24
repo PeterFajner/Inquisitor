@@ -183,7 +183,7 @@ export type RulesPayload = {
 };
 
 /**
- * GET /api/v1/rules/heights: every card's height on the rules canvas at the
+ * GET /api/v1/rules/heights: every card's height (at its own width, as the rules page lays it out) at the
  * current rules version, worked out on the server (src/lib/rules-heights.ts,
  * src/client/rules/sizes.ts), by card key ("<pack>:<kind>/<id>"). `build`
  * names the card layout code that worked them out; the browser uses them
@@ -194,11 +194,11 @@ export type RulesHeights = { version: string; build: string; cards: Record<strin
 export type CardHeight = { c: string; w: number; h: number; d: string[]; dh: string };
 
 /**
- * GET /api/v1/rules/geometry: what every card of /rules/heights looks like
- * laid out (src/shared/layout/paint.ts), for the canvas to draw cards too
- * small to read: per card key, its pieces as a string against the table of
- * looks. Same version and build as the heights (a card's geometry holds
- * whenever its height does); 202 {pending: true} while being worked out.
+ * What every card of /rules/heights looks like laid out (src/shared/layout/
+ * paint.ts), for the shelved rules canvas to draw cards too small to read:
+ * per card key, its pieces as a string against the table of looks. It was
+ * served at GET /api/v1/rules/geometry; no longer (docs/CANVAS.md), so the
+ * canvas, if it comes back, draws plain boxes until that's restored.
  */
 export type RulesGeometry = { version: string; build: string; looks: import("./layout/paint.ts").Look[]; cards: Record<string, string> };
 

@@ -86,22 +86,21 @@ export function rulesRoutes(router: Router): void {
     ctx.res.end(ctx.req.method === "HEAD" ? undefined : body);
   });
 
-  // The cards' heights, and their geometry: the same bake, served apart (the heights are wanted first).
-  for (const [path, geometry] of [["heights", false], ["geometry", true]] as const) {
-    router.get(`${API}/rules/${path}`, async (ctx) => {
-      const h = await currentHeights(geometry);
-      if (h === "unavailable") return sendJson(ctx, { error: "not_found" }, 404);
-      if (h === "pending") return sendJson(ctx, { pending: true }, 202, { "retry-after": "1" });
-      const etag = h.etag;
-      if (ctx.req.headers["if-none-match"] === etag) {
-        ctx.res.writeHead(304, { etag });
-        ctx.res.end();
-        return;
-      }
-      ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
-      ctx.res.end(ctx.req.method === "HEAD" ? undefined : h.body);
-    });
-  }
+  // The cards' heights (the rules page sizes every card's slot from them). The shelved rules canvas also
+  // had their geometry, at /rules/geometry: no longer baked or served (docs/CANVAS.md).
+  router.get(`${API}/rules/heights`, async (ctx) => {
+    const h = await currentHeights();
+    if (h === "unavailable") return sendJson(ctx, { error: "not_found" }, 404);
+    if (h === "pending") return sendJson(ctx, { pending: true }, 202, { "retry-after": "1" });
+    const etag = h.etag;
+    if (ctx.req.headers["if-none-match"] === etag) {
+      ctx.res.writeHead(304, { etag });
+      ctx.res.end();
+      return;
+    }
+    ctx.res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
+    ctx.res.end(ctx.req.method === "HEAD" ? undefined : h.body);
+  });
 
   router.get(`${API}/rules/events`, (ctx) => {
     rulesEvents.subscribe(ctx);
