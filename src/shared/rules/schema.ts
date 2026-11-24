@@ -821,6 +821,10 @@ export const TableRow = z.strictObject({
 export const Table = z.strictObject({
   ...base,
   kind: z.literal("table"),
+  // the book's section it's printed under ("Armour", "Psychic Powers", …;
+  // an article's table, the book's section it belongs with): its shelf on
+  // the rules canvas
+  group: z.string().optional(),
   die: Dice, // "D100", "D6", "2D10", …
   columns: z.array(z.string()).optional(),
   rerollDuplicates: z.boolean().optional(),
@@ -833,6 +837,7 @@ export type TableRow = z.infer<typeof TableRow>;
 export const Rule = z.strictObject({
   ...base,
   kind: z.literal("rule"),
+  group: z.string().optional(), // the book's section it's printed under (an article's: none, the article itself)
   text: z.string(),
   effects: EffectArray.optional(),
   // The rule's effects apply to every character: right after the archetype

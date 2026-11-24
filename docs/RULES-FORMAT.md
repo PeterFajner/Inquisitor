@@ -183,6 +183,7 @@ equipment generator, availability, bionics, psychic discipline tables…
 id: boons
 kind: table
 name: Boons
+group: Boons                # the book's section it's printed under (its shelf on the rules canvas)
 die: D100
 columns: [fighter, marksman, scout, sage, psyker]   # multi-column tables only
 rerollDuplicates: true
@@ -222,7 +223,8 @@ Bionics are Exotic"):
 ### rule
 
 Prose-only material (the warband steps, the house rule) as
-`kind: rule` with `text`. A rule whose effects apply to every character
+`kind: rule` with `text`, and `group`, the book's section it's printed
+under (an article's rules have none: they shelve under the article). A rule whose effects apply to every character
 says where they run among the archetype's sections with `apply`:
 
 ```yaml

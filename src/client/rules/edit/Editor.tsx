@@ -49,11 +49,13 @@ const ENTRY_FIELDS: Partial<Record<Entry["kind"], Field[]>> = {
     { at: ["text"], f: { k: "long" }, label: L.text, icon: BookOpen },
   ],
   table: [
+    { at: ["group"], f: { k: "text" }, label: L.group, icon: Layers },
     { at: ["die"], f: { k: "dice" }, label: L.die, icon: Dices, req: true },
     { at: ["columns"], f: { k: "strings" }, label: L.column, icon: Hash },
     { at: ["rerollDuplicates"], f: { k: "bool" }, label: L.random, icon: RotateCcw },
   ],
   rule: [
+    { at: ["group"], f: { k: "text" }, label: L.group, icon: Layers },
     { at: ["text"], f: { k: "long" }, label: L.text, icon: BookOpen, req: true },
     { at: ["apply"], f: { k: "json" }, label: L.effects, icon: Plus },
   ],
