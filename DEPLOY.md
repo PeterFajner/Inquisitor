@@ -53,8 +53,10 @@ ssh asterix "bash -c 'chown -R inquisitor:inquisitor /opt/inquisitor/data/rules'
 From then on the server's copy is the database (edits on the canvas are
 commits there); fetch it back with `git -C data/rules pull
 ssh://asterix/opt/inquisitor/data/rules` before editing locally, and ship
-local commits only while nobody is editing (stop the service, rsync, chown,
-start).
+local commits only while nobody is editing (stop the service, check the
+server's copy is clean and at your commit's parent, `rsync -az --delete`,
+chown, start; without `--delete` files removed by a commit stay behind as
+untracked files and are still loaded).
 
 ## 2. Ship it
 
