@@ -66,7 +66,9 @@ build(compendium, record, {
   random mode (`no`) unless `pick` answers.
 - The returned `record` is the input plus every new decision, minus
   decisions this character no longer uses (an option's nested picks after
-  choosing another option). Rebuilding it reproduces the character exactly
+  choosing another option). Options of a pick drawing on one pool (three
+  "Psychic Power" bonuses) are chosen together only while it holds enough
+  for all of them. Rebuilding it reproduces the character exactly
   and rolls and asks nothing: a record holding decisions is first built
   without rolling or calling `pick` for real (a seeded stand-in roller,
   `pick` answering nothing), and that is the character when its last pass
@@ -79,7 +81,12 @@ build(compendium, record, {
 `pick` may be called twice for one key: the build runs another pass when a
 pass meets something late, keeping the dice and the choices of the one
 before (a choice the late restriction refuses is made again among what it
-allows, so random builds keep the book's odds):
+allows, so random builds keep the book's odds). A choice the record held
+comes back each pass (a late access may allow it); what a pass chose
+instead, when it was refused, is what the next pass chooses if it still is
+(so a god the rules no longer have is replaced once, not differently each
+pass). Under a result rolled again, the pass's own choices stay, and gear a
+trade gave or raised at random this build is chosen again:
 
 - a condition on the alignment before the alignment is chosen (gear's
   `alien: { alignment }` in the Equipment row, the Alignment row last).
@@ -94,6 +101,8 @@ allows, so random builds keep the book's odds):
   mount) with nothing to choose from once all the gear is made. The
   outermost roll or gear result that led to it is rolled again (`~n`); the
   decisions that made it stay in the record, so a replay finds the same.
+  Never because of a trade: a piece a trade chose, or a mount a trade gave
+  up, leaves the pick empty (a warning) rather than roll gear again.
 
 At most six passes. The character's `restrictions` are the archetype's
 own and those the last pass met.
@@ -203,7 +212,10 @@ open picks: any number from `min` to `count` answers it. The answer goes in
   alignment: the alignment; location: the location (`Left Arm`);
 - give (what a trade gives up): `<kind>:<id>` for `lose`, the gear
   result's key (`hero/gear#2`) for `downgrade`; upgrade: the gear result's
-  key.
+  key;
+- gear-item: the item's id, or for a result chosen again among a
+  sub-table's rows, `<table id>/<row label>` (`exotic-armor/Conversion
+  Field`).
 
 ## Decision keys
 
@@ -329,10 +341,27 @@ a pick's random count (`<pick>:count`) clears the pick too.
   character has, plus every extra (`add` without `av`); force fields are
   listed. Pieces and other contributions of a thing taken away (trade,
   remove, override) go with it.
-- **Trades** (`downgrade`): a downgraded gear result loses its item and
-  chooses again one step down among the same category; Common is lost
-  (`rolls[…].lost`). Only results whose items were chosen by category can
-  be downgraded or upgraded (not sub-table rows).
+- **Trades** (`downgrade`, `upgrade`): every gear result can be given up
+  or raised. A downgraded result loses what it made (and what that made:
+  an item's chosen options, what they granted) and chooses again one step
+  down; Common is lost (`rolls[…].lost`). A result picked by category
+  chooses among the items of its category; one whose row rolls on
+  sub-tables (Armour, Bionics and implants, Miscellaneous, Combat stimms,
+  Gunsights and auspexes, Special ammunition) among the rows of those tables
+  that grant something, as the roll would at the new availability (p. 38:
+  Rare Armour raised to Exotic, then the Conversion Field row), the chosen
+  row's effects making it (its own rolls too). Either way, an item whose
+  `required` pick would have nothing (a Chainblade with nothing to mount
+  it on) isn't offered, and a piece a trade chose is never rolled again.
+  A trade (each `#n`) is offered only when it can be made: `count` results
+  (or things) to give, and for an `upgrade` get a result to raise that the
+  give leaves. The result to raise is chosen first, then what is given (it
+  may be given too, unless the downgrade would lose it: a Common one; one
+  that has nothing a step up (a Legendary one) can be
+  raised only when given, back to its own availability, its piece chosen
+  once); the give is made, then the get. A stored "yes" for a trade that
+  can't be made now trades nothing (a warning; the record keeps it).
+  Something a trade gives up takes with it what its own effects made.
 - **Pools** (`pick … pool`) and **powers** never offer what the character
   already has (items excepted). `filter.group`/`discipline` are the
   entry's `group`, exactly; a power's discipline is its `group`.

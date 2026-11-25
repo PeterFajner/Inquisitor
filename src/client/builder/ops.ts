@@ -111,8 +111,10 @@ export function fillPending(c: Compendium, rec: CharacterRecord, opts: { keys?: 
   const r = build(c, rec, {
     mode: "freeform",
     roll,
-    // Only the asked-for keys, plus choices that open because of them.
-    pick: (p) => (!only || only.has(p.key) || !before.has(p.key) ? atRandom(p) : undefined),
+    // Only the asked-for keys, plus choices that open because of them (new
+    // ones: never one the record holds and now finds not allowed, which stays
+    // open for the user). Every open choice: all of them.
+    pick: (p) => (!only || only.has(p.key) || (!before.has(p.key) && !(p.key in rec.choices)) ? atRandom(p) : undefined),
   }).record;
   return stamp(r, opts.version);
 }
