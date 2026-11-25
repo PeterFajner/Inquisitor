@@ -89,6 +89,8 @@ export type App = {
   log: string;
   proc: ChildProcess;
   stop(): Promise<void>;
+  /** The server stopped and started again on the same port, database and rules (a deploy, a crash). */
+  restart(): Promise<void>;
 };
 
 /** A server of our own: temporary rules, database and port. `balance`: warm the balance distributions (off by default: ~130 MB). */
@@ -120,8 +122,8 @@ export async function startApp(opts: { balance?: boolean } = {}): Promise<App> {
     const log = join(dir, "server.log");
     const out = createWriteStream(log, { flags: "a" });
     const proc = track(spawn(NODE[0], [...NODE.slice(1), "src/server.ts"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] }));
-    proc.stdout!.pipe(out);
-    proc.stderr!.pipe(out);
+    proc.stdout!.pipe(out, { end: false });
+    proc.stderr!.pipe(out, { end: false });
     const url = `http://localhost:${port}`;
     let up = false;
     for (let i = 0; i < 300 && proc.exitCode === null; i++) {
@@ -138,7 +140,16 @@ export async function startApp(opts: { balance?: boolean } = {}): Promise<App> {
       if (attempt < 3) continue; // the port was taken meanwhile: another
       throw new Error(`server didn't start: ${readFileSync(log, "utf8").slice(-2000)}`);
     }
-    return {
+    const up2 = async (p: ChildProcess) => {
+      for (let i = 0; i < 300 && p.exitCode === null; i++) {
+        try {
+          if ((await fetch(`http://127.0.0.1:${port}/api/v1/health`)).ok) return;
+        } catch {}
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error(`server didn't start again: ${readFileSync(log, "utf8").slice(-2000)}`);
+    };
+    const app: App = {
       url,
       port,
       dir,
@@ -147,9 +158,18 @@ export async function startApp(opts: { balance?: boolean } = {}): Promise<App> {
       log,
       proc,
       async stop() {
-        await stop(proc);
+        await stop(app.proc);
         rmSync(dir, { recursive: true, force: true });
       },
+      async restart() {
+        await stop(app.proc);
+        const p = track(spawn(NODE[0], [...NODE.slice(1), "src/server.ts"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] }));
+        p.stdout!.pipe(out, { end: false });
+        p.stderr!.pipe(out, { end: false });
+        app.proc = p;
+        await up2(p);
+      },
     };
+    return app;
   }
 }
