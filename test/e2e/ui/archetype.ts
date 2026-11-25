@@ -13,6 +13,7 @@ import type { CharacterRecord } from "../../../src/shared/engine/record.ts";
 import { randomBuild } from "../engine/archetype.ts";
 import type { Page } from "../lib/cdp.ts";
 import type { Report, Repro } from "../lib/report.ts";
+import { includesCaseless, ledTo, optionShape } from "../lib/outcomes.ts";
 import { archetype, realCompendium } from "../lib/rules.ts";
 import { expectedShown, headRecord, idle, newCharacter, openBuilder, openCharacter, saveRecord, Session, shownText } from "../lib/ui.ts";
 import type { RunOptions } from "../shards.ts";
@@ -58,9 +59,38 @@ async function checkShown(s: Session, archId: string, rec: CharacterRecord, repr
   // The GM approval line, under asterisked archetypes only.
   r.expect(text.includes(GM_LINE) === !!arch.gmApproval, "GM approval line under asterisked archetypes only", `gmApproval ${!!arch.gmApproval}, line shown ${text.includes(GM_LINE)}`, repro);
   const want = expectedShown(built);
-  for (const t of want.things) r.expect(text.includes(t), "everything the character has is shown outside the Rolls panel", `${t} not shown`, repro, `${archId}: ${t}`);
+  // (names compared without case: the book's "Deadeye shot" is the talent "Deadeye Shot")
+  for (const t of want.things) r.expect(includesCaseless(text, t), "everything the character has is shown outside the Rolls panel", `${t} not shown`, repro, `${archId}: ${t}`);
+  const boons = await page.eval(() => Object.fromEntries([...document.querySelectorAll(".cstats tbody tr")].map((tr) => [tr.querySelector("th")?.textContent ?? "", tr.querySelectorAll("td")[1]?.textContent ?? ""])));
+  const options = new Map<string, ReturnType<typeof ops.choiceOptions>>();
   for (const ch of want.choices) {
-    r.expect(text.includes(ch.result), "every choice made is shown outside the Rolls panel", `${ch.key} (${ch.label}) = ${ch.result} only in the Rolls panel`, repro, `${archId}: ${norm(ch.key)}`);
+    if (includesCaseless(text, ch.result)) {
+      r.pass("every choice made is shown outside the Rolls panel");
+      continue;
+    }
+    // A choice with one option was made by itself (a forced pick): nothing was chosen.
+    if (!options.has(ch.key)) options.set(ch.key, ops.choiceOptions(c, rec, ch.key));
+    const p = options.get(ch.key);
+    if (!p || p.options.length < 2) continue;
+    // A stat change chosen among others ("+5 BS") is shown in the Boon column.
+    const statPick = /^[+\-−]\d+ (WS|BS|S|T|I|Wp|Sg|Nv|Ld)$/.exec(ch.result);
+    if (statPick) {
+      r.expect(!!boons[statPick[1]] && boons[statPick[1]] !== "-", "every choice made is shown outside the Rolls panel", `${ch.key} (${ch.label}) = ${ch.result}: Boon column blank for ${statPick[1]}`, repro, `${archId}: ${norm(ch.key)}`);
+      continue;
+    }
+    // A named option is shown by what it led to (a routing option: "Legendary weapon"), or its stats in the Boon column ("+5 Nv").
+    const opt = built.character.options.find((o) => o.key === ch.key && o.name === ch.result);
+    const shape = opt ? optionShape(c, opt.source, opt.id) : null;
+    if (opt && shape?.kind === "routing" && ledTo(built, ch.key).length) {
+      r.pass("every choice made is shown outside the Rolls panel");
+      continue;
+    }
+    if (opt && shape?.kind === "stats") {
+      const blank = shape.stats.filter((st) => !boons[st] || boons[st] === "-");
+      r.expect(!blank.length, "every choice made is shown outside the Rolls panel", `${ch.key} (${ch.label}) = ${ch.result}: Boon column blank for ${blank.join(", ")}`, repro, `${archId}: ${norm(ch.key)}`);
+      continue;
+    }
+    r.fail("every choice made is shown outside the Rolls panel", `${ch.key} (${ch.label}) = ${ch.result} only in the Rolls panel`, repro, `${archId}: ${norm(ch.key)}`);
   }
   // Occupation: a dropdown per archetype pick, showing the choice made.
   const occ = await page.eval(() => [...document.querySelectorAll(".occ select")].map((x) => ({ label: x.getAttribute("aria-label"), value: (x as HTMLSelectElement).value, text: (x as HTMLSelectElement).selectedOptions[0]?.text ?? "" })));
@@ -160,33 +190,53 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
   const labels = occs.map((x) => x.label);
   const twice = labels.filter((l, i) => labels.indexOf(l) !== i);
   s.r.expect(!twice.length, "Occupation dropdowns have distinct labels", `two dropdowns labelled ${[...new Set(twice)].map((l) => `"${l}"`).join(", ")}`, base, `${archId}: ${twice.join(",")}`);
+  // The same dropdown: by its options (the list may reorder after a change, and Preact may reuse its node for another).
+  const mark = (sig: string[]) =>
+    page.eval((x: string) => {
+      document.querySelectorAll("[data-e2e-occ]").forEach((el) => el.removeAttribute("data-e2e-occ"));
+      const opts = (el: Element) => [...(el as HTMLSelectElement).options].map((o) => o.value).filter(Boolean).join("\n");
+      const el = [...document.querySelectorAll(".occ select")].find((el) => opts(el) === x);
+      el?.setAttribute("data-e2e-occ", "");
+      return (el as HTMLSelectElement | undefined)?.value;
+    }, sig.filter(Boolean).join("\n"));
+  const fill = async (steps: string[]) => {
+    if (await page.eval(() => !!document.querySelector(".csec-pending"))) {
+      await s.step("Choose at random fills the open choices", { ...base, steps: [...steps, "Choose at random"] }, async () => {
+        await page.click('.pending-all [aria-label="Choose at random"]');
+        await idle(page);
+      });
+      await noPending("Choose at random", { ...base, steps: [...steps, "Choose at random"] });
+    }
+  };
   for (const occ of occs) {
+    const original = await mark(occ.options);
     for (const value of occ.options.slice(0, 6)) {
       const steps = [...(base.steps ?? []), `Occupation dropdown #${occ.i} (${occ.label}) → ${value || "–"}`];
+      // (a dropdown a parent's change took away, as a Rank 6 pick after Rank 1 is chosen: gone by design; it was restored below before its turn)
+      if ((await mark(occ.options)) === undefined) {
+        s.r.note(`${archId}: Occupation dropdown ${occ.label} not shown for this character any more (a parent's choice took it away)`);
+        break;
+      }
       await s.step("Occupation dropdowns change the choice", { ...base, steps }, async () => {
-        // The same dropdown: by its options (the list may reorder after a change).
-        await page.eval((sig: string) => {
-          document.querySelectorAll("[data-e2e-occ]").forEach((x) => x.removeAttribute("data-e2e-occ"));
-          [...document.querySelectorAll(".occ select")].find((x) => [...(x as HTMLSelectElement).options].map((o) => o.value).join("\n") === sig)?.setAttribute("data-e2e-occ", "");
-        }, occ.options.join("\n"));
-        const sel = "select[data-e2e-occ]";
-        const cur = await page.eval((q: string) => (document.querySelector(q) as HTMLSelectElement | null)?.value, sel);
-        if (cur === undefined) throw new Error(`dropdown #${occ.i} (${occ.label}) is gone`);
+        const cur = await mark(occ.options);
         if (cur === value) return;
-        await page.select(sel, value);
+        await page.select("select[data-e2e-occ]", value);
         await idle(page);
-        const now = await page.eval((q: string) => (document.querySelector(q) as HTMLSelectElement | null)?.value ?? null, sel);
+        const now = await mark(occ.options);
         if (now !== value) throw new Error(`${occ.label} shows ${JSON.stringify(now)} after choosing ${JSON.stringify(value)}`);
       });
       // What the change opened: Choose at random fills it.
-      if (await page.eval(() => !!document.querySelector(".csec-pending"))) {
-        await s.step("Choose at random fills the open choices", { ...base, steps: [...steps, "Choose at random"] }, async () => {
-          await page.click('.pending-all [aria-label="Choose at random"]');
-          await idle(page);
-        });
-        await noPending("Choose at random", { ...base, steps: [...steps, "Choose at random"] });
-      }
+      await fill(steps);
       await s.checkText(`${archId} after Occupation ${occ.label}`, { ...base, steps });
+    }
+    // Back to the choice it had, so the dropdowns that depend on it (a Rank's own picks) are there for their turn.
+    if (original !== undefined && (await mark(occ.options)) !== original) {
+      const steps = [...(base.steps ?? []), `Occupation dropdown #${occ.i} (${occ.label}) → ${original || "–"} (as it was)`];
+      await s.step("Occupation dropdowns change the choice", { ...base, steps }, async () => {
+        await page.select("select[data-e2e-occ]", original);
+        await idle(page);
+      });
+      await fill(steps);
     }
   }
   // The Rolls panel: open it, re-roll the first few top rows.
@@ -196,13 +246,15 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
     // (a fixed profile, as an Arbite's, has nothing rolled or chosen: an empty table)
     await page.waitFor(() => !!document.querySelector(".csec-log:not(.collapsed)"), [], { what: "the Rolls panel open" });
   });
-  const tops = await page.eval(() =>
+  // Top rows, rows nested under a result or an option, and rows deeper still: a few of each depth.
+  const rows = await page.eval(() =>
     [...document.querySelectorAll(".log .log-row")]
-      .map((row, i) => ({ i, depth: getComputedStyle(row).getPropertyValue("--depth").trim(), label: row.querySelector('[aria-label^="Re-roll: "]')?.getAttribute("aria-label") }))
-      .filter((x) => x.depth === "0" && x.label)
-      .map((x) => x.label!),
+      .map((row) => ({ depth: Number(getComputedStyle(row).getPropertyValue("--depth").trim() || 0), label: row.querySelector('[aria-label^="Re-roll: "]')?.getAttribute("aria-label") }))
+      .filter((x) => x.label) as { depth: number; label: string }[],
   );
-  for (const label of [...new Set(tops)].filter((l) => !/: (WS|BS|S|T|I|Wp|Sg|Nv|Ld)$/.test(l)).slice(0, 5)) {
+  const pickRows = (keep: (d: number) => boolean, n: number) => [...new Set(rows.filter((x) => keep(x.depth)).map((x) => x.label))].filter((l) => !/: (WS|BS|S|T|I|Wp|Sg|Nv|Ld)$/.test(l)).slice(0, n);
+  const chosenRows = [...new Set([...pickRows((d) => d === 0, 5), ...pickRows((d) => d === 1, 4), ...pickRows((d) => d >= 2, 3)])];
+  for (const label of chosenRows) {
     // An earlier re-roll may have taken this row away.
     if (!(await page.eval((l: string) => !!document.querySelector(`.log [aria-label="${l}"]`), label))) continue;
     const steps = [...rollSteps, label];

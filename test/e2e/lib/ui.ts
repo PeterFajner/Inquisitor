@@ -106,7 +106,8 @@ export class Session {
     const bad = uiTextProblems(shown.texts, this.words, extra);
     for (const b of bad) this.r.fail("visible text is the book's (AGENTS.md)", `${where}: "${b.text}" (words not in the book: ${b.words.join(", ")})`, { ...repro, url: await page.url() }, b.words.join(" "));
     if (!bad.length) this.r.pass("visible text is the book's (AGENTS.md)");
-    for (const c of shown.unlabelled) this.r.fail("icon controls have an aria-label and the same tooltip", `${where}: ${c}`, { ...repro, url: await page.url() }, c.replace(/\d+/g, "N"));
+    // (one finding per control kind: "Show: <pack>" for every pack is one)
+    for (const c of shown.unlabelled) this.r.fail("icon controls have an aria-label and the same tooltip", `${where}: ${c}`, { ...repro, url: await page.url() }, c.replace(/aria-label="([^":]*): [^"]*"/, 'aria-label="$1: …"').replace(/\d+/g, "N"));
     if (!shown.unlabelled.length) this.r.pass("icon controls have an aria-label and the same tooltip");
     for (const d of page.dialogs.splice(0)) {
       const bad = uiTextProblems([d.message], this.words, extra);
@@ -255,6 +256,7 @@ export async function openCharacter(page: Page, url: string, id: string): Promis
 export function expectedShown(b: BuildResult): { things: string[]; choices: { key: string; label: string; result: string }[] } {
   const ch = b.character;
   const things = [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items].map((t) => t.name);
-  const choices = b.log.filter((e) => e.type === "choice").flatMap((e) => e.result.filter(Boolean).map((result) => ({ key: e.key, label: e.label, result })));
+  // (a `:column` pick is the ammunition's column: forced by the weapon carried, or the table's `else`; not a choice shown)
+  const choices = b.log.filter((e) => e.type === "choice" && !e.key.endsWith(":column")).flatMap((e) => e.result.filter(Boolean).map((result) => ({ key: e.key, label: e.label, result })));
   return { things: [...new Set(things)], choices };
 }
