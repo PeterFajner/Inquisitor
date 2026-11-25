@@ -15,7 +15,7 @@ import { abilityText } from "./ability-text.ts";
 import { Decisions, Pending } from "./Decisions.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
-import { archetypeName } from "./NewCharacter.tsx";
+import { archetypeName, byArchetypeName } from "./NewCharacter.tsx";
 import { choiceOptions, view } from "./ops.ts";
 
 export type ViewEdits = SheetEdits & {
@@ -97,7 +97,7 @@ function Things({ c, list }: { c: Compendium; list: Owned[] }) {
 /** Archetype, Subtype, and the archetype's own picks (an Inquisitor's Belief Faction…). */
 function Occupation({ c, record, built, edit }: { c: Compendium; record: CharacterRecord; built: BuildResult; edit?: ViewEdits }) {
   const ch = built.character;
-  const archetypes = useMemo(() => [...c.archetypes.values()].sort((a, b) => a.source.page - b.source.page || a.name.localeCompare(b.name)), [c]);
+  const archetypes = useMemo(() => [...c.archetypes.values()].sort(byArchetypeName), [c]);
   const arch = c.archetypes.get(ch.archetype.id);
   const picks = useMemo(() => {
     if (!edit) return [];

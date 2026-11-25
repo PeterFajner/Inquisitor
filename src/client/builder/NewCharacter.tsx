@@ -12,6 +12,9 @@ const DEFAULT = "inquisitor";
 
 /** An archetype as one character ("Inquisitor", not the book's heading "Inquisitors"). */
 export const archetypeName = (a: { name: string; characters?: string }): string => a.characters ?? a.name;
+/** The archetype dropdowns' order: A–Z by the shown name, the articles' mixed in with the book's. */
+export const byArchetypeName = (a: { name: string; characters?: string }, b: { name: string; characters?: string }): number =>
+  archetypeName(a).localeCompare(archetypeName(b));
 
 export function NewCharacter({
   c,
@@ -25,10 +28,7 @@ export function NewCharacter({
   /** The archetype/subtype on show (to get its balance ready before the roll). */
   onPreview?: (a: string, s: string) => void;
 }) {
-  const archetypes = useMemo(
-    () => [...c.archetypes.values()].sort((a, b) => a.source.page - b.source.page || a.name.localeCompare(b.name)),
-    [c],
-  );
+  const archetypes = useMemo(() => [...c.archetypes.values()].sort(byArchetypeName), [c]);
   const [arch, setArch] = useState(() => archetypes.find((a) => a.id === DEFAULT)?.id ?? archetypes[0]?.id ?? "");
   const subs = c.archetypes.get(arch)?.subtypes ?? [];
   const [sub, setSub] = useState(subs[0]?.id ?? "");
