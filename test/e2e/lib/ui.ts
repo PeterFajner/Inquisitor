@@ -146,7 +146,7 @@ export function visibleTexts(page: Page, root = "body", skip = ""): Promise<{ te
         for (let n = walk.nextNode(); n; n = walk.nextNode()) {
           const p = n.parentElement;
           // (an author's public id is data, not words)
-          if (!p || p.closest("option, script, style, noscript, .hv-author") || hidden(p)) continue;
+          if (!p || p.closest("option, script, style, noscript, .hv-author, .author-id") || hidden(p)) continue;
           if (n.textContent!.trim()) texts.push(n.textContent!.trim());
         }
         for (const s of base.querySelectorAll("select")) if (!hidden(s) && s.selectedOptions[0]) texts.push(s.selectedOptions[0].text.trim());
