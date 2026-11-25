@@ -94,6 +94,8 @@
 .sec:first-of-type, .stats + .sec, .rc-scroll + .sec { border-top: 0; }
 .sec > h4 { margin: 3px 0 0; font: 600 11.5px/1.3 var(--font-ui); color: var(--ink-2); }
 .sec-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* Too wide for a narrow card (an archetype's nested options on a phone): scrolls sideways inside the card, like the stat tables (.rc-scroll); no scroll bar, so its height is as worked out. */
+.sec > .sec-body { overflow-x: auto; scrollbar-width: none; }
 .flow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
 .flow-col { display: flex; flex-direction: column; gap: 4px; }
 .row { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px; align-items: start; }
