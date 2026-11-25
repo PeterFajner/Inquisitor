@@ -1,7 +1,8 @@
 // A tiny Server-Sent Events broadcaster. Each published event gets an id
 // ("<boot>-<n>": unique to this process), is kept in a short replay buffer
-// and is written to every open stream. A client reconnecting with
-// Last-Event-ID gets what it missed; when that isn't possible (another
+// and is written to every open stream. A new stream is given an id at once
+// (an id-only frame), so every reconnect carries Last-Event-ID. A client
+// reconnecting with it gets what it missed; when that isn't possible (another
 // process, or too far behind) it gets a `reset` event instead and should
 // fetch everything again. Comments (": ping") keep proxies from closing
 // idle streams.
@@ -71,6 +72,11 @@ export class Broadcaster {
       } else {
         res.write(`id: ${this.boot}-${this.n}\ndata: ${JSON.stringify(this.reset())}\n\n`);
       }
+    } else {
+      // An id with no data: no event, but the browser now holds a
+      // Last-Event-ID, so a reconnect after a restart (a stream that saw no
+      // event yet) gets the `reset` and catches up.
+      res.write(`id: ${this.boot}-${this.n}\n\n`);
     }
     this.streams.add(res);
     const done = () => {

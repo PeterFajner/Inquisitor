@@ -52,7 +52,7 @@ export function Card(p: CardProps) {
         {"group" in e && e.group && <span class="grp">{e.group}</span>}
         <span class="sp" />
         {e.points !== undefined && (
-          <span class="meta" role="img" aria-label={`${L.points}: ${e.points}`} title={L.points}>
+          <span class="meta" role="img" aria-label={`${L.points}: ${e.points}`} title={`${L.points}: ${e.points}`}>
             <Icon icon={Coins} size={13} />
             {e.points}
           </span>

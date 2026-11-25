@@ -39,11 +39,11 @@ export function PacksMenu(p: Props) {
               const shown = !p.hidden.has(pk.id);
               return (
                 <li class={shown ? undefined : "off"}>
-                  <button type="button" class="icon-btn icon-sm" aria-label={`${L.show}: ${pk.name}`} title={L.show} aria-pressed={shown} onClick={() => p.onToggle(pk.id)}>
+                  <button type="button" class="icon-btn icon-sm" aria-label={`${L.show}: ${pk.name}`} title={`${L.show}: ${pk.name}`} aria-pressed={shown} onClick={() => p.onToggle(pk.id)}>
                     {shown ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
                   </button>
                   {p.signedIn && (
-                    <button type="button" class="icon-btn icon-sm" aria-label={`${L.activePack}: ${pk.name}`} title={L.activePack} aria-pressed={p.active === pk.id} onClick={() => p.onActive(pk.id)}>
+                    <button type="button" class="icon-btn icon-sm" aria-label={`${L.activePack}: ${pk.name}`} title={`${L.activePack}: ${pk.name}`} aria-pressed={p.active === pk.id} onClick={() => p.onActive(pk.id)}>
                       <Pencil size={14} aria-hidden="true" />
                     </button>
                   )}

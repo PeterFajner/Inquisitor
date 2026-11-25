@@ -239,7 +239,7 @@ function Stats({ built, edit }: { built: BuildResult; edit?: ViewEdits }) {
                       }}
                     />
                   ) : edit ? (
-                    <button type="button" class="cstats-edit" aria-label={`${T.base} ${s} ${line.base}`} title={`${T.base} ${s}`} onClick={() => setEditing(s)}>
+                    <button type="button" class="cstats-edit" aria-label={`${T.base} ${s} ${line.base}`} title={`${T.base} ${s} ${line.base}`} onClick={() => setEditing(s)}>
                       {line.base}
                     </button>
                   ) : (
