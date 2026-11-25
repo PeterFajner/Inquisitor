@@ -221,7 +221,9 @@ function Stats({ built, edit }: { built: BuildResult; edit?: ViewEdits }) {
         <tbody>
           {STATS.map((s) => {
             const line = ch.stats[s];
-            const boon = line.modified - line.base;
+            // capped at 100 (a human, p3): the Boon is all of it, the Total ⌊100⌋
+            const capped = line.uncapped !== undefined && !line.overridden;
+            const boon = (capped ? line.uncapped! : line.modified) - line.base;
             return (
               <tr class={line.overridden ? "ovr" : undefined}>
                 <th scope="row">{s}</th>
@@ -247,7 +249,7 @@ function Stats({ built, edit }: { built: BuildResult; edit?: ViewEdits }) {
                   )}
                 </td>
                 <td>{boon ? (boon > 0 ? `+${boon}` : `−${-boon}`) : "-"}</td>
-                <td class="cstats-total">{line.final}</td>
+                <td class="cstats-total">{capped ? `⌊${line.final}⌋` : line.final}</td>
               </tr>
             );
           })}

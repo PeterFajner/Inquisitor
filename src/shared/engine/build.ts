@@ -106,12 +106,13 @@ export type OwnedItem = Owned & {
   availability?: Availability; // for this character (availabilityWhen, alterations)
   profile?: Record<string, string>; // the profile for this wielder, when profileWhen changes it
 };
-export type StatMod = { add?: number; set?: number; multiply?: number; formula?: StatFormula; source: string; key?: string };
+export type StatMod = { add?: number; set?: number; multiply?: number; formula?: StatFormula; source: string; sourceKind?: string; key?: string };
 export type StatCap = { max?: number; min?: number; source: string };
 export type StatLine = {
   base: number; // rolled from the subtype's stat line
   modified: number; // after effects and caps
   final: number; // after overrides
+  uncapped?: number; // when the human cap of 100 (p3) holds the stat at 100: what it would have been
   overridden: boolean;
   mods: StatMod[];
   caps: StatCap[];
@@ -1078,19 +1079,31 @@ class Pass {
     return [...this.owned.power.values()].some((p) => p.from.some((f) => !wyrd(f.key)));
   }
 
-  // The rolled stat line, capped for humans: p3 "Human characters' stats
-  // can't surpass 100" applies to the roll (step A); bonuses afterwards
-  // (boons, equipment, multipliers) may take a stat past 100.
+  // p3 "Human characters' stats can't surpass 100": a human archetype
+  // (`human` not false) with no mutation, a mutation making them a mutant
+  // (owner, November 2026). The roll and what creation adds (boons, tables)
+  // are capped; gear (augments, armour, weapons), exotic abilities and
+  // psychic powers add past it (the GM's ruling, November 2026).
+  capped(): boolean {
+    return this.arch.human !== false && this.owned.mutation.size === 0;
+  }
+
+  /** An add from gear, an exotic ability or a power: added after the human cap. */
+  pastCap(m: StatMod): boolean {
+    return m.add !== undefined && m.set === undefined && (m.sourceKind === "item" || m.sourceKind === "exotic" || m.sourceKind === "power");
+  }
+
+  // The rolled stat line, capped for humans.
   rolled(s: Stat): number {
-    return this.arch.human !== false ? Math.min(this.base[s], 100) : this.base[s];
+    return this.capped() ? Math.min(this.base[s], 100) : this.base[s];
   }
 
   // The stat's value from its base and mods (adds and sets in order; formulas
   // and multiplies come at the end).
-  fold(s: Stat): number {
+  fold(s: Stat, skip?: (m: StatMod) => boolean): number {
     let v = this.rolled(s);
     for (const m of this.mods[s]) {
-      if (m.formula || m.multiply !== undefined) continue;
+      if (m.formula || m.multiply !== undefined || skip?.(m)) continue;
       if (m.set !== undefined) v = m.set;
       else if (m.add !== undefined) v += m.add;
     }
@@ -1108,6 +1121,8 @@ class Pass {
       for (const s of stats) {
         const v = fixed ? parseDice(d).constant : once ?? this.dice(`${key}:${s}`, d, s, parent).total;
         const m: StatMod = { [op]: v, source: src.id } as StatMod;
+        // gear, exotic abilities and powers add past a human's cap of 100
+        if (src.kind === "item" || src.kind === "exotic" || src.kind === "power") m.sourceKind = src.kind;
         if (key) m.key = e.each ? `${key}:${s}` : key;
         this.mods[s].push(m);
         this.cur[s] = op === "add" ? this.cur[s] + v : v;
@@ -2464,8 +2479,11 @@ class Pass {
     const stats = {} as Record<Stat, StatLine>;
     const phase1 = {} as Record<Stat, number>;
     for (const s of STATS) phase1[s] = this.fold(s);
+    const human = this.capped();
     for (const s of STATS) {
-      let v = phase1[s];
+      // a human's gear, exotic and power adds come after the cap of 100
+      const past = human ? this.mods[s].filter((m) => this.pastCap(m)) : [];
+      let v = past.length ? this.fold(s, (m) => this.pastCap(m)) : phase1[s];
       for (const m of this.mods[s]) {
         if (!m.formula) continue;
         m.add = this.formula(m.formula, phase1);
@@ -2475,8 +2493,14 @@ class Pass {
         if (cap.max !== undefined) v = Math.min(v, cap.max);
         if (cap.min !== undefined) v = Math.max(v, cap.min);
       }
+      const before = v;
+      if (human) v = Math.min(v, 100);
+      for (const m of past) v += m.add!;
       for (const m of this.mods[s]) if (m.multiply !== undefined) v = roundOff(v * m.multiply);
-      stats[s] = { base: this.base[s], modified: v, final: v, overridden: false, mods: this.mods[s], caps: this.caps[s] };
+      const line: StatLine = { base: this.base[s], modified: v, final: v, overridden: false, mods: this.mods[s], caps: this.caps[s] };
+      // held at 100: the Total shows ⌊100⌋, the Boon all that was added
+      if (before > 100 && v === 100) line.uncapped = before;
+      stats[s] = line;
     }
     const ch: Character = {
       name: record.name,

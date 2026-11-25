@@ -131,13 +131,16 @@ own and those the last pass met.
    true }` with `into`: Study Thy Weapon's weapon, a mount, an MIU's
    equipment) are made after the last section and rule, once all the gear
    is made, under the keys they had where they were met.
-3. Stats: base (the rolled stat line, capped at 100 unless
-   `archetype.human === false`: the book's cap applies to the roll, and
-   later bonuses may pass it) → adds/sets in order → formula adds (`{ stat:
+3. Stats: base (the rolled stat line, capped at 100 for a human: an
+   archetype without `human: false` and a character with no mutation, a
+   mutation making them a mutant; owner, November 2026) → adds/sets in order → formula adds (`{ stat:
    S, divide: 10 }`, worked out from the stats after their adds/sets) → caps
    (`max`, `min`, `max: average` = the subtype's stat line with every die at
-   its mean, rounded down) → multiplies (Power Armour's ×1.2, rounded off) =
-   `modified`.
+   its mean, rounded down) → multiplies (Power Armour's ×1.2, rounded off) →
+   = `modified`. For a human, the roll and everything but gear, exotic
+   abilities and powers is capped at 100 before those adds and the
+   multiplies (the GM's ruling: augments and powers can take a human past
+   100); `uncapped` keeps what a stat held at 100 would have been.
 4. `remove` effects (Warp Disruptor) take things away.
 5. Overrides last (they don't re-trigger rules) = `final`, flagged.
 6. From the final stats: derived values (`deriveStats` with any `counts`,

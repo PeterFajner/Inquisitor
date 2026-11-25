@@ -67,7 +67,7 @@ kind: archetype
 name: Adeptus Astartes
 gmApproval: true            # asterisked in the book
 characters: Adeptus Astartes # one character: the name the app shows ("Inquisitor", not the heading "Inquisitors"); the stat table header without "Characters" where it has one
-human: false                # rolled stats may exceed 100 (default true: "Human characters' stats can't surpass 100" caps the roll; later bonuses may exceed it)
+human: false                # stats may exceed 100 (default true: "Human characters' stats can't surpass 100" caps the roll and what creation adds, not gear, exotic abilities or powers; none of it if the character has a mutation: then they're a mutant)
 source: { page: 6, text: "…" }
 subtypes:                    # the stat table rows; one row → one subtype
   - id: space-marine
