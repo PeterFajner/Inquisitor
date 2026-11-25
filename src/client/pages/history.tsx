@@ -5,13 +5,14 @@
 // #v=<version id> selects and shows that version (source links use it).
 import { ArrowLeft } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
-import type { Character, PageData } from "../../shared/api.ts";
+import type { Character } from "../../shared/api.ts";
 import { ICON, IconButton } from "../builder/Icon.tsx";
 import { SiteBar } from "../components/SiteBar.tsx";
 import { HistoryView } from "../history/HistoryView.tsx";
 import { H } from "../history/labels.ts";
 import { findSource } from "../history/source.ts";
 import { characters } from "../lib/characters.ts";
+import { navigate, type PageProps } from "../lib/router.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import "../history/page.css";
 
@@ -21,7 +22,7 @@ const hashVersion = (): string | null => {
   return m ? decodeURIComponent(m[1]) : null;
 };
 
-export function HistoryPage({ data }: { data: PageData }) {
+export function HistoryPage({ data }: PageProps) {
   const [char, setChar] = useState<Character | null>(data.character ?? null);
   const [rules, setRules] = useState<Rules | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,7 +49,7 @@ export function HistoryPage({ data }: { data: PageData }) {
   };
 
   const open = async (versionId: string) => {
-    if (versionId === char.head_id || (await setHead(versionId))) location.assign(`/c/${enc(char.id)}`);
+    if (versionId === char.head_id || (await setHead(versionId))) void navigate(`/c/${enc(char.id)}`);
   };
 
   const duplicate = async (versionId: string) => {
@@ -56,7 +57,7 @@ export function HistoryPage({ data }: { data: PageData }) {
     setBusy(true);
     try {
       const c = await characters.duplicate(char.id, versionId);
-      location.assign(`/c/${enc(c.id)}`);
+      await navigate(`/c/${enc(c.id)}`);
     } catch {
       setBusy(false);
     }

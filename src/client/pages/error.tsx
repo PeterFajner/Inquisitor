@@ -1,10 +1,10 @@
 // A page the server couldn't show (no such character, warband or share
 // link, or one that isn't the viewer's): no words (AGENTS.md), only the
 // HTTP status under the bar (its tabs are the way home).
-import type { PageData } from "../../shared/api.ts";
+import type { PageProps } from "../lib/router.ts";
 import { SiteBar } from "../components/SiteBar.tsx";
 
-export function ErrorPage({ data }: { data: PageData }) {
+export function ErrorPage({ data }: PageProps) {
   return (
     <>
       <SiteBar page={null} />

@@ -1,7 +1,7 @@
 // A tiny observable value for state shared outside the component tree
 // (signed in or not).
 // Components read one with useStore(); plain code with get/set/subscribe.
-import { useEffect, useReducer } from "preact/hooks";
+import { useEffect, useReducer, useRef } from "preact/hooks";
 
 export type Store<T extends object> = {
   get(): T;
@@ -26,8 +26,17 @@ export function store<T extends object>(initial: T): Store<T> {
 }
 
 // The store's current value; the component re-renders when it changes.
-export function useStore<T extends object>(s: Store<T>): T {
+// Not `live` (a page kept hidden: src/client/lib/router.ts), it keeps the
+// value it last had and isn't re-rendered until live again, then once if
+// the store changed meanwhile.
+export function useStore<T extends object>(s: Store<T>, live = true): T {
   const [, bump] = useReducer((n: number, _: void) => n + 1, 0);
-  useEffect(() => s.subscribe(() => bump()), [s]);
-  return s.get();
+  const seen = useRef(s.get());
+  useEffect(() => {
+    if (!live) return;
+    if (s.get() !== seen.current) bump();
+    return s.subscribe(() => bump());
+  }, [s, live]);
+  if (live) seen.current = s.get();
+  return seen.current;
 }

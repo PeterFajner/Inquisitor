@@ -17,6 +17,7 @@ import { account } from "../lib/account.ts";
 import { balanceText, distribution, quickDistribution } from "../lib/balance.ts";
 import { characters as backend, headVersion, redoTarget, undoTarget, type ListRow } from "../lib/characters.ts";
 import { migrateLegacy } from "../lib/legacy.ts";
+import { setUrl } from "../lib/router.ts";
 import { loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 import { useStore } from "../lib/store.ts";
 import { CharacterView, type ViewEdits } from "./CharacterView.tsx";
@@ -66,16 +67,14 @@ const remembered = (): string | null => {
   }
 };
 
-/** /c/<id> for a character, / for none. */
+/** /c/<id> for a character, / for none (the address while the builder is shown: src/client/lib/router.ts). */
 function syncUrl(c: ApiCharacter | null) {
-  const path = c ? `/c/${encodeURIComponent(c.id)}` : "/";
-  if (location.pathname !== path) history.replaceState(null, "", path);
+  setUrl("builder", c ? `/c/${encodeURIComponent(c.id)}` : "/");
 }
 
 /** /w/<id> for a warband. */
 function syncWarbandUrl(id: string) {
-  const path = `/w/${encodeURIComponent(id)}`;
-  if (location.pathname !== path) history.replaceState(null, "", path);
+  setUrl("builder", `/w/${encodeURIComponent(id)}`);
 }
 
 // Ability kinds as the book's profile rows name them.
@@ -187,7 +186,8 @@ function BalanceChip({ word, text }: { word: string; text: string }) {
   );
 }
 
-export function Builder({ data }: { data: PageData }) {
+/** `seq`: goes up when the builder, kept, is sent to another character or warband (`data` names it). */
+export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
   const { signedIn } = useStore(account);
   const [rules, setRules] = useState<Rules | null>(null);
   const [list, setList] = useState<ListRow[] | null>(null);
@@ -274,6 +274,24 @@ export function Builder({ data }: { data: PageData }) {
   useEffect(() => {
     void refresh(data.character?.id);
   }, [signedIn]);
+
+  // Sent to a character or a warband (a link from another page, back or forward): show it, and the list as it is now.
+  const seen = useRef(seq);
+  useEffect(() => {
+    if (seen.current === seq) return;
+    seen.current = seq;
+    setCreating(false);
+    setUpdate(null);
+    setPicker(null);
+    const w = data.warband?.warband.id ?? null;
+    wbRef.current = w;
+    setWb(w);
+    if (data.character) {
+      setChar(data.character);
+      remember(data.character.id);
+    }
+    void refresh(data.character?.id);
+  }, [seq]);
 
   const head = char ? headVersion(char) : null;
   const record = useMemo(() => (head ? ops.engineRecord(head.record) : null), [head]);

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Character as ApiCharacter, Shared as SharedData } from "../../shared/api.ts";
 import { SiteBar } from "../components/SiteBar.tsx";
 import { duplicateShared, headVersion } from "../lib/characters.ts";
+import { navigate } from "../lib/router.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import { BalanceLabel, usePinnedRules } from "./Builder.tsx";
 import { CharacterView } from "./CharacterView.tsx";
@@ -60,7 +61,7 @@ export function SharedView({ share }: { share: SharedData }) {
     setBusy(true);
     try {
       const c = await duplicateShared(share.token, share.character.head_id);
-      location.assign(`/c/${encodeURIComponent(c.id)}`);
+      await navigate(`/c/${encodeURIComponent(c.id)}`);
     } catch {
       setBusy(false);
     }

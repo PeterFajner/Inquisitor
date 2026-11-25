@@ -28,7 +28,8 @@ export function SiteBar(p: Props) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => onHeight.current?.(el.offsetHeight));
+    // (None while the page is hidden: src/client/app.tsx.)
+    const ro = new ResizeObserver(() => el.offsetHeight > 0 && onHeight.current?.(el.offsetHeight));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

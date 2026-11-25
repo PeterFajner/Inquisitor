@@ -113,3 +113,8 @@ button { font: inherit; color: inherit; }
 .icon-btn[aria-pressed="true"] { background: var(--surface-2); border-color: var(--line); }
 .icon-btn:disabled { opacity: 0.4; cursor: default; }
 .loading { min-height: 100vh; }
+/* A page kept while another is shown (src/client/app.tsx): not drawn, no height, but kept as laid out
+   (content-visibility: hidden), so showing it again is quick; display: none would restyle all of it. */
+.page-away { content-visibility: hidden; }
+/* A page's main region, given the focus when the page is reached in place: no ring on the whole page. */
+.page main[tabindex="-1"]:focus-visible, .page[tabindex="-1"]:focus-visible { outline: none; }

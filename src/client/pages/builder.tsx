@@ -1,11 +1,11 @@
-// "/", "/c/<id>": the builder; "/s/<token>": a share link, read-only
-// ("/s/<token>?print": as the print sheet).
-import type { PageData } from "../../shared/api.ts";
+// "/", "/c/<id>": the builder; "/w/<id>": one of the viewer's warbands, in
+// the builder (its list column and the warband in the main column:
+// src/client/warband/WarbandView.tsx). One page for all three: it's kept
+// while another is shown (src/client/lib/router.ts), and `seq` says when
+// it's sent to another character or warband.
+import type { PageProps } from "../lib/router.ts";
 import { Builder } from "../builder/Builder.tsx";
-import { SharedView } from "../builder/Shared.tsx";
-import { isPrintView, SharePrint } from "../print/SharePrint.tsx";
 
-export function BuilderPage({ data }: { data: PageData }) {
-  if (data.share && isPrintView()) return <SharePrint share={data.share} />;
-  return data.share ? <SharedView share={data.share} /> : <Builder data={data} />;
+export function BuilderPage({ data, seq }: PageProps) {
+  return <Builder data={data} seq={seq} />;
 }

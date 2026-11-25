@@ -22,11 +22,11 @@
 import { Component, type ComponentChildren } from "preact";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Plus } from "lucide-preact";
-import type { PageData } from "../../shared/api.ts";
 import { buildCompendium, type PackEntries } from "../../shared/rules/compendium.ts";
 import type { Entry } from "../../shared/rules/schema.ts";
 import { MenuToggle, SiteBar } from "../components/SiteBar.tsx";
 import { account } from "../lib/account.ts";
+import { setUrl, urlOf } from "../lib/router.ts";
 import { useStore } from "../lib/store.ts";
 import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, shortName, winners } from "./book.ts";
 import { Card, type CardActions } from "./Card.tsx";
@@ -87,6 +87,8 @@ function writeLocal(k: string, v: string) {
   } catch {}
 }
 const wide = () => typeof matchMedia === "function" && matchMedia(WIDE_MQ).matches;
+/** The page's own address (src/client/lib/router.ts: the address while it's shown, else as it was left). */
+const own = () => new URL(urlOf("rules") || location.href, location.origin);
 
 /** Card sizes: the server's while they hold (same content, same names looked up), else worked out here (as the canvas did). */
 function useCardSizes(visible: [Key, Item][], names: Names, heights: ReturnType<typeof rules.get>["heights"]) {
@@ -143,9 +145,13 @@ function useCardSizes(visible: [Key, Item][], names: Names, heights: ReturnType<
   return computed;
 }
 
-export function RulesBook({ data }: { data: PageData }) {
-  void data;
-  const s = useStore(rules);
+/**
+ * `live`: the page is shown (kept hidden while another is: src/client/app.tsx). Hidden, it isn't drawn
+ * again for live edits (until shown) and doesn't mount cards, follow the scroll or measure.
+ * `seq`: goes up when the address is changed for it (back, forward, a link): it goes there.
+ */
+export function RulesBook({ seq = 0, live = true }: { seq?: number; live?: boolean }) {
+  const s = useStore(rules, live);
   const { signedIn } = useStore(account);
 
   useEffect(() => {
@@ -230,7 +236,7 @@ export function RulesBook({ data }: { data: PageData }) {
 
   // (A card in the address is shown once the rules are in, below.)
   const [tab, setTabState] = useState<string>(() => {
-    const p = parseHash(location.hash, () => null, tabIds);
+    const p = parseHash(own().hash, () => null, tabIds);
     const saved = readLocal(TAB_KEY);
     return p?.tab ?? (saved && tabIds.includes(saved) ? saved : REGIONS[0].id);
   });
@@ -257,7 +263,8 @@ export function RulesBook({ data }: { data: PageData }) {
   /** Shows a tab (at its last place) or a card (its tab, scrolled to it). */
   const show = useCallback(
     (to: { tab: string; key: Key | null }, opts: { push?: boolean; flash?: boolean } = {}) => {
-      if (tabRef.current !== to.tab) scrollOf.current.set(tabRef.current, window.scrollY);
+      // (Its own tab too: shown again without a card, it stays where it is.)
+      scrollOf.current.set(tabRef.current, window.scrollY);
       tabRef.current = to.tab;
       setTabState(to.tab);
       writeLocal(TAB_KEY, to.tab);
@@ -269,7 +276,8 @@ export function RulesBook({ data }: { data: PageData }) {
       }
       if (opts.push !== false) {
         const h = hashOf(to);
-        if (location.hash !== h) history.pushState(null, "", `${location.pathname}${location.search}${h}`);
+        const u = own();
+        if (u.hash !== h) setUrl("rules", `${u.pathname}${u.search}${h}`, { push: true });
       }
     },
     [],
@@ -293,40 +301,45 @@ export function RulesBook({ data }: { data: PageData }) {
     [goKey],
   );
 
-  // The address: on load (once the rules are in), and on back / forward.
+  // The address: on load (once the rules are in), and on back / forward (seq).
   const openedHash = useRef(false);
   useEffect(() => {
     if (openedHash.current || !s.loaded) return;
     openedHash.current = true;
-    const p = parseHash(location.hash, tabOfKey, tabIds);
+    const u = own();
+    const p = parseHash(u.hash, tabOfKey, tabIds);
     if (p?.key && s.items.has(p.key)) goKey(p.key, { push: false, flash: true });
     else if (p) show(p, { push: false });
     // No address: the tab shown gets one, so coming back to it works.
-    else history.replaceState(null, "", `${location.pathname}${location.search}${hashOf({ tab: tabRef.current, key: null })}`);
+    else setUrl("rules", `${u.pathname}${u.search}${hashOf({ tab: tabRef.current, key: null })}`);
   }, [s.loaded]);
   useEffect(() => {
     history.scrollRestoration = "manual";
-    const on = () => {
-      const p = parseHash(location.hash, tabOfKey, tabIds);
-      if (p) show(p, { push: false, flash: !!p.key });
-    };
-    addEventListener("popstate", on);
-    return () => removeEventListener("popstate", on);
-  }, [show, tabOfKey, tabIds]);
+  }, []);
+  const seenSeq = useRef(seq);
+  useEffect(() => {
+    if (seenSeq.current === seq) return;
+    seenSeq.current = seq;
+    // (Not in yet: the address is read once they are, above.)
+    if (!openedHash.current) return;
+    const p = parseHash(own().hash, tabOfKey, tabIds);
+    if (p) show(p, { push: false, flash: !!p.key });
+  }, [seq]);
   // A card chosen by a click is the address too (without a new history entry).
   const select = useCallback((key: Key) => {
     setSelected(key);
     const t = tabOfKey(key);
-    if (t) history.replaceState(null, "", `${location.pathname}${location.search}${hashOf({ tab: t, key })}`);
+    const u = own();
+    if (t) setUrl("rules", `${u.pathname}${u.search}${hashOf({ tab: t, key })}`);
   }, [tabOfKey]);
 
   useEffect(() => {
-    if (!s.loaded || !complete.has(tab) || working) return;
+    if (!live || !s.loaded || !complete.has(tab) || working) return;
     const next = REGIONS.find((r) => !shown.has(r.id));
     if (!next) return;
     const h = whenIdle(() => setShown((sh) => new Set(sh).add(next.id)));
     return () => cancelIdle(h);
-  }, [s.loaded, complete, shown, tab, working]);
+  }, [live, s.loaded, complete, shown, tab, working]);
 
   // --- the Table of Contents --------------------------------------------------
   const [tocOpen, setTocOpen] = useState<boolean>(() => {
@@ -399,12 +412,13 @@ export function RulesBook({ data }: { data: PageData }) {
   );
 
   // The content's width (the masonry's columns follow it).
-  const mainRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
     const el = mainRef.current;
     if (!el) return;
-    const measure = () => setWidth(el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight));
+    // (None while the page is hidden.)
+    const measure = () => el.clientWidth > 0 && setWidth(el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -480,7 +494,7 @@ export function RulesBook({ data }: { data: PageData }) {
           REGIONS.filter((r) => shown.has(r.id)).map((r) => (
             <Toc key={r.id} tab={r.id} shown={tocOpen && r.id === tab} shelves={byTab.get(r.id) ?? []} onPick={tocPick} navs={tocs.current} />
           ))}
-        <div class="rb-main" ref={mainRef} aria-busy={!s.loaded}>
+        <main class="rb-main" ref={mainRef} aria-busy={!s.loaded}>
           {s.loaded &&
             width > 0 &&
             REGIONS.filter((r) => shown.has(r.id)).map((r) => (
@@ -488,6 +502,7 @@ export function RulesBook({ data }: { data: PageData }) {
                 key={r.id}
                 shelves={byTab.get(r.id) ?? []}
                 current={r.id === tab}
+                live={live}
                 width={width}
                 barH={barH}
                 focus={r.id === tab ? tabFocus : null}
@@ -504,7 +519,7 @@ export function RulesBook({ data }: { data: PageData }) {
                 onAt={r.id === tab ? onAt : null}
               />
             ))}
-        </div>
+        </main>
       </div>
       {panel && (
         <div class="rb-panel">
@@ -578,6 +593,8 @@ type TabProps = {
   tab: string;
   shelves: ShelfGroup<BookCard>[];
   current: boolean;
+  /** The page is shown: hidden, a tab mounts nothing, follows no scroll and measures nothing. */
+  live: boolean;
   width: number;
   barH: number;
   focus: { key: Key | null; n: number } | null;
@@ -663,7 +680,7 @@ function TabPage(p: TabProps) {
     c.t0 = 0;
   }, [mounted]);
   useEffect(() => {
-    if (!p.current && !p.work) return;
+    if (!p.live || (!p.current && !p.work)) return;
     const unmounted = () => p.shelves.flatMap((sh) => sh.cards.filter((c) => !mounted.has(c.id)).map((c) => c.id));
     if (!unmounted().length) {
       if (ready) p.onDone(p.tab);
@@ -693,7 +710,7 @@ function TabPage(p: TabProps) {
       cancelAnimationFrame(raf);
       cancelIdle(idle);
     };
-  }, [p.current, p.work, mounted, layouts, ready]);
+  }, [p.live, p.current, p.work, mounted, layouts, ready]);
 
   // Becoming the current tab, or asked to show a card: mount what's in view and scroll there, before the browser paints;
   // then keep the card at the top while the cards above it settle (a phone's are only estimated until mounted), unless the reader scrolls.
@@ -742,7 +759,7 @@ function TabPage(p: TabProps) {
   // The reader's place: the last card (in A–Z order) whose top has passed under the bar.
   useEffect(() => {
     const onAt = p.onAt;
-    if (!p.current || !onAt) return;
+    if (!p.live || !p.current || !onAt) return;
     let raf = 0, last: Key | null | undefined;
     const update = () => {
       raf = 0;
@@ -760,20 +777,21 @@ function TabPage(p: TabProps) {
       removeEventListener("scroll", on);
       removeEventListener("resize", on);
     };
-  }, [p.current, p.onAt, layouts, p.barH]);
+  }, [p.live, p.current, p.onAt, layouts, p.barH]);
 
   // Cards whose height isn't known ahead (one column; a card made narrower than it was worked out for) are
   // laid out once as they're mounted, even out of view ("fresh": not skipped), and their height kept: their
   // columns make room. If that moves what's in view (a card above it changed), the page scrolls by as much,
   // so nothing on screen moves. A card drawn later at another height (edited, say) is kept the same way.
   const exact = (c: BookCard) => !flow && c.w <= p.width;
-  const sizing = useRef({ cardsById, hs, exact, current: p.current, barH: p.barH });
-  sizing.current = { cardsById, hs, exact, current: p.current, barH: p.barH };
+  const sizing = useRef({ cardsById, hs, exact, current: p.current, live: p.live, barH: p.barH });
+  sizing.current = { cardsById, hs, exact, current: p.current, live: p.live, barH: p.barH };
   const anchor = useRef<{ key: Key; top: number } | null>(null);
   const observed = useRef<{ ro: ResizeObserver; els: WeakSet<Element> } | null>(null);
   useEffect(() => {
     const ro = new ResizeObserver((entries) => {
-      const { cardsById: cs, hs: h0, exact: ex, current, barH } = sizing.current;
+      const { cardsById: cs, hs: h0, exact: ex, current, live, barH } = sizing.current;
+      if (!live) return;
       const add: [Key, number][] = [];
       const vh = window.innerHeight;
       for (const en of entries) {
