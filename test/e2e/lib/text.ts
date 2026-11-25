@@ -4,6 +4,8 @@
 // in neither is a finding (invented UI text: "Loading", "No results",
 // "Save"…).
 
+import { plural } from "../../../src/shared/engine/balance.ts";
+
 /** The owner's approved texts (AGENTS.md "No UI text except the book's"). */
 export const APPROVED = [
   "Sign in", "Sign out", "Create account",
@@ -15,6 +17,7 @@ export const APPROVED = [
   "Inquisitor Character Generator", "Character name", "Occupation", "Archetype", "Subtype", "Role", "Stats", "Base", "Boon", "Total", "Talents",
   "Boons", "Reroll", "Download Docx", "lost", "Rolls", "Balance details", "* Should have GM approval before use.",
   "Tables", "Rules", "Rolled on by", "Search", "Table of Contents", "Characters",
+  "Delete", // the confirm() of the delete under a character, "Delete <name>?" (owner, November 2026)
 ];
 
 /** Words Intl.RelativeTimeFormat("en") prints in the history ("5 minutes ago", "yesterday"). */
@@ -36,6 +39,8 @@ export function bookWords(rules: unknown): Set<string> {
   };
   visit(rules);
   for (const s of [...APPROVED, ...RELATIVE_TIME]) for (const w of wordsOf(s)) out.add(w);
+  // The balance sentence's plural of the archetype or subtype (balance.ts plural(); owner, November 2026).
+  for (const w of [...out]) out.add(wordsOf(plural(w))[0] ?? w);
   return out;
 }
 
