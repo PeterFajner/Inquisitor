@@ -5,14 +5,14 @@
 // (a visitor's until "Create account" or "Sign in": src/client/lib/account.ts);
 // characters this browser kept itself before that go there once on load
 // (src/client/lib/legacy.ts).
-import { CircleArrowUp, Copy, History, Info, Menu, Plus, Redo2, ScrollText, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
+import { CircleArrowUp, Copy, History, Info, Plus, Redo2, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
 import type { CharacterDiff } from "../../shared/engine/diff.ts";
 import type { ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
-import { AccountButton } from "../components/account/AccountButton.tsx";
+import { MenuToggle, SiteBar } from "../components/SiteBar.tsx";
 import { account } from "../lib/account.ts";
 import { balanceText, distribution, quickDistribution } from "../lib/balance.ts";
 import { characters as backend, headVersion, redoTarget, undoTarget, type ListRow } from "../lib/characters.ts";
@@ -36,6 +36,21 @@ import { WarbandView } from "../warband/WarbandView.tsx";
 import "./builder.css";
 
 const SELECTED = "inquisitor:selected";
+const LIST_OPEN = "inquisitor:list-open";
+/** Wide enough for the list as a column beside the character (builder.css). */
+const wideList = () => matchMedia("(min-width: 861px)").matches;
+const readLocal = (k: string): string | null => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const writeLocal = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
+};
 
 const remember = (id: string | null) => {
   try {
@@ -179,17 +194,20 @@ export function Builder({ data }: { data: PageData }) {
   const [char, setChar] = useState<ApiCharacter | null>(data.character ?? null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
-  // The top bar wraps to two rows on phones: the drawer starts below it.
-  const barRef = useRef<HTMLElement>(null);
-  const [barH, setBarH] = useState(49);
-  useEffect(() => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const ro = new ResizeObserver(() => setBarH(Math.round(bar.getBoundingClientRect().height)));
-    ro.observe(bar);
-    return () => ro.disconnect();
-  }, []);
+  // The list: a column on a wide screen (open unless closed there, remembered), a drawer on a narrow one.
+  const [listOpen, setListOpen] = useState<boolean>(() => wideList() && readLocal(LIST_OPEN) !== "0");
+  const toggleList = (open: boolean) => {
+    setListOpen(open);
+    if (wideList()) writeLocal(LIST_OPEN, open ? "1" : "0");
+  };
+  /** Closes the drawer after a pick (the column stays). */
+  const pickedFromList = () => {
+    if (!wideList()) setListOpen(false);
+  };
+  // The bar's height (both rows): the drawer and the column start below it.
+  const [barH, setBarH] = useState(93);
+  // The second row's place for a shown warband's tools (WarbandView puts them there).
+  const [wbTools, setWbTools] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [update, setUpdate] = useState<{ d: CharacterDiff; randomChoices: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -312,7 +330,7 @@ export function Builder({ data }: { data: PageData }) {
   };
 
   const select = async (id: string) => {
-    setListOpen(false);
+    pickedFromList();
     setCreating(false);
     setUpdate(null);
     setWb(null);
@@ -493,7 +511,7 @@ export function Builder({ data }: { data: PageData }) {
   // --- warbands ------------------------------------------------------------------
 
   const showWarband = (id: string) => {
-    setListOpen(false);
+    pickedFromList();
     setCreating(false);
     setUpdate(null);
     setWb(id);
@@ -518,54 +536,67 @@ export function Builder({ data }: { data: PageData }) {
   const charNames = useMemo(() => new Map((list ?? []).map((r) => [r.id, r.name])), [list]);
 
   return (
-    <div class="builder" aria-busy={busy || !rules} style={{ "--topbar-h": `${barH}px` }}>
-      <header class="topbar" ref={barRef}>
-        <IconButton label={L.characters} class="list-toggle" pressed={listOpen} onClick={() => setListOpen(!listOpen)}>
-          <Menu size={ICON} />
-        </IconButton>
-        <a class="home" href="/" aria-label="Inquisitor" title="Inquisitor">
-          <img src="/static/icon.svg" alt="" width={28} height={28} />
-        </a>
-        <IconButton label={L.newCharacter} pressed={creating} onClick={() => setCreating(!creating)} disabled={!rules}>
-          <Plus size={ICON} />
-        </IconButton>
-        <IconButton label={L.rules} href="/rules" class="rules-link">
-          <ScrollText size={ICON} />
-        </IconButton>
-        <h1 class="site-title topbar-title">{T.title}</h1>
+    <div class={`builder${listOpen ? " list-open" : ""}`} aria-busy={busy || !rules} style={{ "--topbar-h": `${barH}px` }}>
+      <SiteBar page="characters" onHeight={setBarH} onSignedOut={() => remember(null)}>
+        <MenuToggle label={L.characters} open={listOpen} onToggle={() => toggleList(!listOpen)} />
         {char && built && !wb && (
-          <span class="char-tools">
-            <IconButton label={L.undo} disabled={!undoTo || busy} onClick={() => char && void moveHead(undoTo, char.head_id)}>
-              <Undo2 size={ICON} />
-            </IconButton>
-            <IconButton label={L.redo} disabled={!redoTo || busy} onClick={() => char && void moveHead(redoTo, char.head_id)}>
-              <Redo2 size={ICON} />
-            </IconButton>
-            <IconButton label={L.duplicate} disabled={busy} onClick={duplicate}>
-              <Copy size={ICON} />
-            </IconButton>
-            <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char.id)} />
-            <ExportButtons disabled={busy} rows={() => [{ name: char.name, head: headVersion(char) }]} />
-            {/* History: the history canvas at /c/<id>/history. */}
-            <IconButton label={L.history} href={`/c/${encodeURIComponent(char.id)}/history`}>
-              <History size={ICON} />
-            </IconButton>
-            {outdated && (
-              <IconButton label={L.update} class="attention" pressed={!!update} onClick={() => (update ? setUpdate(null) : void openUpdate())}>
-                <CircleArrowUp size={ICON} />
+          <span class="site-scroll char-tools">
+            <span class="site-group">
+              <IconButton label={L.undo} disabled={!undoTo || busy} onClick={() => char && void moveHead(undoTo, char.head_id)}>
+                <Undo2 size={ICON} />
               </IconButton>
-            )}
-            <IconButton label={confirmDelete ? L.confirmRemove : L.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={remove}>
-              {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
-            </IconButton>
+              <IconButton label={L.redo} disabled={!redoTo || busy} onClick={() => char && void moveHead(redoTo, char.head_id)}>
+                <Redo2 size={ICON} />
+              </IconButton>
+            </span>
+            <span class="site-group">
+              <IconButton label={L.duplicate} disabled={busy} onClick={duplicate}>
+                <Copy size={ICON} />
+              </IconButton>
+              <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char.id)} />
+              <ExportButtons disabled={busy} caption rows={() => [{ name: char.name, head: headVersion(char) }]} />
+            </span>
+            <span class="site-group">
+              {/* History: the history canvas at /c/<id>/history. */}
+              <IconButton label={L.history} href={`/c/${encodeURIComponent(char.id)}/history`}>
+                <History size={ICON} />
+              </IconButton>
+              {outdated && (
+                <IconButton label={L.update} class="attention" pressed={!!update} onClick={() => (update ? setUpdate(null) : void openUpdate())}>
+                  <CircleArrowUp size={ICON} />
+                </IconButton>
+              )}
+            </span>
+            <span class="site-group char-delete">
+              <IconButton label={confirmDelete ? L.confirmRemove : L.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={remove}>
+                {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
+              </IconButton>
+            </span>
           </span>
         )}
-        <AccountButton onSignedOut={() => remember(null)} />
-      </header>
+        {wb && <span class="site-scroll" ref={setWbTools} />}
+      </SiteBar>
 
       <div class="builder-body">
         {listOpen && <div class="list-backdrop" aria-hidden="true" onClick={() => setListOpen(false)} />}
         <nav class={`char-list${listOpen ? " open" : ""}`} aria-label={L.characters}>
+          <div class="char-list-head">
+            <IconButton
+              label={L.newCharacter}
+              pressed={creating && !wb}
+              disabled={!rules}
+              onClick={() => {
+                pickedFromList();
+                setWb(null);
+                setUpdate(null);
+                setCreating(true);
+                syncUrl(char);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            >
+              <Plus size={ICON} />
+            </IconButton>
+          </div>
           <ul>
             {(list ?? []).map((r) => (
               <li>
@@ -580,6 +611,7 @@ export function Builder({ data }: { data: PageData }) {
         </nav>
 
         <main class="builder-main">
+          <h1 class="site-title builder-title">{T.title}</h1>
           {creating && c && rules && (
             <NewCharacter c={c} onCreate={create} onClose={char ? () => setCreating(false) : undefined} onPreview={(a, s) => {
               void quickDistribution(rules, a, s);
@@ -596,6 +628,7 @@ export function Builder({ data }: { data: PageData }) {
             <WarbandView
               key={wb}
               id={wb}
+              tools={wbTools}
               backend={wbBackend}
               characters={list ?? []}
               rules={rules}

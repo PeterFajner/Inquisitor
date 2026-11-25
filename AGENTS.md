@@ -54,8 +54,10 @@ Word sheet. See PLAN.md for the design and its decisions.
   rules canvas's region titles) and the label "Rolled on by" (a table's
   back-links; owner, November 2026); the label "Search" (the search icon,
   its field and results; owner, November 2026); the label "Table of
-  Contents" (the rules page's sidebar and its icon; the book's p. 2 heading;
-  owner, November 2026).
+  Contents" (the rules page's sidebar and its ☰; the book's p. 2 heading;
+  owner, November 2026); the top bar's tabs on every page, "Characters"
+  (owner, November 2026) and "Rules" (the rules page's tab title, now also
+  its tab in the top bar).
   The look is the 2023 site's (dark cards on a dark-red mosaic, red for
   what can be changed, the Inquisitor title face): keep it.
   Anything else needs the owner's approval first: don't add

@@ -1,4 +1,4 @@
-/* The rules page (./RulesBook.tsx): the builder's bar with the tabs, the
+/* The rules page (./RulesBook.tsx): the bar with the tabs in its second row, the
    Table of Contents in a sidebar (over the page on a phone), and each tab's
    shelves of cards on the mosaic. Kept apart from rules.css, which the card
    heights are worked out from (src/shared/layout). base.css tokens only. */
@@ -6,28 +6,19 @@
 /* The scroll bar's room kept, so the cards' columns (and heights) don't change when it comes and goes. */
 html:has(.rb) { scrollbar-gutter: stable; }
 .rb { min-height: 100vh; }
-.rb-bar .icon-btn { color: var(--ink); text-decoration: none; }
-.rb-bar .icon-btn[aria-current="page"] { color: var(--accent); }
-.rb-bar .list-toggle { display: none; }
-.rb-tabs { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; padding: 0 8px; overflow-x: auto; scrollbar-width: none; }
-.rb-tab { flex: none; }
-.rb-tab[aria-current="page"] { background: var(--surface-2); border-color: var(--line); }
-.rb-tab-name { display: none; }
-.rb-bar .rules-tools { margin-left: auto; }
-/* Narrow: the tabs take the bar's second row. */
-@media (max-width: 719px) {
-  .rb-tabs { order: 3; flex-basis: 100%; padding: 2px 0 0; }
+/* The tabs: each its icon and title, the shown one in red (the ☰'s pressed look is grey: sitebar.css). */
+.rb-tabs { padding: 0 4px; }
+.rb-tab {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 3px 10px 0; border: 0; border-bottom: 3px solid transparent; border-radius: 0;
+  background: none; color: var(--ink-2); font: 500 14px/1 var(--font); white-space: nowrap; cursor: pointer;
 }
-/* Room enough: each tab's title beside its icon. */
-@media (min-width: 1440px) {
-  .rb-tab { width: auto; display: inline-flex; gap: 6px; padding: 0 10px; font: 500 14px/1 var(--font); }
-  .rb-tab-name { display: inline; }
-}
+@media (hover: hover) { .rb-tab:hover { color: var(--ink); } }
+.rb-tab[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+@media (max-width: 600px) { .rb-tab { padding: 3px 8px 0; gap: 5px; font-size: 13.5px; } }
 
 .rb-body { display: flex; align-items: flex-start; }
 .rb-main { flex: 1; min-width: 0; padding: 12px 16px 48px; }
 .rb.has-panel .rb-main { margin-right: min(560px, 46vw); }
-.rb-title { margin: 0 auto 12px; width: fit-content; max-width: 100%; padding: 6px 16px; border-radius: var(--radius); background-color: rgb(18 18 18 / 0.85); white-space: normal; }
 
 /* The Table of Contents: the tab's shelves and their cards' names. */
 .rb-toc {
@@ -47,7 +38,6 @@ html:has(.rb) { scrollbar-gutter: stable; }
 @media (max-width: 899px) {
   .rb-toc { position: fixed; left: 0; bottom: 0; height: auto; z-index: 6; width: min(300px, 85vw); background: var(--bg); box-shadow: var(--shadow); }
   .rb-backdrop { display: block; position: fixed; inset: var(--bar-h, 49px) 0 0 0; z-index: 6; background: rgb(0 0 0 / 0.3); }
-  .rb-bar .list-toggle { display: inline-grid; }
   .rb.has-panel .rb-main { margin-right: 0; }
 }
 @media (pointer: coarse) { .rb-toc a { min-height: 40px; } }

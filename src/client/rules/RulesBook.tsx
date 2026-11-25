@@ -19,12 +19,11 @@
 // 2026: docs/CANVAS.md.)
 import { Component, type ComponentChildren } from "preact";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { Menu, Plus, ScrollText, TableOfContents } from "lucide-preact";
+import { Plus } from "lucide-preact";
 import type { PageData } from "../../shared/api.ts";
 import { buildCompendium, type PackEntries } from "../../shared/rules/compendium.ts";
 import type { Entry } from "../../shared/rules/schema.ts";
-import { AccountButton } from "../components/account/AccountButton.tsx";
-import { L as B } from "../builder/labels.ts";
+import { MenuToggle, SiteBar } from "../components/SiteBar.tsx";
 import { account } from "../lib/account.ts";
 import { useStore } from "../lib/store.ts";
 import { byDistance, cardAt, columnsIn, hashOf, linkTarget, masonry, parseHash } from "./book.ts";
@@ -409,15 +408,7 @@ export function RulesBook({ data }: { data: PageData }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [s.loaded]);
-  const [barH, setBarH] = useState(49);
-  const barRef = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const el = barRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setBarH(el.offsetHeight));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const [barH, setBarH] = useState(93);
 
   // Search: every shown card by name; choosing one shows it.
   const searchable = useMemo(
@@ -433,73 +424,54 @@ export function RulesBook({ data }: { data: PageData }) {
     [goKey],
   );
 
-  const region = REGIONS.find((r) => r.id === tab)!;
   const tabFocus = focus?.tab === tab ? focus : null;
 
   return (
     <div class={`rb${tocOpen ? " toc-open" : ""}${panel ? " has-panel" : ""}`} style={{ "--bar-h": `${barH}px` }}>
-      <header class="topbar rb-bar" ref={barRef}>
-        <a class="icon-btn list-toggle" href="/" aria-label={B.characters} title={B.characters}>
-          <Menu size={20} aria-hidden="true" />
-        </a>
-        <a class="home" href="/" aria-label="Inquisitor" title="Inquisitor">
-          <img src="/static/icon.svg" alt="" width={28} height={28} />
-        </a>
-        <div class="menu-wrap">
-          <button
-            type="button"
-            class="icon-btn"
-            aria-label={L.newEntry}
-            title={L.newEntry}
-            aria-expanded={signedIn ? newOpen : undefined}
-            disabled={!signedIn}
-            onClick={() => setNewOpen(!newOpen)}
-          >
-            <Plus size={20} aria-hidden="true" />
-          </button>
-          {signedIn && newOpen && (
-            <div class="menu menu-left kinds-menu" role="menu">
-              {(["archetype", "talent", "exotic", "item", "power", "mutation", "table", "rule"] as const).map((k) => {
-                const I = KIND_ICON[k];
-                return (
-                  <button type="button" role="menuitem" class="icon-btn" aria-label={KIND_LABEL[k]} title={KIND_LABEL[k]} onClick={() => newEntry(k)}>
-                    <I size={20} aria-hidden="true" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <a class="icon-btn" href="/rules" aria-label={B.rules} title={B.rules} aria-current="page">
-          <ScrollText size={20} aria-hidden="true" />
-        </a>
-        <button type="button" class="icon-btn" aria-label={L.contents} title={L.contents} aria-pressed={tocOpen} onClick={() => setToc(!tocOpen)}>
-          <TableOfContents size={20} aria-hidden="true" />
-        </button>
-        <nav class="rb-tabs">
+      <SiteBar page="rules" onHeight={setBarH}>
+        <MenuToggle label={L.contents} open={tocOpen} onToggle={() => setToc(!tocOpen)} />
+        <nav class="site-scroll rb-tabs">
           {REGIONS.map((r) => {
             const I = r.icon;
             return (
               <button
                 type="button"
-                class="icon-btn rb-tab"
+                class="rb-tab"
                 aria-label={r.title}
                 title={r.title}
                 aria-current={r.id === tab ? "page" : undefined}
                 onClick={() => show({ tab: r.id, key: null })}
               >
-                <I size={20} aria-hidden="true" />
+                <I size={18} aria-hidden="true" />
                 <span class="rb-tab-name" aria-hidden="true">{r.title}</span>
               </button>
             );
           })}
         </nav>
-        <span class="rules-tools">
+        <span class="site-end">
           <SearchBox cards={searchable} onPick={pick} />
           <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} marks={marks} />
-          <AccountButton />
+          {signedIn && (
+            <div class="menu-wrap">
+              <button type="button" class="icon-btn" aria-label={L.newEntry} title={L.newEntry} aria-expanded={newOpen} onClick={() => setNewOpen(!newOpen)}>
+                <Plus size={20} aria-hidden="true" />
+              </button>
+              {newOpen && (
+                <div class="menu kinds-menu" role="menu">
+                  {(["archetype", "talent", "exotic", "item", "power", "mutation", "table", "rule"] as const).map((k) => {
+                    const I = KIND_ICON[k];
+                    return (
+                      <button type="button" role="menuitem" class="icon-btn" aria-label={KIND_LABEL[k]} title={KIND_LABEL[k]} onClick={() => newEntry(k)}>
+                        <I size={20} aria-hidden="true" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </span>
-      </header>
+      </SiteBar>
       <div class="rb-body">
         {tocOpen && <div class="rb-backdrop" onClick={() => setToc(false)} />}
         {tocEver.current &&
@@ -507,7 +479,6 @@ export function RulesBook({ data }: { data: PageData }) {
             <Toc key={r.id} tab={r.id} shown={tocOpen && r.id === tab} shelves={byTab.get(r.id) ?? []} marks={marks} packName={packName} onPick={tocPick} navs={tocs.current} />
           ))}
         <div class="rb-main" ref={mainRef} aria-busy={!s.loaded}>
-          <h1 class="site-title rb-title">{region.title}</h1>
           {s.loaded &&
             width > 0 &&
             REGIONS.filter((r) => shown.has(r.id)).map((r) => (

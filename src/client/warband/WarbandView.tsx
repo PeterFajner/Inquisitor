@@ -2,8 +2,10 @@
 // warnings: an icon and the book's sentence), its characters in order
 // (open, move, take out), and below them their sheets. Icons add
 // characters, duplicate it (with copies of its characters), share it, save
-// the Word sheet, print, and delete it (tap twice; its characters stay).
+// the Word sheet, print, and delete it (tap twice; its characters stay);
+// they go in the bar's second row (`tools`, from the builder).
 import { ArrowDown, ArrowUp, Copy, Trash2, TriangleAlert, UserPlus, Users, X } from "lucide-preact";
+import { createPortal } from "preact/compat";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Warband } from "../../shared/api.ts";
 import type { BuildResult } from "../../shared/engine/build.ts";
@@ -128,6 +130,8 @@ function NameEdit({ name, onDone }: { name: string; onDone: (v: string | null) =
 
 type Props = {
   id: string;
+  /** Where the tools go (the bar's second row); beside the name without it. */
+  tools?: HTMLElement | null;
   backend: WarbandBackend;
   /** The viewer's characters (to add). */
   characters: ListRow[];
@@ -220,9 +224,31 @@ export function WarbandView(p: Props) {
   };
 
   const addable = p.characters.filter((c) => !ids.includes(c.id));
+  const tools = (
+    <span class="wb-tools">
+      <span class="site-group">
+        <IconButton label={W.addCharacter} disabled={busy || !addable.length} onClick={() => setAdding(true)}>
+          <UserPlus size={ICON} />
+        </IconButton>
+      </span>
+      <span class="site-group">
+        <IconButton label={W.duplicate} disabled={busy} onClick={() => void duplicate()}>
+          <Copy size={ICON} />
+        </IconButton>
+        <ShareButton disabled={busy || !members.length} link={() => shareWarband(warband.id)} />
+        <ExportButtons disabled={busy || !members.length} caption rows={() => members} name={warband.name} />
+      </span>
+      <span class="site-group wb-delete">
+        <IconButton label={confirmDelete ? W.confirmRemove : W.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
+          {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
+        </IconButton>
+      </span>
+    </span>
+  );
 
   return (
     <section class="wb" aria-busy={busy}>
+      {p.tools && createPortal(tools, p.tools)}
       <header class="wb-head">
         <h2 class="wb-name">
           {renaming ? (
@@ -239,19 +265,7 @@ export function WarbandView(p: Props) {
             </button>
           )}
         </h2>
-        <span class="wb-tools">
-          <IconButton label={W.addCharacter} disabled={busy || !addable.length} onClick={() => setAdding(true)}>
-            <UserPlus size={ICON} />
-          </IconButton>
-          <IconButton label={W.duplicate} disabled={busy} onClick={() => void duplicate()}>
-            <Copy size={ICON} />
-          </IconButton>
-          <ShareButton disabled={busy || !members.length} link={() => shareWarband(warband.id)} />
-          <ExportButtons disabled={busy || !members.length} rows={() => members} name={warband.name} />
-          <IconButton label={confirmDelete ? W.confirmRemove : W.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
-            {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
-          </IconButton>
-        </span>
+        {!p.tools && tools}
       </header>
 
       <Warnings warnings={warnings} names={names} onOpen={p.onOpen} />

@@ -12,6 +12,7 @@ import { test } from "node:test";
 // extended by the pages that use it, like base.css.)
 const FILES = [
   "builder/builder.css",
+  "components/sitebar.css",
   "history/history.css",
   "history/page.css",
   "print/print.css",

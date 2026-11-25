@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Character, PageData } from "../../shared/api.ts";
 import { ICON, IconButton } from "../builder/Icon.tsx";
-import { AccountButton } from "../components/account/AccountButton.tsx";
+import { SiteBar } from "../components/SiteBar.tsx";
 import { HistoryView } from "../history/HistoryView.tsx";
 import { H } from "../history/labels.ts";
 import { findSource } from "../history/source.ts";
@@ -69,16 +69,12 @@ export function HistoryPage({ data }: { data: PageData }) {
 
   return (
     <div class="history-page" aria-busy={busy || !rules}>
-      <header class="history-bar">
+      <SiteBar page="characters">
         <IconButton label={H.builder} href={`/c/${enc(char.id)}`}>
           <ArrowLeft size={ICON} />
         </IconButton>
-        <a class="history-home" href="/" aria-label="Inquisitor" title="Inquisitor">
-          <img src="/static/icon.svg" alt="" width={28} height={28} />
-        </a>
         <h1 class="history-name">{char.name}</h1>
-        <AccountButton />
-      </header>
+      </SiteBar>
       <main class="history-main">
         <HistoryView
           versions={char.versions}

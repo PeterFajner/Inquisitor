@@ -1,10 +1,11 @@
 // A share link (/s/<token>): the character's sheet and what built it,
-// read-only; a warband's characters one after another. An icon copies a
-// character into the viewer's own (a visitor's, if need be).
+// read-only; a warband's characters one after another. The bar's second row
+// has the exports and an icon that copies a character into the viewer's own
+// (a visitor's, if need be).
 import { CopyPlus } from "lucide-preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Character as ApiCharacter, Shared as SharedData } from "../../shared/api.ts";
-import { AccountButton } from "../components/account/AccountButton.tsx";
+import { SiteBar } from "../components/SiteBar.tsx";
 import { duplicateShared, headVersion } from "../lib/characters.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import { BalanceLabel, usePinnedRules } from "./Builder.tsx";
@@ -67,19 +68,20 @@ export function SharedView({ share }: { share: SharedData }) {
 
   return (
     <div class="builder shared" aria-busy={busy || !rules}>
-      <header class="topbar">
-        <a class="home" href="/" aria-label="Inquisitor" title="Inquisitor">
-          <img src="/static/icon.svg" alt="" width={28} height={28} />
-        </a>
-        <span class="topbar-gap" />
-        <ExportButtons disabled={!rules || !rows.length} rows={() => rows} name={share.kind === "warband" ? share.warband.name : undefined} />
-        {share.kind === "character" && (
-          <IconButton label={L.mine} disabled={busy} onClick={mine}>
-            <CopyPlus size={ICON} />
-          </IconButton>
-        )}
-        <AccountButton />
-      </header>
+      <SiteBar page={null}>
+        <span class="site-scroll">
+          <span class="site-group">
+            <ExportButtons disabled={!rules || !rows.length} caption rows={() => rows} name={share.kind === "warband" ? share.warband.name : undefined} />
+          </span>
+          {share.kind === "character" && (
+            <span class="site-group">
+              <IconButton label={L.mine} disabled={busy} onClick={mine}>
+                <CopyPlus size={ICON} />
+              </IconButton>
+            </span>
+          )}
+        </span>
+      </SiteBar>
       <main class="builder-main">
         {share.kind === "warband" && share.warband.name && <h2 class="wb-name">{share.warband.name}</h2>}
         {share.kind === "warband" && <Warnings warnings={warnings} names={new Map(rows.map((r) => [r.id, r.name]))} />}

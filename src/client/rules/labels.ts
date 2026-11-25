@@ -40,7 +40,7 @@ export const L = {
   conflict: "Changed by someone else",
   invalid: "Not valid",
   search: "Search",
-  /** The rules page's sidebar: the book's own name for its contents page (p. 2). Awaiting the owner's approval. */
+  /** The rules page's sidebar and its ☰: the book's own name for its contents page (p. 2; approved). */
   contents: "Table of Contents",
   /** A table's back-links: the cards that roll on it (approved, November 2026). */
   rolledBy: "Rolled on by",
