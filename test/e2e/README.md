@@ -14,6 +14,7 @@ npm run e2e -- --list-shards              # every shard id, one per line
 npm run e2e -- --shard engine:inquisitor  # one shard (several --shard, or a glob: 'ui:*')
 npm run e2e -- --all --jobs 3             # everything, 3 shards at a time (child processes)
 node test/e2e/summary.ts [results dir] [--full]   # findings grouped by check
+node test/e2e/coverage.ts [results dir] [--full]  # table rows, things, options no shard reached
 ```
 
 Options: `--results <dir>` (default `.e2e/results`), `--seeds N` (random
@@ -24,40 +25,83 @@ shard opens per subtype, 4). The exit code is 1 when any shard failed.
 
 ## Shards
 
-- `engine:<archetype>` (one per archetype, ~1–50 s): every subtype, against
+- `engine:<archetype>` (one per archetype, ~1–150 s): every subtype, against
   the real rules in `data/rules` (read only). Random characters: no open
-  choices, no engine warnings, the record replays exactly (freeform and
-  random, through JSON), every choice legal (among its options, as many as
-  it asks), `:count` dice made as many results, open picks within the
-  book's bounds ("any": none at random; "up to N": 0..N, evenly), base stats
-  within the stat line, gear of the rolled availability, alien gear only
-  where allowed, nothing a restriction refuses, everything owned and every
-  option on the GM sheet, the book's own rules (`engine/book.ts`). Then
+  choices, no engine warnings (except those the book or the owner explains:
+  an `empty` result, a power restriction that leaves no powers; pending owner
+  rulings are notes, `explainWarning`), the record replays exactly (freeform
+  and random, through JSON), every choice legal (among its options, as many
+  as it asks: every key of the first few seeds, then every seed with a key
+  not seen yet), `:count` dice made as many results, open picks within the
+  book's bounds ("any": none at random; "up to N": 0..N, χ² against
+  uniform), base stats within the stat line, gear of the rolled
+  availability, alien gear only where allowed, nothing a restriction
+  refuses, everything owned and every option on the GM sheet (names without
+  case; a routing option by what it led to, a stat option by its stats), the
+  effect kinds worked out again (`engine/kinds.ts`: derived values,
+  attributes, wielded, remove, natural weapons, armour per location,
+  exclusive, # Rld, powers within their effect, no duplicate rows), the
+  book's own rules and the owner's rulings (`engine/book.ts`), optional
+  effects, chances and alignments as often as the book says (χ²). Then
   every top-level decision re-rolled (and the Stats and Boons Rerolls),
-  freeform + "choose at random" (all, and one at a time), and rules updates
-  that need a decision: each must give a whole character distributed as a
-  fresh one (Welch z > 5 on items, talents, powers, stat total, power score,
-  decisions, options chosen). Every Occupation dropdown option, overrides
-  (remove/add each thing, stats, alignment), the Word export.
+  nested dice re-rolled by themselves (a gear count, `times`, covers' D6,
+  quantities), freeform + "choose at random" (all, and one at a time), and
+  rules updates that need a decision: each must give a whole character
+  distributed as a fresh one (Welch z > 5 on items, talents, powers, stat
+  total, power score, decisions, options chosen; χ² on every choice's ids
+  and every table's rows). Every Occupation dropdown option (and a choice
+  whose every option leaves the sheet the same), overrides (remove/add each
+  thing, stats, alignment), the Word export.
 - `engine:rules-update`: the rules changed under saved characters (dice, a
   new pick): `diff()` and `updateRules()`.
-- `ui:<archetype>` (one per archetype, ~10–30 s): each subtype made with
+- `engine:rules-update-entries`: the entries a character uses changed: an
+  option it chose removed, a table row it rolled moved, an item's
+  availability or category, a talent's effects, an item deleted, a pick's
+  id renamed, the archetype renamed, its subtype removed (a BuildError).
+- `engine:trades`: every trade a few random characters are offered taken
+  ("yes", then at random): what is given up is gone, a downgrade a step
+  lower (a Common lost), an upgrade a step higher; "any" trades twice.
+- `engine:open-picks`: every open pick filled with one, two, the most and
+  every option in turn.
+- `engine:packs`: book-only (`loyalist`) records, then every pack added.
+- `engine:subtype-roll`: the Alien Bounty Hunter's rolled Level of
+  Experience: its distribution, a record holding the roll, a re-roll of it.
+- `engine:static`: the rules themselves and the places like the confirmed
+  bugs: the GM-approval list (p. 3), the warband warnings, pool picks with
+  nothing (or only one archetype's things) to choose from, two units of an
+  item that makes its own choices.
+- `ui:<archetype>` (one per archetype, ~10–50 s): each subtype made with
   the New character form, then seeded characters chosen to cover the most
   options and results (saved through the API). Each: no open choices,
   everything owned and every choice shown outside the Rolls panel, a
   dropdown per archetype pick, the GM approval line, the no-UI-text rule.
   Then the Stats and Boons Rerolls, every Occupation dropdown option (and
-  Choose at random on what it opens), Rolls-panel re-rolls, the subtype.
+  Choose at random on what it opens; each dropdown put back before the next,
+  so a parent's own picks are there), Rolls-panel re-rolls (top rows, rows
+  under a result or option, deeper ones), the subtype.
 - `feature:<area>`: `new-character`, `edits` (name, stats, alignment,
   pickers, add/remove), `rolls`, `undo-redo`, `duplicate-delete` (both
-  deletes), `export` (Download Docx, print), `history`, `share`, `warbands`,
+  deletes), `export` (Download Docx, print), `docx` (the .docx's cells:
+  stats, derived values, armour, # Rld, quantities), `history`,
+  `history-states` (across a rules update), `share`, `warbands`,
+  `warband-states` (GM approval, Puritan with Radical, extra models, empty,
+  a member twice or deleted elsewhere, the .docx with a companion, print),
   `rules-page` (tabs, Table of Contents, search, links, Rolled on by,
   addresses, back/forward), `navigation` (Characters ↔ Rules in place,
-  back/forward), `passkey` (Chrome's virtual authenticator), `rule-edit-live`
-  (edit, history, revert, conflicts, SSE in another browser), `rules-update`,
-  `phone-light`, `phone-dark`, `desktop-light`, `desktop-dark` (a tour of
-  every page at 390×844 touch or 1366×900: nothing wider than the screen,
-  24 px tap targets, the text rule), `error-pages`, `balance`.
+  back/forward), `passkey` (Chrome's virtual authenticator), `accounts` (a
+  second browser signing in merges, two tabs, a deleted or forged session
+  cookie), `rule-edit-live` (edit, history, revert, conflicts, SSE in
+  another browser), `rules-editor` (the structured effect editor, New entry,
+  Delete, a new pack, a move, Re-apply, a visitor refused, `rules:check` on
+  what was saved), `rules-update`, `rules-update-states` (an option removed,
+  overrides kept, Apply/Undo/Redo, an archetype deleted, Update after an
+  edit made on another page), `legacy-import` (the 2023 browser's
+  localStorage, a lost reply retried), `network` (slow, offline, a failed
+  save, a server restart, the event stream reconnecting), `phone-light`,
+  `phone-dark`, `desktop-light`, `desktop-dark` (a tour of every page at
+  390×844 touch or 1366×900: nothing wider than the screen, 24 px tap
+  targets, the text rule), `error-pages`, `balance` (the label, both ends,
+  an archetype with no distribution yet).
 
 Every UI step fails on console errors, uncaught exceptions and failed
 requests (except the 401 the first save of a new browser answers on
@@ -76,8 +120,13 @@ Each shard writes `<results>/<shard id, : as _>.json`:
   "failures": [{ "check": "…", "message": "…", "count": 3,
                  "repro": { "archetype": "…", "subtype": "…", "seed": 4, "key": "…",
                             "record": { … }, "steps": ["…"], "screenshot": "…png", "url": "…" } }],
-  "notes": ["…"] }
+  "notes": ["…"], "coverage": ["row:<table>|<label>", "item:<id>", "option:<entry>|<id>", "…"] }
 ```
+
+Notes hold what isn't a failure: timings, pending owner rulings (Study Thy
+Weapon with no weapon, Puppetmaster against a Tech-Priest Sage's Machine
+Empathy), what a shard chose not to check. `coverage` is what the shard's
+characters reached; `coverage.ts` lists what no shard did.
 
 A failure seen many times (300 seeds hitting one bug) is one entry with its
 count and the first reproduction. Engine reproductions are a seed
@@ -89,7 +138,7 @@ record itself; UI ones the steps, the address and a screenshot (in
 
 Shards run side by side without touching each other or anything real:
 
-- each starts its own server (`lib/app.ts`): a temporary directory with a
+- each starts its own server (`lib/app.ts`, `restart()` for feature:network): a temporary directory with a
   `git clone` of `data/rules`, a fresh database with every migration, a free
   port, `PUBLIC_ORIGIN=http://localhost:<port>` (so passkeys work), balance
   warm-up off (on for `feature:balance`). Never the preview or live site.
@@ -104,8 +153,11 @@ Shards run side by side without touching each other or anything real:
 
 ## Adding checks
 
-- A book rule: a function in `engine/book.ts` (`specific[<archetype id>]`),
-  quoting the book.
+- A book rule: a function in `engine/book.ts` (`specific[<archetype id>]`,
+  or a `PROFILES` line for fixed kit, talents, alignment and armour),
+  quoting the book. An owner's ruling likewise, citing it.
+- A warning or restriction the book explains: `explainWarning` in
+  `engine/archetype.ts` (by design: passes; pending a ruling: a note).
 - A feature: a function in `ui/f-*.ts`, registered in `ui/features.ts`. Use
   `Session.step()` (screenshot and console errors on failure) and
   `Session.checkText()`.
