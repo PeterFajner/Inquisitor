@@ -333,7 +333,7 @@ test("real rules, bug 8: a second Executor Pistol gets its three toxins", { skip
 });
 
 test("real rules, bugs 10 and 12: the Seer keeps no auspex; an Acolyte's record replays rolling nothing", { skip }, () => {
-  const cherub = realRandom("cherubim", "cherub", 8);
+  const cherub = realRandom("cherubim", "cherubim", 8);
   assert.ok(cherub.character.options.some((o) => o.id === "the-seer"));
   assert.equal(cherub.record.choices["cherubim/auspex"], undefined);
   const b = realRandom("inquisitor-acolyte", "fighter", 25);
