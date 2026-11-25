@@ -23,9 +23,12 @@ import { ALIGNMENTS, STATS, type Archetype, type Effect, type Stat } from "../..
 import { toSheetCharacter } from "../../../src/shared/sheet-map.ts";
 import { Report, type Repro } from "../lib/report.ts";
 import { archetype, realCompendium, ROOT } from "../lib/rules.ts";
-import { differ, fmt } from "../lib/stats.ts";
+import { chiDiffers, chiFit, chiHomogeneity, differ, fmt } from "../lib/stats.ts";
 import { docxText, unzipEntry } from "../lib/zip.ts";
 import { bookChecks } from "./book.ts";
+import { checkKinds, effectsById } from "./kinds.ts";
+import { reach } from "../lib/coverage.ts";
+import { includesCaseless, ledTo, optionShape } from "../lib/outcomes.ts";
 
 export type EngineOptions = { seeds: number; rerollSeeds: number; fewSeeds: number };
 
@@ -128,6 +131,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
   for (const sub of arch.subtypes) {
     const base: Repro = { archetype: archId, subtype: sub.id };
     const fresh: BuildResult[] = [];
+    const legalSeen = new Set<string>();
     const t0 = Date.now();
 
     // --- fresh random characters -------------------------------------------------
@@ -141,9 +145,11 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
       }
       fresh.push(b);
       const rep: Repro = { ...base, seed, record: b.record };
-      checkCharacter(r, c, arch, b, rep, "random build", bounds, gear, true);
+      checkCharacter(r, c, arch, b, rep, "random build", bounds, gear);
       checkReplay(r, c, b, rep);
-      if (seed <= o.fewSeeds) checkChoicesLegal(r, c, b, rep, "random build");
+      // Legal choices: every key of the first few seeds, then any key no earlier seed had (the rare branches).
+      if (seed <= o.fewSeeds) checkChoicesLegal(r, c, b, rep, "random build", undefined, legalSeen);
+      else checkChoicesLegal(r, c, b, rep, "random build", (k) => !legalSeen.has(norm(k)), legalSeen);
       for (const f of bookChecks[archId]?.(b, c) ?? []) r.fail(`book: ${f.check}`, f.message, rep, f.signature ?? f.message);
       if (bookChecks[archId]) r.pass("book rules hold");
     }
@@ -152,12 +158,15 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
 
     // Open picks: a random character takes none of "any" and 0..N of "up to N", spread evenly.
     checkOpenPickDistribution(r, fresh, bounds, base);
+    // Optional effects (a coin), chances (D100 ≤ N), alignments (uniform among those allowed): as often as the book says.
+    checkFrequencies(r, c, fresh, base);
+    const freshCats = fresh.map(categories);
 
     const freshMetrics = fresh.map((b) => metrics(b, c));
 
     // --- re-rolling each decision (as the Rolls panel's dice, Stats' and Boons' Reroll) -------
     const t1 = Date.now();
-    const byGroup = new Map<string, { fresh: Record<string, number>[]; again: Record<string, number>[]; own: [number[], number[]]; nested: [number[], number[]] }>();
+    const byGroup = new Map<string, { fresh: Record<string, number>[]; again: Record<string, number>[]; own: [number[], number[]]; nested: [number[], number[]]; cats: [Cats[], Cats[]] }>();
     for (let i = 0; i < Math.min(o.rerollSeeds, fresh.length); i++) {
       const b = fresh[i];
       const seed = i + 1;
@@ -171,7 +180,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
           continue;
         }
         const nb = replay(r, c, next, { ...rep, record: next }, "re-roll");
-        checkCharacter(r, c, arch, nb, { ...rep, record: next }, "after re-roll", bounds, gear, false);
+        checkCharacter(r, c, arch, nb, { ...rep, record: next }, "after re-roll", bounds, gear);
         // The dice re-rolled are rolled again (the decision still applies: what led to it is kept).
         for (const k of g.keys.length === 1 ? g.keys : []) {
           if (!(k in b.record.dice)) continue;
@@ -186,10 +195,12 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
           }
         }
         const group = norm(g.name);
-        const acc = byGroup.get(group) ?? { fresh: [], again: [], own: [[], []], nested: [[], []] };
+        const acc = byGroup.get(group) ?? { fresh: [], again: [], own: [[], []], nested: [[], []], cats: [[], []] };
         byGroup.set(group, acc);
         acc.fresh.push(freshMetrics[i]);
         acc.again.push(metrics(nb, c));
+        acc.cats[0].push(freshCats[i]);
+        acc.cats[1].push(categories(nb));
         if (g.keys.length === 1) {
           const k = g.keys[0];
           acc.own[0].push(b.record.choices[k]?.length ?? 0);
@@ -201,6 +212,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
     }
     for (const [group, acc] of byGroup) {
       compare(r, "re-roll is distributed as a fresh random character", `${sub.id}: re-roll ${group}`, acc.fresh, acc.again, base);
+      compareCats(r, "re-roll chooses as a fresh random character (χ²)", `${sub.id}: re-roll ${group}`, acc.cats[0], acc.cats[1], base);
       if (acc.own[0].length) {
         compareOne(r, "re-roll is distributed as a fresh random character", `${sub.id}: re-roll ${group}`, "options chosen", acc.own[0], acc.own[1], base);
         compareOne(r, "re-roll is distributed as a fresh random character", `${sub.id}: re-roll ${group}`, "decisions under it", acc.nested[0], acc.nested[1], base);
@@ -208,8 +220,42 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
     }
     r.note(`${archId}/${sub.id}: re-rolls in ${Date.now() - t1} ms`);
 
+    // --- nested dice re-rolled by themselves (a gear count, D6+1 times, covers' D6 locations, a D10 quantity) ----
+    const t1n = Date.now();
+    const nestedAcc = new Map<string, { fresh: Record<string, number>[]; again: Record<string, number>[] }>();
+    for (let i = 0; i < Math.min(o.rerollSeeds, 40, fresh.length); i++) {
+      const b = fresh[i];
+      const seed = i + 1;
+      const tops = new Set(rerollGroups(b).flatMap((g) => g.keys));
+      const keys = [...new Set(b.log.filter((e) => e.type === "dice" && /:(count|qty)$|\/@locations$/.test(e.key) && !tops.has(e.key)).map((e) => e.key))];
+      for (const k of keys) {
+        const rep: Repro = { ...base, seed, key: k, record: b.record, steps: [`random build, seededRoller(${seed})`, `rerollDecision([${JSON.stringify(k)}]) with seededRoller(${1_500_000 + seed})`] };
+        let next: CharacterRecord;
+        try {
+          next = ops.rerollDecision(c, b.record, [k], { roll: seededRoller(1_500_000 + seed) });
+        } catch (e) {
+          r.fail("nested re-roll doesn't throw", String((e as Error).stack ?? e), rep, `${norm(k)}: ${(e as Error).message}`);
+          continue;
+        }
+        const nb = replay(r, c, next, { ...rep, record: next }, "nested re-roll");
+        checkCharacter(r, c, arch, nb, { ...rep, record: next }, "after a nested re-roll", bounds, gear);
+        r.expect(k in next.dice, "nested re-roll rolls the dice again", `${k} is gone from the record after re-rolling it (was ${JSON.stringify(b.record.dice[k])})`, rep, norm(k));
+        const pick = k.replace(/:(count|qty)$/, "");
+        const die = nb.log.find((e) => e.key === k && e.type === "dice")?.total;
+        if (k.endsWith(":count") && next.choices[pick] && die !== undefined)
+          r.expect(next.choices[pick].filter((x) => x !== ROLL_OPTION).length === die, "nested re-roll: the choice follows the count", `${pick}: ${next.choices[pick].length} chosen, ${die} rolled`, rep, norm(k));
+        const acc = nestedAcc.get(norm(k)) ?? { fresh: [], again: [] };
+        nestedAcc.set(norm(k), acc);
+        acc.fresh.push(freshMetrics[i]);
+        acc.again.push(metrics(nb, c));
+      }
+    }
+    for (const [k, acc] of nestedAcc) compare(r, "nested re-roll is distributed as a fresh random character", `${sub.id}: re-roll ${k}`, acc.fresh, acc.again, base);
+    r.note(`${archId}/${sub.id}: nested re-rolls in ${Date.now() - t1n} ms`);
+
     // --- freeform, then "choose at random" (every open choice, then one at a time) ----------
     const filled: Record<string, number>[] = [];
+    const filledCats: Cats[] = [];
     for (let i = 0; i < Math.min(o.rerollSeeds, fresh.length); i++) {
       const seed = i + 1;
       const steps = [`ops.create(freeform) with seededRoller(${seed})`];
@@ -228,8 +274,9 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
         continue;
       }
       const nb = replay(r, c, next, { ...base, seed, record: next, steps }, "choose at random");
-      checkCharacter(r, c, arch, nb, { ...base, seed, record: next, steps: [...steps, `fillPending() with seededRoller(${2_000_000 + seed})`] }, "after choose at random", bounds, gear, true);
+      checkCharacter(r, c, arch, nb, { ...base, seed, record: next, steps: [...steps, `fillPending() with seededRoller(${2_000_000 + seed})`] }, "after choose at random", bounds, gear);
       filled.push(metrics(nb, c));
+      filledCats.push(categories(nb));
 
       // One open choice at a time (the dice beside each): only that one is made (and what it opens).
       if (i < o.fewSeeds) {
@@ -246,6 +293,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
       }
     }
     compare(r, "choose at random is distributed as a fresh random character", `${sub.id}: freeform + choose at random`, freshMetrics.slice(0, filled.length), filled, base);
+    compareCats(r, "choose at random chooses as a fresh random character (χ²)", `${sub.id}: freeform + choose at random`, freshCats.slice(0, filledCats.length), filledCats, base);
 
     // --- rules updates --------------------------------------------------------------
     for (let i = 0; i < Math.min(o.fewSeeds, fresh.length); i++) {
@@ -258,7 +306,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
       r.expect(!diff(c, c, b.record).changed, "diff against the same rules is empty", JSON.stringify(diff(c, c, b.record)).slice(0, 400), rep);
     }
     // New rules that need decisions this record lacks (as if the rules added them): made as a fresh character's.
-    const upd = new Map<string, { fresh: Record<string, number>[]; again: Record<string, number>[] }>();
+    const upd = new Map<string, { fresh: Record<string, number>[]; again: Record<string, number>[]; cats: [Cats[], Cats[]] }>();
     for (let i = 0; i < Math.min(Math.ceil(o.rerollSeeds / 2), fresh.length); i++) {
       const b = fresh[i];
       for (const e of b.log.filter((x) => !x.parent && x.type === "choice")) {
@@ -272,14 +320,19 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
           continue;
         }
         const nb = replay(r, c, next, { ...rep, record: next }, "rules update");
-        checkCharacter(r, c, arch, nb, { ...rep, record: next }, "after rules update", bounds, gear, true);
-        const acc = upd.get(norm(e.key)) ?? { fresh: [], again: [] };
+        checkCharacter(r, c, arch, nb, { ...rep, record: next }, "after rules update", bounds, gear);
+        const acc = upd.get(norm(e.key)) ?? { fresh: [], again: [], cats: [[], []] };
         upd.set(norm(e.key), acc);
         acc.fresh.push(metrics(b, c));
         acc.again.push(metrics(nb, c));
+        acc.cats[0].push(freshCats[i]);
+        acc.cats[1].push(categories(nb));
       }
     }
-    for (const [k, acc] of upd) compare(r, "rules update is distributed as a fresh random character", `${sub.id}: update needing ${k}`, acc.fresh, acc.again, base);
+    for (const [k, acc] of upd) {
+      compare(r, "rules update is distributed as a fresh random character", `${sub.id}: update needing ${k}`, acc.fresh, acc.again, base);
+      compareCats(r, "rules update chooses as a fresh random character (χ²)", `${sub.id}: update needing ${k}`, acc.cats[0], acc.cats[1], base);
+    }
 
     // --- Occupation: every dropdown, every option ---------------------------------
     for (let i = 0; i < Math.min(o.fewSeeds, fresh.length); i++) occupation(r, c, arch, fresh[i], { ...base, seed: i + 1 }, i + 1, bounds, gear);
@@ -330,8 +383,37 @@ function replay(r: Report, c: Compendium, rec: CharacterRecord, rep: Repro, what
   }
 }
 
+/** Item picks a roll led to with nothing to choose from (ENGINE.md: the documented `empty` result), by key. */
+const emptyKeys = (b: BuildResult) => new Set(b.character.empty.map((e) => e.key));
+const WEAPON_CATEGORIES = ["Close combat weapon", "Pistol", "Basic weapon", "Heavy weapon"];
+
+/**
+ * A warning the book or the owner explains: `by design` (no finding), or
+ * `pending` an owner ruling (a note, not a failure). Anything else is a finding.
+ */
+export function explainWarning(c: Compendium, b: BuildResult, w: string): { by: "design" | "pending"; why: string } | null {
+  const ch = b.character;
+  const key = w.split(": ")[0];
+  // Dead Or Alive's Heavy weapon on a Common: the book has none; the `empty` result shows "Heavy weapon (Common)" (ENGINE.md).
+  if (/: only 0 to choose from/.test(w) && emptyKeys(b).has(key)) return { by: "design", why: "an empty result the sheet shows (ENGINE.md)" };
+  // Puppetmaster with Pyromancer, The Third Eye: a restriction empties the power pool, as the book reads literally.
+  if (/: no powers left to generate/.test(w) && ch.restrictions.some((x) => x.pool === "power")) return { by: "design", why: "a power restriction leaves no powers (the book read literally)" };
+  // Study Thy Weapon with no weapon at all: the owner hasn't ruled yet.
+  if (/study-thy-weapon\/weapon(\*\d+)?: only 0 to choose from/.test(w)) {
+    const weapon = ch.items.some((it) => WEAPON_CATEGORIES.includes(c.items.get(it.id)?.category ?? ""));
+    if (!weapon) return { by: "pending", why: "Study Thy Weapon with no weapon at all (owner ruling pending)" };
+  }
+  return null;
+}
+
+/** A restricted thing the owner hasn't ruled on yet: Puppetmaster against a Tech-Priest Sage's own Machine Empathy. */
+const pendingRestriction = (ch: Character, t: { kind: string; id: string; from: { entry: string }[] }): string | null =>
+  t.kind === "power" && ch.talents.some((x) => x.id === "puppetmaster") && t.from.some((f) => f.entry === ch.archetype.id)
+    ? `Puppetmaster restricts ${ch.archetype.id}'s own ${t.id} (owner ruling pending)`
+    : null;
+
 /** What every random character (and any made from one at random) must be. */
-function checkCharacter(
+export function checkCharacter(
   r: Report,
   c: Compendium,
   arch: Archetype,
@@ -340,14 +422,20 @@ function checkCharacter(
   what: string,
   bounds: ReturnType<typeof openPickBounds>,
   gear: ReturnType<typeof gearPolicies>,
-  noOpenChoices: boolean,
 ): void {
   const ch = b.character;
   const penalties = powersPenalties(c);
-  if (noOpenChoices) r.expect(b.pending.length === 0, `${what} has no open choices`, `open: ${b.pending.map((p) => p.key).join(", ")}`, rep, b.pending.map((p) => norm(p.key)).join(", "));
-  else r.expect(b.pending.length === 0, `${what} has no open choices`, `open: ${b.pending.map((p) => p.key).join(", ")}`, rep, b.pending.map((p) => norm(p.key)).join(", "));
-  for (const w of b.warnings) r.fail(`${what} has no engine warnings`, w, rep, `${arch.id}: ${norm(w)}`);
-  if (!b.warnings.length) r.pass(`${what} has no engine warnings`);
+  reach(r, b);
+  r.expect(b.pending.length === 0, `${what} has no open choices`, `open: ${b.pending.map((p) => p.key).join(", ")}`, rep, b.pending.map((p) => norm(p.key)).join(", "));
+  let warned = false;
+  for (const w of b.warnings) {
+    const why = explainWarning(c, b, w);
+    if (why?.by === "pending") r.note(`pending owner ruling: ${why.why}, e.g. ${arch.id}/${b.record.subtype} seed ${rep.seed ?? "?"}: ${w}`);
+    if (why) continue;
+    warned = true;
+    r.fail(`${what} has no engine warnings`, w, rep, `${arch.id}: ${norm(w)}`);
+  }
+  if (!warned) r.pass(`${what} has no engine warnings`);
 
   // The subtype is the one asked for.
   r.expect(ch.subtype.id === b.record.subtype && ch.archetype.id === arch.id, `${what}: archetype and subtype as recorded`, `${ch.archetype.id}/${ch.subtype.id}`, rep);
@@ -396,6 +484,11 @@ function checkCharacter(
 
   // Restrictions: nothing a restriction refuses.
   for (const t of ownedAll(ch)) {
+    const pending = t.restricted ? pendingRestriction(ch, t) : null;
+    if (pending) {
+      r.note(`pending owner ruling: ${pending}, e.g. seed ${rep.seed ?? "?"}`);
+      continue;
+    }
     r.expect(!t.restricted, `${what} breaks no restriction`, `${t.kind} ${t.name} is restricted (${ch.restrictions.map((x) => x.source).join(", ")})`, rep, `${t.kind}/${t.id}`);
   }
   // Alignment: one the archetype allows (checked as a legal choice too).
@@ -426,13 +519,30 @@ function checkCharacter(
     }
   }
 
-  // The GM sheet shows everything the character has.
+  // The GM sheet shows everything the character has (names compared without case: "Deadeye shot" is "Deadeye Shot").
   const sheet = toSheetCharacter(ch, c);
   const text = JSON.stringify(sheet);
-  for (const t of ownedAll(ch)) r.expect(text.includes(JSON.stringify(t.name).slice(1, -1)), `${what}: everything owned is on the GM sheet`, `${t.kind} ${t.name} not on the sheet`, rep, `${t.kind}/${t.id}`);
+  const onSheet = (name: string, where = text) => includesCaseless(where, JSON.stringify(name).slice(1, -1));
+  for (const t of ownedAll(ch)) r.expect(onSheet(t.name), `${what}: everything owned is on the GM sheet`, `${t.kind} ${t.name} not on the sheet`, rep, `${t.kind}/${t.id}`);
   for (const opt of ch.options) {
     const where = opt.source === arch.id ? sheet.tagLine : text;
-    r.expect(where.includes(opt.name), `${what}: every option chosen is on the GM sheet`, `option ${opt.name} (${opt.key}) not on the sheet`, rep, `${opt.source}: ${opt.id}`);
+    if (onSheet(opt.name, where)) {
+      r.pass(`${what}: every option chosen is on the GM sheet`);
+      continue;
+    }
+    // A routing option ("Legendary weapon", "choose a mutation") is shown by what it led to (checked as owned things);
+    // a stat option ("+5 Nv") by the stats it changed.
+    const shape = optionShape(c, opt.source, opt.id);
+    if (shape.kind === "routing" && ledTo(b, opt.key).length) {
+      r.pass(`${what}: every option chosen is on the GM sheet`);
+      continue;
+    }
+    if (shape.kind === "stats") {
+      const changed = shape.stats.every((s) => ch.stats[s].mods.some((m) => m.source === opt.source));
+      r.expect(changed, `${what}: every option chosen is on the GM sheet`, `option ${opt.name} (${opt.key}): its stats ${shape.stats.join(", ")} unchanged`, rep, `${opt.source}: ${opt.id}`);
+      continue;
+    }
+    r.fail(`${what}: every option chosen is on the GM sheet`, `option ${opt.name} (${opt.key}) not on the sheet`, rep, `${opt.source}: ${opt.id}`);
   }
   if (ch.alignment) r.expect(sheet.tagLine.includes(ch.alignment), `${what}: alignment on the name line`, `${ch.alignment} missing from "${sheet.tagLine}"`, rep);
   for (const g of ch.eachGame) r.expect(sheet.gameNotes.some((n) => n.includes(g.text.slice(0, 30))), `${what}: each-game rolls in Game Notes`, g.text, rep, g.table);
@@ -443,6 +553,8 @@ function checkCharacter(
     const names = [a?.name, a?.characters, comp.option].filter(Boolean) as string[];
     r.expect(names.some((n) => text.includes(n)), `${what}: companions on the GM sheet`, `companion ${comp.archetype}${comp.option ? `/${comp.option}` : ""} (from ${comp.source}) not on the sheet`, rep, `${comp.source}: ${comp.archetype}`);
   }
+  // The effect kinds, worked out again (kinds.ts).
+  checkKinds(r, c, b, sheet, rep, what);
 }
 
 let penaltyCache: Map<string, number> | null = null;
@@ -498,8 +610,10 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string {
 }
 
 /** Every choice in the record is one of its options, as many as it asks. */
-function checkChoicesLegal(r: Report, c: Compendium, b: BuildResult, rep: Repro, what: string): void {
+function checkChoicesLegal(r: Report, c: Compendium, b: BuildResult, rep: Repro, what: string, only?: (k: string) => boolean, seen?: Set<string>): void {
   for (const [k, chosen] of Object.entries(b.record.choices)) {
+    if (only && !only(k)) continue;
+    seen?.add(norm(k));
     let p;
     try {
       p = ops.choiceOptions(c, b.record, k);
@@ -542,10 +656,9 @@ function checkOpenPickDistribution(r: Report, fresh: BuildResult[], bounds: Retu
     else {
       const N = bound.most;
       const hist = Array.from({ length: N + 1 }, (_, i) => lens.filter((x) => x === i).length);
-      // Each of 0..N should come up; capped by how many options there were (a few seeds may have fewer).
-      const share = hist.map((h) => h / lens.length);
-      const even = share.every((s) => Math.abs(s - 1 / (N + 1)) < 0.15);
-      r.expect(even, "open picks: \"up to N\" takes 0..N evenly", `${k}: counts ${hist.join("/")} of ${lens.length} (0..${N})`, base, k);
+      // Each of 0..N equally often (χ² against uniform; a value never coming up fails even for large N).
+      const fit = chiFit(lens.map(String), Object.fromEntries(hist.map((_, i) => [String(i), 1])));
+      r.expect(!(fit.p < 1e-6), "open picks: \"up to N\" takes 0..N evenly", `${k}: counts ${hist.join("/")} of ${lens.length} (0..${N}), χ² ${fit.chi2.toFixed(1)} p ${fit.p.toExponential(1)}`, base, k);
     }
   }
 }
@@ -575,7 +688,7 @@ function occupation(r: Report, c: Compendium, arch: Archetype, b: BuildResult, b
       // Whatever the change opened, chosen at random, is a whole character.
       const filled = ops.fillPending(c, next, { roll: seededRoller(6_000_000 + seed) });
       const fb = replay(r, c, filled, { ...rep, record: filled }, `Occupation ${label}, then choose at random`);
-      checkCharacter(r, c, arch, fb, { ...rep, record: filled }, `Occupation ${label}, then choose at random`, bounds, gear, true);
+      checkCharacter(r, c, arch, fb, { ...rep, record: filled }, `Occupation ${label}, then choose at random`, bounds, gear);
       r.expect(isDeepStrictEqual(fb.record.choices[key], ids), `Occupation ${label} keeps the choice made`, `${key}: ${JSON.stringify(fb.record.choices[key])}`, rep, norm(key));
     } catch (e) {
       r.fail(`Occupation ${label} doesn't throw`, String((e as Error).stack ?? e), rep, `${norm(key)}: ${(e as Error).message}`);
@@ -610,6 +723,25 @@ function occupation(r: Report, c: Compendium, arch: Archetype, b: BuildResult, b
       for (const id of opts) tryChoose(e.key, ["yes"], { [innerKey!]: [id] }, "optional heading", (v) => {
         r.expect(isDeepStrictEqual(v.record.choices[innerKey!], [id]), "Occupation optional heading keeps its option", `${innerKey} = ${JSON.stringify(v.record.choices[innerKey!])}, wanted ${id}`, { ...base, key: e.key }, norm(innerKey!));
       });
+    }
+  }
+  // A choice whose every option leaves the GM sheet the same does nothing (a dropdown with no effect: the Seer's auspex).
+  {
+    for (const e of b.log) {
+      if (e.type !== "choice" || e.parent || !e.key.startsWith(`${arch.id}/`)) continue;
+      const p = ops.choiceOptions(c, rec, e.key);
+      if (!p || (p.kind !== "pick" && p.kind !== "pool") || p.count !== 1 || p.options.length < 2) continue;
+      const sheets = new Set<string>();
+      for (const opt of p.options.slice(0, 6)) {
+        try {
+          const next = ops.fillPending(c, ops.choose(c, rec, e.key, [opt.id], { roll: seededRoller(5_500_000 + seed) }), { roll: seededRoller(5_600_000 + seed) });
+          const sh = toSheetCharacter(build(c, next, { mode: "freeform", roll: seededRoller(99) }).character, c);
+          sheets.add(JSON.stringify(sh));
+        } catch {
+          sheets.add(opt.id); // (a throw is the "doesn't throw" check's finding)
+        }
+      }
+      r.expect(sheets.size > 1, "every choice changes the character", `${e.key} (${e.label}): ${Math.min(p.options.length, 6)} options, the GM sheet the same for each`, { ...base, key: e.key, record: rec }, `${norm(e.key)}`);
     }
   }
   // Another subtype, and another archetype, keep the name (the builder's rebuild).
@@ -669,4 +801,70 @@ function overrides(r: Report, c: Compendium, b: BuildResult, rep: Repro): void {
   const back = v(ops.setAlignment(ops.setAlignment(rec, "Radical"), null));
   r.expect(isDeepStrictEqual(back.character, ch), "alignment override removed", firstDiff(ch, back.character), { ...rep, steps: ["setAlignment(Radical)", "setAlignment(null)"] });
   r.expect(v(ops.rename(rec, "Ægidius ‘Ø’")).character.name === "Ægidius ‘Ø’", "rename", "", rep);
+}
+
+/** A character's categories for χ² comparisons: each choice (key normalised) → the ids chosen; each table → the rows rolled. */
+type Cats = Map<string, string[]>;
+function categories(b: BuildResult): Cats {
+  const m: Cats = new Map();
+  const add = (k: string, v: string) => m.set(k, [...(m.get(k) ?? []), v]);
+  for (const [k, ids] of Object.entries(b.record.choices)) for (const id of ids) add(`choice ${norm(k)}`, id);
+  for (const x of b.character.rolls) add(`table ${x.table}`, x.label);
+  return m;
+}
+
+/** Two sets of characters choose alike: per choice and per table, χ² on what came up (only with 30 or more of each). */
+function compareCats(r: Report, check: string, what: string, a: Cats[], b: Cats[], base: Repro): void {
+  if (a.length < 20) return;
+  const merge = (xs: Cats[]) => {
+    const m: Cats = new Map();
+    for (const x of xs) for (const [k, v] of x) m.set(k, [...(m.get(k) ?? []), ...v]);
+    return m;
+  };
+  const ma = merge(a);
+  const mb = merge(b);
+  for (const [k, va] of ma) {
+    const vb = mb.get(k) ?? [];
+    if (va.length < 30 || vb.length < 30) continue;
+    const x = chiHomogeneity(va, vb);
+    if (x.df < 1) continue;
+    const top = (vs: string[]) => {
+      const n = new Map<string, number>();
+      for (const v of vs) n.set(v, (n.get(v) ?? 0) + 1);
+      return [...n].sort((p, q) => q[1] - p[1]).slice(0, 6).map(([v, c]) => `${v} ${c}`).join(", ");
+    };
+    r.expect(!chiDiffers(x), check, `${what}, ${k}: fresh [${top(va)}] (n ${va.length}) vs [${top(vb)}] (n ${vb.length}); χ² ${x.chi2.toFixed(1)}, df ${x.df}, p ${x.p.toExponential(1)}, V ${x.v.toFixed(2)}`, base, `${what.replace(/#\d+/g, "#N")}: ${k}`);
+  }
+}
+
+/** Optional effects flip a coin; a chance is D100 ≤ N; an alignment is chosen evenly among those allowed (over many random characters). */
+function checkFrequencies(r: Report, c: Compendium, fresh: BuildResult[], base: Repro): void {
+  const byId = effectsById(c);
+  const seen = new Map<string, { kind: "optional" | "chance" | "alignment"; xs: string[]; expected: Record<string, number> }>();
+  const add = (k: string, kind: "optional" | "chance" | "alignment", x: string, expected: Record<string, number>) => {
+    const s = seen.get(k) ?? { kind, xs: [], expected };
+    seen.set(k, s);
+    s.xs.push(x);
+  };
+  for (const b of fresh) {
+    for (const e of b.log) {
+      const effs = byId.get(leafOf(e.key));
+      if (!effs || effs.length !== 1 || e.rerolled || e.forced) continue;
+      const eff = effs[0];
+      if (e.type === "choice" && "optional" in eff && e.key === leafOf(e.key)) {
+        const v = b.record.choices[e.key]?.[0];
+        if (v === "yes" || v === "no") add(norm(e.key), "optional", v, { yes: 1, no: 1 });
+      } else if (e.type === "dice" && "chance" in eff && typeof eff.chance === "number" && e.total !== undefined && /^[^>:#~]+$/.test(e.key)) {
+        add(norm(e.key), "chance", e.total <= eff.chance ? "then" : "else", { then: eff.chance, else: 100 - eff.chance });
+      } else if (e.type === "choice" && "alignment" in eff && e.key === leafOf(e.key) && b.record.choices[e.key]?.length === 1) {
+        add(norm(e.key), "alignment", b.record.choices[e.key][0], Object.fromEntries(eff.alignment.map((a) => [a, 1])));
+      }
+    }
+  }
+  for (const [k, s] of seen) {
+    if (s.xs.length < 60) continue;
+    const fit = chiFit(s.xs, s.expected);
+    const counts = Object.keys(s.expected).map((x) => `${x} ${s.xs.filter((y) => y === x).length}`).join(", ");
+    r.expect(!(fit.p < 1e-6), `${s.kind} as often as the book says`, `${k}: ${counts} of ${s.xs.length}, expected ${JSON.stringify(s.expected)}; χ² ${fit.chi2.toFixed(1)} p ${fit.p.toExponential(1)}`, base, k);
+  }
 }
