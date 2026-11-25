@@ -41,7 +41,7 @@ export async function passkeyFeature(r: Report, o: RunOptions): Promise<void> {
     await authenticator(page);
     await openBuilder(page, s.app.url);
     await newCharacter(page, "kroot", "kroot");
-    await newCharacter(page, "cherubim", "cherub");
+    await newCharacter(page, "cherubim", "cherubim");
     const base: Repro = { steps: ["two characters as a visitor"] };
     await s.step("Create account keeps the visitor's characters", { ...base, steps: [...base.steps!, "Account", "Create account"] }, async () => {
       await accountAction(s, page, "Create account");

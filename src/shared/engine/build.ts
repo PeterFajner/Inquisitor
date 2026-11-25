@@ -249,29 +249,39 @@ type Scope = {
   noAlien?: boolean; // the gear result being made may not be alien (its gear effect's `alien`)
   exclude?: string[]; // nor anything its gear effect's `exclude` names
   again?: boolean; // a grant's effects run again for another variant (`again`): picks offer what's left
+  upgrade?: { id: string; key: string; slot: Slot }; // a trade's upgrade, its result chosen before the give
 };
 type Source = { id: string; name: string; kind?: string };
 // What a table roll checks its rows against (unusable).
 //  inSlot: under a gear result (items the GM rules on are never generated);
 //  matchAvail: items must be of this availability (a roll's matchAvailability).
 //  noAlien, exclude: the gear effect's policy for what its results make.
-type RollCtx = { dupes: boolean; inSlot?: boolean; matchAvail?: Availability; only?: Set<string>; noAlien?: boolean; exclude?: string[] };
+//  strict: a `required` pick among what the character owns counts (a piece chosen by a trade).
+type RollCtx = { dupes: boolean; inSlot?: boolean; matchAvail?: Availability; only?: Set<string>; noAlien?: boolean; exclude?: string[]; strict?: boolean };
 type Rx = Restriction & { source: string; exempt?: string; exclusive?: boolean; sig: string };
 type Access = { pool: ThingKind; group: string[]; source: string; sig: string };
 // What an earlier pass found out: the alignment, restrictions and access,
 // options chosen (conditions on an option chosen later), and the results
 // of rolls to make again (gear needing what the finished character lacks).
 type Look = { alignment?: Alignment; rx: Rx[]; access: Access[]; options?: string[]; reroll?: string[] };
+// Something a gear result, or a thing's own effects, made: taken away with it.
+type Made = { kind: ThingKind; id: string; qty: number; origin: Origin } | { option: ChosenOption };
+// What a gear result may be chosen as at an availability (a trade): an item
+// of its category, or a row of the sub-tables its row rolls on.
+type Piece = { id: string; label: string; item?: Item; table?: Table; row?: TableRow };
 type Slot = {
   key: string;
   row: string;
   availability?: Availability;
-  item?: string;
-  qty: number;
   lost?: boolean;
-  candidates: (a: Availability) => Item[];
+  made: Made[]; // what it gave
+  rolls: RollResult[]; // its sub-table results
+  empty: EmptyResult[];
+  pieces: (a: Availability) => Piece[];
+  gen?: TableRow; // the generator row (its quality by availability)
   src: Source;
-  scope: Scope;
+  scope: Scope; // the gear effect's
+  inner: Scope; // the result's
 };
 
 const isOption = (o: Option | Effect): o is Option => "name" in o;
@@ -433,6 +443,8 @@ export function bestAV(c: Compendium, item: Item): number | undefined {
   return v;
 }
 
+// `k` continues `r` with a slot, a part or an effect inside it (not "~n").
+const nestedIn = (k: string, r: string) => k.startsWith(r) && [":", ">", "#"].includes(k[r.length]);
 const sameArray = (a: unknown[] | undefined, b: unknown[] | undefined) =>
   !!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]);
 
@@ -514,6 +526,12 @@ class Pass {
   companions: Character["companions"] = [];
   locations: Character["locations"] = [];
   slots: Slot[] = [];
+  grabs: Made[][] = []; // what is being made by a gear result, or by a thing's own effects (the innermost)
+  children = new Map<string, Made[]>(); // "<kind>/<id>" → what its own effects made
+  repicks = new Set<string>(); // keys of pieces a trade chose for a gear result
+  tradedAway = new Set<string>(); // items a trade took away (the last of them)
+  kinds = new Map<string, PendingChoice["kind"]>(); // each choice made this pass, its kind
+  fallback: Record<string, string[]> = {}; // what an earlier pass chose instead of a stored choice it refused
   gearAvail = new Set<Availability>();
   slotAvail?: Availability; // the gear result being made (the `availability` condition)
   lastGear?: Availability[];
@@ -619,14 +637,17 @@ class Pass {
   //  x.randomDefault: random mode's answer when nothing is stored (trades: "no")
   //  x.randomCount: how many random mode chooses (open picks)
   //  x.preset: the rules' own answer (a grant's `set`), taken as given
+  //  x.fits: whether ids can be had together (options drawing on one pool)
   choose(
     key: string,
     p: Omit<PendingChoice, "key" | "chosen">,
     distinct = true,
-    x: { min?: number; randomDefault?: string[]; randomCount?: () => number; preset?: string[] } = {},
+    x: { min?: number; randomDefault?: string[]; randomCount?: () => number; preset?: string[]; fits?: (ids: string[]) => boolean } = {},
   ): { ids: string[]; complete: boolean } {
     this.used.add(key);
     this.usedChoices.add(key);
+    this.kinds.set(key, p.kind);
+    const fits = x.fits ?? (() => true);
     const names = new Map(p.options.map((o) => [o.id, o.label]));
     const logIt = (ids: string[], forced?: boolean) =>
       this.log.push({
@@ -663,16 +684,31 @@ class Pass {
       logIt([]);
       return { ids: [], complete: true };
     }
+    const validOf = (xs: string[] | undefined) => {
+      const out: string[] = [];
+      for (const id of xs ?? []) {
+        if (!names.has(id)) continue;
+        if (distinct && out.includes(id)) continue;
+        if (out.length < count && fits([...out, id])) out.push(id);
+      }
+      return out;
+    };
+    const whole = (xs: string[] | undefined, v: string[]): boolean => !!xs && v.length >= lo && v.length <= count && xs.length === v.length;
     const stored = this.rec.choices[key];
-    const valid: string[] = [];
-    for (const id of stored ?? []) {
-      if (!names.has(id)) continue;
-      if (distinct && valid.includes(id)) continue;
-      if (valid.length < count) valid.push(id);
-    }
-    if (stored && valid.length >= lo && valid.length <= count && stored.length === valid.length) {
+    const valid = validOf(stored);
+    if (whole(stored, valid)) {
       logIt(valid);
       return { ids: valid, complete: true };
+    }
+    // what an earlier pass chose instead of a stored choice it refused (the
+    // stored choice stays first: a late access may allow it)
+    const fb = this.fallback[key];
+    const fbValid = validOf(fb);
+    if (stored && whole(fb, fbValid)) {
+      if (stored.length && sameArray(this.orig.choices[key], stored)) this.warn(`${key}: stored choice [${stored.join(", ")}] isn't allowed now; chosen again`);
+      this.rec.choices[key] = fbValid;
+      logIt(fbValid);
+      return { ids: fbValid, complete: true };
     }
     // (a choice carried from an earlier pass, made before a restriction was known, is just made again)
     if (stored && stored.length && valid.length !== stored.length && sameArray(this.orig.choices[key], stored)) {
@@ -682,7 +718,7 @@ class Pass {
     if (this.section) pend.section = this.section;
     if (x.min !== undefined) pend.min = lo;
     let ids: string[] | undefined;
-    if (distinct && lo === count && p.options.length === count) ids = p.options.map((o) => o.id);
+    if (distinct && lo === count && p.options.length === count && fits(p.options.map((o) => o.id))) ids = p.options.map((o) => o.id);
     let random = this.opts.mode === "random";
     if (!ids && this.opts.pick) {
       this.asked = true;
@@ -690,7 +726,7 @@ class Pass {
       if (got === RANDOM) random = true;
       else if (got) {
         const ok = got.filter((id) => names.has(id));
-        if (ok.length === got.length && ok.length >= lo && ok.length <= count && (!distinct || new Set(ok).size === ok.length)) ids = ok;
+        if (ok.length === got.length && ok.length >= lo && ok.length <= count && (!distinct || new Set(ok).size === ok.length) && fits(ok)) ids = ok;
         else this.warn(`${key}: pick() gave [${got.join(", ")}], which doesn't fit`);
       }
     }
@@ -701,7 +737,11 @@ class Pass {
         ids = valid.slice(0, want);
         if (ids.length < want) this.fresh.add(key);
         while (ids.length < want) {
-          const rest = distinct ? p.options.filter((o) => !ids!.includes(o.id)) : p.options;
+          const rest = (distinct ? p.options.filter((o) => !ids!.includes(o.id)) : p.options).filter((o) => fits([...ids!, o.id]));
+          if (!rest.length) {
+            this.warn(`${key}: only ${ids.length} can be had together, ${want} wanted`);
+            break;
+          }
           ids.push(rest[this.rollDie(rest.length) - 1].id);
         }
       }
@@ -760,7 +800,7 @@ class Pass {
   // decisions that made it in the record, so a replay makes it, finds the
   // same, and rolls it again too.
   keepUnder(k: string): void {
-    const under = (x: string) => x.startsWith(k) && [":", ">", "#"].includes(x[k.length]);
+    const under = (x: string) => nestedIn(x, k);
     for (const x of Object.keys(this.rec.dice).filter(under)) {
       this.usedDice.add(x);
       this.used.add(x);
@@ -773,7 +813,8 @@ class Pass {
 
   // The gear results to roll again: for each `required` pick left with
   // nothing to choose from, the outermost roll or gear result that led to it
-  // (none when a fixed grant or a pick did).
+  // (none when a fixed grant or a pick did, nor past a piece a trade chose:
+  // the trade's choice never rolls the result again).
   rerollResults(): string[] {
     const parent = new Map(this.log.map((l) => [l.key, l.parent]));
     const out: string[] = [];
@@ -782,6 +823,7 @@ class Pass {
       const seen = new Set<string>();
       for (let k: string | undefined = u; k !== undefined && !seen.has(k); k = parent.get(k)) {
         seen.add(k);
+        if (this.repicks.has(k)) break;
         if (this.attempts.has(k)) found = k;
       }
       if (found && !out.includes(found)) out.push(found);
@@ -932,8 +974,10 @@ class Pass {
     }
     if ("trade" in e) return this.trade(e, src, scope);
     if ("upgrade" in e) {
+      // (a trade's: its result was chosen before the give)
+      if (scope.upgrade?.id === e.id) return this.shift(scope.upgrade.slot, e.upgrade, scope.upgrade.key);
       const key = this.alloc(scope, `${src.id}/${e.id}`);
-      const slot = this.chooseSlots(key, 1, src, scope, "upgrade")[0];
+      const slot = this.chooseSlots(key, 1, src, scope, "upgrade", this.slots.filter((s) => this.upgradeable(s, e.upgrade)))[0];
       if (slot) this.shift(slot, e.upgrade, key);
       return;
     }
@@ -1102,6 +1146,7 @@ class Pass {
       have = (kind === "item" ? { ...o, qty } : o) as OwnedItem;
       map.set(id, have);
     }
+    this.grabs[this.grabs.length - 1]?.push({ kind, id, qty, origin });
     if (kind === "item") {
       if (extra.implanted) have.implanted = true;
       if (extra.reloads !== undefined) have.reloads = (have.reloads ?? 0) + extra.reloads;
@@ -1127,23 +1172,40 @@ class Pass {
       if (extra.again) inner.again = true;
       if (Object.keys(set).length) inner.preset = { entry: id, answers: set };
       if (extra.covers) inner.covers = { entry: id, covers: extra.covers };
+      this.grabs.push([]);
       this.effects(entry.effects, entry, inner);
+      const made = this.grabs.pop()!;
+      if (made.length) this.children.set(tag, [...(this.children.get(tag) ?? []), ...made]);
       this.collect.pop();
     }
     if (frame.list.length) (have.variants ??= []).push(frame.list);
   }
 
-  // Take one (or qty) of a thing away again, with what its own effects added.
-  ungrant(kind: ThingKind, id: string, qty = 1): boolean {
+  // Take one (or qty) of a thing away again, with what its own effects added
+  // (the last one: the options they chose, what those gave). `origin`: the
+  // grant taken back, when known (a thing something else gave too stays).
+  ungrant(kind: ThingKind, id: string, qty = 1, origin?: Origin): boolean {
     const map = this.owned[kind] as Map<string, OwnedItem>;
     const have = map.get(id);
     if (!have) return false;
-    if (kind === "item" && have.qty > qty) {
-      have.qty -= qty;
+    const rest = origin ? have.from.filter((f) => f !== origin) : have.from;
+    if (kind === "item" ? have.qty > qty : origin && rest.length) {
+      if (kind === "item") have.qty -= qty;
+      // (part of one grant: it stays, with less)
+      const part = origin && this.slots.flatMap((sl) => sl.made).find((m) => "origin" in m && m.origin === origin && m.qty > qty);
+      if (part && "qty" in part) part.qty -= qty;
+      else if (origin) {
+        have.from = rest;
+        for (const sl of this.slots) sl.made = sl.made.filter((m) => !("origin" in m) || m.origin !== origin);
+      }
       return true;
     }
     map.delete(id);
-    this.applied.delete(`${kind}/${id}`);
+    const tag = `${kind}/${id}`;
+    this.applied.delete(tag);
+    const made = this.children.get(tag) ?? [];
+    this.children.delete(tag);
+    this.unmake(made);
     const keep = <T extends { source: string }>(xs: T[]) => xs.filter((x) => x.source !== id || this.fixed.has(x));
     this.armour = keep(this.armour);
     this.derivedMods = keep(this.derivedMods);
@@ -1163,8 +1225,16 @@ class Pass {
       this.caps[s] = keep(this.caps[s]);
       this.cur[s] = this.fold(s);
     }
-    for (const sl of this.slots) if (sl.item === id) sl.item = undefined;
+    for (const sl of this.slots) sl.made = sl.made.filter((m) => "option" in m || m.kind !== kind || m.id !== id);
     return true;
+  }
+
+  // Take away what something made (a gear result, a thing's own effects).
+  unmake(made: Made[]): void {
+    for (const m of made) {
+      if ("option" in m) this.options = this.options.filter((o) => o !== m.option);
+      else this.ungrant(m.kind, m.id, m.qty, m.origin);
+    }
   }
 
   optionId(o: Option | Effect, i: number): string {
@@ -1276,6 +1346,25 @@ class Pass {
     return true;
   }
 
+  // What a list's own pool picks (those fulfils() counts) take from each
+  // pool, by pool and filter.
+  demand(list: Effect[], inResult: boolean, out = new Map<string, { kind: ThingKind; filter?: PickFilter; need: number }>()) {
+    for (const e of list) {
+      if ("when" in e && !("chance" in e)) {
+        this.demand(this.test(e.when) ? e.then : (e.else ?? []), inResult, out);
+        continue;
+      }
+      if (!("pick" in e) || !e.pool || e.pick === "any" || typeof e.pick === "object") continue;
+      if (e.filter?.owned === true && e.into && (!e.required || inResult)) continue;
+      const d = parseDice(e.pick);
+      const sig = `${e.pool}|${JSON.stringify(e.filter ?? {})}`;
+      const have = out.get(sig) ?? { kind: e.pool, filter: e.filter, need: 0 };
+      have.need += faceCount(d) === 0 ? d.constant : 1;
+      out.set(sig, have);
+    }
+    return out;
+  }
+
   // --- picks --------------------------------------------------------------
 
   pick(e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
@@ -1341,6 +1430,19 @@ class Pass {
       // offered, unless none can be.
       const ok = x.preset ? all : all.filter(({ o }) => !isOption(o) || this.fulfils(o.effects ?? [], inResult, 0));
       const opts = ok.length ? ok : all;
+      // Options drawing on one pool are had together only while it holds
+      // enough for all of them (three "Psychic Power" bonuses, one power left).
+      if (!x.preset && ok.length && count > 1) {
+        x.fits = (ids) => {
+          const need = new Map<string, { kind: ThingKind; filter?: PickFilter; need: number }>();
+          for (const id of ids) {
+            const o = opts.find((y) => y.id === id)?.o;
+            if (o && isOption(o)) this.demand(o.effects ?? [], inResult, need);
+          }
+          for (const d of need.values()) if (d.need > 1 && this.poolOf(d.kind, d.filter, { depth: 1 }).length < d.need) return false;
+          return true;
+        };
+      }
       const { ids } = this.choose(
         key,
         {
@@ -1365,6 +1467,7 @@ class Pass {
           const co: ChosenOption = { id: o.id, name: o.name, key, source: src.id };
           if (o.text) co.text = o.text;
           this.options.push(co);
+          this.grabs[this.grabs.length - 1]?.push({ option: co });
           this.variant(src, o.name);
           this.effects(o.effects ?? [], src, inner);
           continue;
@@ -1392,7 +1495,9 @@ class Pass {
     if (kind === "item" && (scope.noAlien || scope.exclude)) {
       cands = cands.filter((y) => !(scope.noAlien && (y as Item).alien) && !(scope.exclude && matches(y, scope.exclude)));
     }
-    if (e.required && !cands.length && !x.preset && !this.forced.has(key)) this.unmet.push(scope.parent ?? key);
+    // (not when a trade took away what it needs: a trade never rolls gear again)
+    const traded = () => this.tradedAway.size > 0 && this.poolOf(kind, { ...e.filter, owned: false }, { depth: 1 }).some((y) => this.tradedAway.has(y.id));
+    if (e.required && !cands.length && !x.preset && !this.forced.has(key) && !traded()) this.unmet.push(scope.parent ?? key);
     // A roll that led to an item with nothing to choose from (no Common heavy
     // weapon exists): the character still shows what was rolled.
     if (kind === "item" && !cands.length && !open && count > 0 && !x.preset && !this.forced.has(key)) {
@@ -1851,7 +1956,18 @@ class Pass {
           got.push(row.label);
           this.attempts.add(k);
           this.rolls.push(result);
-          this.effects(row.effects, gen, inner);
+          // a trade chooses it again among the rows of the sub-tables it rolls on
+          const ctx: RollCtx = { dupes: false, inSlot: true, noAlien: inner.noAlien, exclude: inner.exclude, strict: true };
+          const pieces = (a: Availability) => {
+            const before = this.slotAvail;
+            this.slotAvail = a;
+            const out = this.specifics(row.effects, ctx);
+            this.slotAvail = before;
+            return out;
+          };
+          const sl: Slot = { key: k, row: row.label, availability: avail, made: [], rolls: [], empty: [], pieces, gen: row, src, scope, inner };
+          this.slots.push(sl);
+          this.making(sl, () => this.effects(row.effects, gen, inner));
           this.slotAvail = was;
           break;
         }
@@ -1883,42 +1999,108 @@ class Pass {
         this.attempts.add(k);
         this.rolls.push(result);
         this.effects(row.effects, gen, inner);
-        const sl: Slot = { key: k, row: row.label, availability: avail, qty: 1, candidates, src, scope };
+        // a trade chooses it again among the items of its category (a
+        // `required` pick among what the character owns counts then)
+        const pieces = (a: Availability): Piece[] =>
+          candidates(a)
+            .filter((it) => this.takeable("item", it, false))
+            .map((it) => ({ id: it.id, label: it.name, item: it }));
+        const sl: Slot = { key: k, row: row.label, availability: avail, made: [], rolls: [], empty: [], pieces, gen: row, src, scope, inner };
         this.slots.push(sl);
-        this.slotItem(sl, `${k}:item`, cands, row);
+        this.making(sl, () => this.slotItem(sl, `${k}:item`, cands.map((it) => ({ id: it.id, label: it.name, item: it })), row));
       }
       if (!done) this.warn(`${slot}: no gear the character can have after ${MAX_REROLLS} rolls`);
     }
   }
 
-  // Choose (and grant) a gear slot's item among `cands`.
-  slotItem(sl: Slot, ck: string, cands: Item[], row?: TableRow): void {
+  // Runs `make` as gear result `sl`'s making: what it gives, its sub-table results.
+  making(sl: Slot, make: () => void): void {
+    const r0 = this.rolls.length;
+    const e0 = this.empty.length;
+    this.grabs.push([]);
+    make();
+    sl.made.push(...this.grabs.pop()!);
+    sl.rolls.push(...this.rolls.slice(r0));
+    sl.empty.push(...this.empty.slice(e0));
+  }
+
+  // Choose (and grant) a gear slot's piece among `pieces`: an item (`row`:
+  // the generator row, its quantity by availability), or a sub-table's row,
+  // whose effects make it.
+  slotItem(sl: Slot, ck: string, pieces: Piece[], row?: TableRow): void {
     const label = sl.availability ? `${sl.availability} ${sl.row}` : sl.row;
     const { ids } = this.choose(ck, {
       kind: "gear-item",
       label,
       count: 1,
-      options: cands.map((x) => ({ id: x.id, label: x.name })),
+      options: pieces.map((x) => ({ id: x.id, label: x.label })),
       source: sl.src.id,
       parent: sl.key,
     });
     for (const id of ids) {
+      const p = pieces.find((x) => x.id === id);
+      if (p?.table && p.row) {
+        const quality = sl.availability ? sl.gen?.quality?.[sl.availability] : undefined;
+        const scope: Scope = { ...sl.inner, prefix: `${ck}>`, parent: ck, slotAvail: sl.availability, grant: quality ? { quality } : undefined };
+        const was = this.slotAvail;
+        this.slotAvail = sl.availability;
+        this.effects(p.row.effects, p.table, scope);
+        this.slotAvail = was;
+        continue;
+      }
       let qty = 1;
       const it = this.c.items.get(id);
       const byAvail = row?.qty && it ? row.qty[this.availabilityFor(it) ?? sl.availability ?? "Common"] : undefined;
       if (byAvail !== undefined) qty = this.value({ prefix: "", depth: 0, parent: sl.key }, `${sl.key}:qty`, byAvail, sl.row);
-      sl.item = id;
-      sl.qty = qty;
       this.grant("item", id, { ...this.origin(sl.src, sl.scope), key: ck }, { ...sl.scope, parent: ck, depth: sl.scope.depth + 1 }, qty);
     }
   }
 
+  // The rows of the sub-tables `list` rolls on that a gear result of the
+  // availability being made (slotAvail) may be: rows granting something,
+  // through rows that only roll on (a Bionic Limb's limb). As the roll
+  // would (column, matchAvailability, what it refuses), in table order.
+  specifics(list: Effect[], ctx: RollCtx, depth = 0, seen = new Set<string>()): Piece[] {
+    const out: Piece[] = [];
+    const add = (ps: Piece[]) => {
+      for (const p of ps) if (!out.some((x) => x.id === p.id)) out.push(p);
+    };
+    const grants = (xs: Effect[]): boolean => xs.some((x) => !!thingOf(x) || ("when" in x && !("chance" in x) && grants(this.test(x.when) ? x.then : (x.else ?? []))));
+    for (const e of list) {
+      if ("when" in e && !("chance" in e)) {
+        add(this.specifics(this.test(e.when) ? e.then : (e.else ?? []), ctx, depth, seen));
+        continue;
+      }
+      if (!("roll" in e) || depth > 6 || e.eachGame !== undefined) continue;
+      const t = this.c.tables.get(e.roll);
+      if (!t || seen.has(t.id)) continue;
+      const cols = typeof e.column === "object" ? this.ownedColumns(e.column) : [e.column === "$subtype" ? this.sub.id : e.column];
+      const inner: RollCtx = { ...ctx, matchAvail: e.matchAvailability ? this.slotAvail : undefined };
+      seen.add(t.id);
+      for (const r of t.rows) {
+        if (!cols.some((col) => inColumn(r, col))) continue;
+        if (this.refused(r, inner, e.rerollUnless) || !this.feasible(r.effects, inner, new Set(), 0)) continue;
+        if (grants(r.effects)) add([{ id: `${t.id}/${r.label}`, label: r.label, table: t, row: r }]);
+        else add(this.specifics(r.effects, inner, depth + 1, seen));
+      }
+      seen.delete(t.id);
+    }
+    return out;
+  }
+
   // Move a generated gear result's availability by `steps` (negative =
-  // downgrade) and choose its item again; a Common result downgraded is lost.
-  shift(sl: Slot, steps: number, base: string): void {
+  // downgrade) and choose its piece again; a Common result downgraded is
+  // lost. What it gave before goes, with what that gave.
+  shift(sl: Slot, steps: number, base: string, pick = true): void {
     const rr = this.rolls.find((r) => r.key === sl.key);
-    if (sl.item) this.ungrant("item", sl.item, sl.qty);
-    sl.item = undefined;
+    const made = sl.made;
+    sl.made = [];
+    this.unmake(made);
+    for (const m of made) if (!("option" in m) && m.kind === "item" && !this.owned.item.has(m.id)) this.tradedAway.add(m.id);
+    this.rolls = this.rolls.filter((r) => !sl.rolls.includes(r));
+    this.empty = this.empty.filter((r) => !sl.empty.includes(r));
+    sl.rolls = [];
+    sl.empty = [];
     const idx = AVAILABILITIES.indexOf(sl.availability ?? "Common") + steps;
     if (idx < 0) {
       sl.lost = true;
@@ -1927,67 +2109,130 @@ class Pass {
     }
     sl.availability = AVAILABILITIES[Math.min(idx, AVAILABILITIES.length - 1)];
     if (rr) rr.availability = sl.availability;
-    const cands = sl.candidates(sl.availability);
-    if (!cands.length) {
+    if (!pick) return;
+    const pieces = sl.pieces(sl.availability);
+    if (!pieces.length) {
       this.warn(`${base}: no ${sl.availability} ${sl.row} to choose`);
       return;
     }
-    this.slotItem(sl, `${base}>${sl.key}:item`, cands);
+    const ck = `${base}>${sl.key}:item`;
+    this.repicks.add(ck);
+    this.making(sl, () => this.slotItem(sl, ck, pieces));
   }
 
-  chooseSlots(key: string, count: number, src: Source, scope: Scope, kind: "give" | "upgrade"): Slot[] {
-    const slots = this.slots.filter((s) => !s.lost && s.availability);
-    const { ids } = this.choose(key, {
-      kind,
-      label: src.name,
-      count,
-      options: slots.map((s) => ({ id: s.key, label: `${s.availability} ${s.row}` })),
-      source: src.id,
-      parent: scope.parent,
-    });
+  /** Whether gear result `sl` can be moved `steps` (up, from a step lower) and chosen again. */
+  upgradeable(sl: Slot, steps: number): boolean {
+    const idx = AVAILABILITIES.indexOf(sl.availability ?? "Common") + steps;
+    return !sl.lost && !!sl.availability && idx >= 0 && idx < AVAILABILITIES.length && sl.pieces(AVAILABILITIES[idx]).length > 0;
+  }
+
+  chooseSlots(key: string, count: number, src: Source, scope: Scope, kind: "give" | "upgrade", slots: Slot[], fits?: (ids: string[]) => boolean): Slot[] {
+    const { ids } = this.choose(
+      key,
+      {
+        kind,
+        label: src.name,
+        count,
+        options: slots.map((s) => ({ id: s.key, label: `${s.availability} ${s.row}` })),
+        source: src.id,
+        parent: scope.parent,
+      },
+      true,
+      { fits },
+    );
     return ids.flatMap((id) => slots.filter((s) => s.key === id));
   }
 
+  // A trade is offered (each time, for `times`) only when it can be made:
+  // enough to give, and for an upgrade something to raise that the give
+  // leaves. The upgrade's result is chosen first, then what is given up
+  // (not the result raised when the give would lose it), then the give is
+  // made and the get. A "yes" stored for a trade that can't be made now
+  // changes nothing (a warning).
   trade(e: Extract<Effect, { trade: unknown }>, src: Source, scope: Scope): void {
     const key = this.alloc(scope, `${src.id}/${e.id}`);
     const t = e.trade;
     const times = t.times === "any" ? MAX_TRADES : (t.times ?? 1);
+    const count = t.give.count ?? 1;
+    const up = t.get.find((x): x is Extract<Effect, { upgrade: unknown }> => "upgrade" in x);
+    const open = () => this.slots.filter((s) => !s.lost && s.availability);
+    const losable = () => {
+      const kinds = Array.isArray(t.give.lose) ? t.give.lose : [t.give.lose!];
+      const out: { kind: ThingKind; o: Owned }[] = [];
+      for (const kind of kinds) {
+        const pool = new Set(this.poolOf(kind, { ...(t.give.filter as PickFilter | undefined), owned: true }).map((x) => x.id));
+        for (const o of this.owned[kind].values()) {
+          if (!pool.has(o.id)) continue;
+          if (t.give.generated && !o.from.some((f) => f.key)) continue;
+          out.push({ kind, o });
+        }
+      }
+      return out;
+    };
     for (let n = 1; n <= times; n++) {
       const k = `${key}#${n}`;
-      const { ids } = this.choose(
-        k,
-        {
-          kind: "trade",
-          label: src.name,
-          count: 1,
-          options: [
-            { id: "yes", label: this.describe(t.get) },
-            { id: "no", label: "" },
-          ],
-          source: src.id,
-          parent: scope.parent,
-        },
-        true,
-        { randomDefault: ["no"] },
-      );
-      if (ids[0] !== "yes") return;
-      const count = t.give.count ?? 1;
-      const gk = `${k}:give`;
-      if (t.give.downgrade !== undefined) {
-        const slots = this.chooseSlots(gk, count, src, { ...scope, parent: k }, "give");
-        if (slots.length < count) return;
-        for (const sl of slots) this.shift(sl, -t.give.downgrade, gk);
-      } else {
-        const kinds = Array.isArray(t.give.lose) ? t.give.lose : [t.give.lose!];
-        const cands: { kind: ThingKind; o: Owned }[] = [];
-        for (const kind of kinds) {
-          const pool = new Set(this.poolOf(kind, { ...(t.give.filter as PickFilter | undefined), owned: true }).map((x) => x.id));
-          for (const o of this.owned[kind].values()) {
-            if (!pool.has(o.id)) continue;
-            if (t.give.generated && !o.from.some((f) => f.key)) continue;
-            cands.push({ kind, o });
-          }
+      const ask = () =>
+        this.choose(
+          k,
+          {
+            kind: "trade",
+            label: src.name,
+            count: 1,
+            options: [
+              { id: "yes", label: this.describe(t.get) },
+              { id: "no", label: "" },
+            ],
+            source: src.id,
+            parent: scope.parent,
+          },
+          true,
+          { randomDefault: ["no"] },
+        );
+      const down = t.give.downgrade !== undefined;
+      // (the result raised may be given too, unless that loses it: a Common
+      // one; one that can be raised only from a step lower must be)
+      const loses = (s: Slot) => down && AVAILABILITIES.indexOf(s.availability ?? "Common") - t.give.downgrade! < 0;
+      const direct = (s: Slot) => !!up && this.upgradeable(s, up.upgrade);
+      const viaGive = (s: Slot) => !!up && down && !loses(s) && this.upgradeable(s, up.upgrade - t.give.downgrade!);
+      const targets = up ? open().filter((s) => (direct(s) || viaGive(s)) && (!down || open().length - (loses(s) ? 1 : 0) >= count)) : [];
+      const can = (down ? open().length >= count : losable().length >= count) && (!up || targets.length > 0);
+      if (!can) {
+        const stored = this.forced.get(k) ?? this.rec.choices[k];
+        if (stored === undefined) return;
+        if (ask().ids[0] === "yes") {
+          this.keepUnder(k);
+          this.warn(`${k}: can't be made now; nothing traded`);
         }
+        return;
+      }
+      if (ask().ids[0] !== "yes") return;
+      const inner: Scope = { ...scope, prefix: `${k}>`, parent: k, depth: scope.depth + 1 };
+      let upgrade: Scope["upgrade"];
+      if (up) {
+        const uk = this.alloc(inner, `${src.id}/${up.id}`);
+        const slot = this.chooseSlots(uk, 1, src, inner, "upgrade", targets)[0];
+        if (!slot) {
+          // (what is given, stored, waits for it)
+          const gk = `${k}:give`;
+          if (this.rec.choices[gk]) {
+            this.used.add(gk);
+            this.usedChoices.add(gk);
+            this.keepUnder(gk);
+          }
+          return;
+        }
+        upgrade = { id: up.id, key: uk, slot };
+      }
+      const gk = `${k}:give`;
+      if (down) {
+        const target = upgrade?.slot;
+        const fits = (ids: string[]) => !target || ids.length < count || ids.includes(target.key) || direct(target);
+        const slots = this.chooseSlots(gk, count, src, inner, "give", open().filter((s) => s !== target || !loses(s)), fits);
+        if (slots.length < count) return;
+        // (the result raised too: only its availability moves, its piece is chosen once, raised)
+        for (const sl of slots) this.shift(sl, -t.give.downgrade!, gk, sl !== target);
+      } else {
+        const cands = losable();
         const { ids: give, complete } = this.choose(gk, {
           kind: "give",
           label: src.name,
@@ -1999,14 +2244,17 @@ class Pass {
         if (!complete || give.length < count) return;
         for (const id of give) {
           const [kind, thing] = id.split(":") as [ThingKind, string];
-          this.ungrant(kind, thing);
-          // gear given up is gone from its slot ("lose two items you've generated")
-          if (kind === "item" && !this.owned.item.has(thing)) {
-            for (const sl of this.slots) if (sl.item === undefined && !sl.lost) sl.lost = true;
-          }
+          // gear given up is gone from its result ("lose two items you've generated")
+          const gives = (sl: Slot) => sl.made.some((m) => !("option" in m));
+          const had = this.slots.filter((sl) => !sl.lost && gives(sl));
+          // (an item had more than once: the one generated last)
+          const from = kind === "item" ? this.owned.item.get(thing)?.from.findLast((f) => f.key) : undefined;
+          this.ungrant(kind, thing, 1, from);
+          if (kind === "item" && !this.owned.item.has(thing)) this.tradedAway.add(thing);
+          for (const sl of had) if (!gives(sl)) sl.lost = true;
         }
       }
-      this.effects(t.get, src, { ...scope, prefix: `${k}>`, parent: k, depth: scope.depth + 1 });
+      this.effects(t.get, src, upgrade ? { ...inner, upgrade } : inner);
     }
   }
 
@@ -2452,9 +2700,11 @@ function passes(
   }
   let pass!: Pass;
   const stale: string[] = [];
+  let fallback: Record<string, string[]> = {};
   for (let i = 0; i < MAX_PASSES; i++) {
     pass = new Pass(c, arch, sub, work, input, opts, rollDie, look, fresh);
     pass.seedRx = seed.rx;
+    pass.fallback = fallback;
     pass.run();
     for (const w of pass.stale) if (!stale.includes(w)) stale.push(w);
     const alignLate = pass.peekedAlignment && pass.alignment !== undefined && pass.alignment !== look.alignment;
@@ -2468,15 +2718,38 @@ function passes(
     for (const k of pass.rerollResults()) if (!reroll.includes(k)) reroll.push(k);
     const consLate = sigs(rx) !== sigs(look.rx) || sigs(access) !== sigs(look.access) || reroll.length !== (look.reroll?.length ?? 0);
     if ((!alignLate && !optionsLate && !consLate) || i === MAX_PASSES - 1) break;
-    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access, options: optionsLate ? chosen : look.options, reroll };
     // The re-run keeps the dice and the choices made (a choice the new
     // restrictions refuse is made again, among what they allow), so a random
     // build's odds stay the book's.
     // A choice the record already held stays as it was: a pass that didn't
-    // know a late access or restriction may have found it not allowed.
+    // know a late access or restriction may have found it not allowed. What
+    // the pass chose instead is kept as its fallback, for when it still
+    // isn't (so the pass after meets the same: a god removed from the rules
+    // isn't chosen again differently each pass). Under a result now rolled
+    // again, the pass's own choices stay: they are what it rolls again for.
+    // Gear given or upgraded by a trade, chosen at random this build, is
+    // chosen again once results are rolled again (it may name them).
+    const under = (k: string) => reroll.some((r) => nestedIn(k, r));
+    const rerolled = reroll.length !== (look.reroll?.length ?? 0);
+    const redo = rerolled
+      ? Object.keys(work.choices).filter((k) => !(k in input.choices) && fresh.has(k) && ["give", "upgrade"].includes(pass.kinds.get(k) ?? ""))
+      : [];
+    const redone = (k: string) => redo.some((r) => k === r || nestedIn(k, r));
+    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access, options: optionsLate ? chosen : look.options, reroll };
     const next = cloneRecord(input);
-    next.dice = { ...work.dice };
-    for (const [k, v] of Object.entries(work.choices)) next.choices[k] = [...(input.choices[k] ?? v)];
+    next.dice = Object.fromEntries(Object.entries(work.dice).filter(([k]) => !(redone(k) && fresh.has(k))));
+    fallback = {};
+    for (const [k, v] of Object.entries(work.choices)) {
+      if (redone(k) && fresh.has(k)) {
+        fresh.delete(k);
+        continue;
+      }
+      const held = input.choices[k];
+      if (held && !under(k)) {
+        next.choices[k] = [...held];
+        if (!sameArray(held, v)) fallback[k] = [...v];
+      } else next.choices[k] = [...v];
+    }
     work = next;
   }
   for (const w of stale) if (!pass.warnings.includes(w)) pass.warnings.unshift(w);

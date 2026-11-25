@@ -9,7 +9,7 @@ import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, TriangleAl
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
-import type { BuildResult } from "../../shared/engine/build.ts";
+import { BuildError, type BuildResult } from "../../shared/engine/build.ts";
 import type { CharacterDiff } from "../../shared/engine/diff.ts";
 import type { ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
@@ -432,10 +432,15 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     try {
       randomChoices = ops.view(oldC ?? rules.compendium, record).pending.length === 0;
     } catch {}
-    const d = ops.rulesDiff(oldC, rules.compendium, record);
-    // Nothing to show: just move the version to the current rules.
-    if (!d.changed) return void commit(ops.updateRules(rules.compendium, record, rules.version, randomChoices), "roll");
-    setUpdate({ d, randomChoices });
+    try {
+      const d = ops.rulesDiff(oldC, rules.compendium, record);
+      // Nothing to show: just move the version to the current rules.
+      if (!d.changed) return void commit(ops.updateRules(rules.compendium, record, rules.version, randomChoices), "roll");
+      setUpdate({ d, randomChoices });
+    } catch (e) {
+      // the current rules can't build it (its archetype or subtype is gone): left as it is
+      if (!(e instanceof BuildError)) throw e;
+    }
   };
 
   // --- edits ------------------------------------------------------------------

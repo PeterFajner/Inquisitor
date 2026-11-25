@@ -536,8 +536,10 @@ replace one of the Talents they generate with …":
 
 `give` is `lose` (kinds, `count`, `filter`, `generated: true` = only what
 came from a roll or a choice) or `downgrade` (steps, `count` results; the
-downgraded result's item is chosen again). `{ id, upgrade: N }` raises one
-generated result N steps and chooses its item. Random mode never trades.
+downgraded result's item, or sub-table row, is chosen again). `{ id,
+upgrade: N }` raises one generated result N steps and chooses its
+item (or row: Rare Armour to a Conversion Field). A trade is offered only
+when it can be made (docs/ENGINE.md). Random mode never trades.
 
 ### Derived values and attributes
 
