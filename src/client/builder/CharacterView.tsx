@@ -119,11 +119,16 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
     for (const e of built.log) {
       if (e.type !== "choice" || e.parent || !e.key.startsWith(`${ch.archetype.id}/`) || !e.section || SHEET_SECTIONS.has(e.section)) continue;
       if (record.choices[e.key]?.[0] !== "yes" && record.choices[e.key]?.[0] !== "no") continue;
-      const r = cloneRecord(record);
-      r.choices[e.key] = ["yes"];
-      let inner: PendingChoice | undefined;
+      let inner: Pick<PendingChoice, "key" | "kind" | "count" | "options"> | undefined;
       try {
-        inner = view(c, reroll(c, r, e.key)).pending.find((x) => x.parent === e.key);
+        const r = reroll(c, record, e.key);
+        r.choices[e.key] = ["yes"];
+        const b = view(c, r);
+        inner = b.pending.find((x) => x.parent === e.key);
+        // a pick of one (Truant) is made by itself: its one option is the choice made
+        const only = !inner && b.log.find((x) => x.parent === e.key && x.type === "choice");
+        const id = only && b.record.choices[only.key]?.[0];
+        if (only && id) inner = { key: only.key, kind: "pick", count: 1, options: [{ id, label: only.result[0] ?? id }] };
       } catch {}
       if (!inner || inner.kind !== "pick" || inner.count !== 1) continue;
       const on = record.choices[e.key]?.[0] === "yes";
