@@ -90,7 +90,7 @@
 .cstats-base .sheet-input.num { width: 3.6em; color: var(--accent); background: var(--surface-2); border: 0; border-bottom: 1px solid var(--accent); }
 .cstats tr.ovr .cstats-total::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 3px; vertical-align: super; }
 
-.add-char { display: flex; justify-content: center; }
+.char-foot { display: flex; justify-content: center; }
 .csec-source { padding: 6px; }
 .csec-log { padding: 8px; overflow-x: auto; }
 .csec-log.collapsed { padding: 6px; }
@@ -187,7 +187,7 @@
   .cstats-edit { min-height: 36px; }
 }
 @media print {
-  .char-list, .builder-title, .balance-line, .new-char, .ccard, .add-char { display: none !important; }
+  .char-list, .builder-title, .balance-line, .new-char, .ccard, .char-foot { display: none !important; }
   .builder-body { display: block; }
 }
 /* an ability's text keeps its own line breaks (lists of prayers, options) */

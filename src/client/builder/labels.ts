@@ -6,7 +6,6 @@ export const L = {
   archetype: "Archetype",
   subtype: "Subtype",
   random: "Random",
-  freeform: "Freeform",
   undo: "Undo",
   redo: "Redo",
   duplicate: "Duplicate",
@@ -62,5 +61,4 @@ export const T = {
   boons: "Boons",
   reroll: "Reroll",
   downloadDocx: "Download Docx",
-  addCharacter: "Add character",
 } as const;

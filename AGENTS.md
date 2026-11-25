@@ -44,7 +44,7 @@ Word sheet. See PLAN.md for the design and its decisions.
   November 2026; `T` in src/client/builder/labels.ts): "Inquisitor
   Character Generator", "Character name", "Occupation", "Archetype",
   "Subtype", "Role", "Stats", "Base", "Boon", "Total", "Talents", "Boons",
-  "Reroll", "Download Docx", "Add character" ("Role" labels a pick the
+  "Reroll", "Download Docx" ("Role" labels a pick the
   book names after the archetype itself, e.g. an Inquisitor's faction);
   "–" in the alignment when there is none; "lost" on gear lost to a
   downgrade; the labels "Rolls" (the rolls section's toggle) and "Balance

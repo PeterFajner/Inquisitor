@@ -236,3 +236,37 @@ test("duplicates: a talent only gear gave isn't one; the profile's own talents a
   assert.ok(!g.log.find((l) => l.key === "gunner/boon")!.rerolled, "Aim came only from the cortex");
   assert.equal(g.character.talents.find((t) => t.id === "aim")!.from.length, 2);
 });
+
+test("re-rolling an open pick makes it as a new random character would: 'any' takes none, 'up to N' rolls how many", async () => {
+  const ops = await import("../src/client/builder/ops.ts");
+  const oc = buildCompendium([
+    {
+      pack: Pack.parse({ id: "t", name: "T" }),
+      entries: [
+        Entry.parse({
+          id: "truant",
+          kind: "archetype",
+          name: "Truants",
+          source: src,
+          subtypes: [{ id: "fighter", name: "Fighter", stats }],
+          sections: [
+            {
+              name: "Equipment",
+              effects: [
+                { id: "common", pick: "any", from: ["a", "b", "c", "d", "e"].map((i) => ({ item: i })) },
+                { id: "rare", pick: { max: 2 }, from: ["f", "g", "h"].map((i) => ({ item: i })) },
+              ],
+            },
+          ],
+        }),
+        ...["a", "b", "c", "d", "e", "f", "g", "h"].map((i) => Entry.parse(item(i))),
+      ],
+    },
+  ]);
+  for (let seed = 1; seed <= 20; seed++) {
+    const r = ops.create(oc, "truant", "fighter", "random", { roll: seededRoller(seed) });
+    const again = ops.view(oc, ops.rerollDecision(oc, r, ["truant/common", "truant/rare"], { roll: seededRoller(seed + 100) }));
+    assert.deepEqual(again.record.choices["truant/common"], []);
+    assert.ok(again.record.choices["truant/rare"].length <= 2);
+  }
+});

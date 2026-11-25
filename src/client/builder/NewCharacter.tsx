@@ -1,7 +1,7 @@
-// A new character: the archetype and subtype by the book's names, then one
-// of two icons: random (the book's method, built at once) or freeform (the
-// engine's choices left open as pickers; stats set by overriding them).
-import { Dices, PenLine, X } from "lucide-preact";
+// A new character: the archetype and subtype by the book's names, then the
+// dice: random, the book's method, built at once (anything can be changed
+// after).
+import { Dices, X } from "lucide-preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { ICON, IconButton } from "./Icon.tsx";
@@ -23,7 +23,7 @@ export function NewCharacter({
   onPreview,
 }: {
   c: Compendium;
-  onCreate: (a: string, s: string, mode: "random" | "freeform") => void;
+  onCreate: (a: string, s: string, mode: "random") => void;
   onClose?: () => void;
   /** The archetype/subtype on show (to get its balance ready before the roll). */
   onPreview?: (a: string, s: string) => void;
@@ -37,7 +37,7 @@ export function NewCharacter({
     if (arch && subtype) onPreview?.(arch, subtype);
   }, [arch, subtype]);
 
-  const go = (mode: "random" | "freeform") => onCreate(arch, subtype, mode);
+  const go = (mode: "random") => onCreate(arch, subtype, mode);
 
   return (
     <section class="csec new-char" role="group" aria-label={L.newCharacter}>
@@ -75,9 +75,6 @@ export function NewCharacter({
       <div class="new-char-go">
         <IconButton label={L.random} class="primary" onClick={() => go("random")}>
           <Dices size={ICON} />
-        </IconButton>
-        <IconButton label={L.freeform} onClick={() => go("freeform")}>
-          <PenLine size={ICON} />
         </IconButton>
       </div>
     </section>

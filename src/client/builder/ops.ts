@@ -8,7 +8,7 @@
 // cleared; choosing explicitly leaves any new nested choice pending (pick it,
 // or fill it at random).
 import type { CharacterRecord as ApiRecord } from "../../shared/api.ts";
-import { build, ROLL_OPTION, type BuildResult, type PendingChoice, type RollFn } from "../../shared/engine/build.ts";
+import { build, RANDOM, ROLL_OPTION, type BuildResult, type PendingChoice, type RollFn } from "../../shared/engine/build.ts";
 import { diff, type CharacterDiff } from "../../shared/engine/diff.ts";
 import { cloneRecord, newRecord, parseRecord, type CharacterRecord, type Override, type ThingKind } from "../../shared/engine/record.ts";
 import { reroll } from "../../shared/engine/reroll.ts";
@@ -48,6 +48,10 @@ export function randomPick(p: PendingChoice, roll: RollFn = cryptoRoller()): str
   return out;
 }
 
+/** pick()'s answer for a choice made at random: as a new random character makes it (an open pick's count is rolled, a trade declined), a power rolled on its table. */
+const atRandom = (p: PendingChoice): string[] | typeof RANDOM =>
+  p.kind === "power" && p.options.some((o) => o.id === ROLL_OPTION) ? [ROLL_OPTION] : RANDOM;
+
 const stamp = (r: CharacterRecord, version?: string): CharacterRecord => {
   if (version) r.rulesVersion = version;
   return r;
@@ -77,14 +81,15 @@ export function rerollDecision(c: Compendium, rec: CharacterRecord, key: string 
   const roll = opts.roll ?? cryptoRoller();
   const open = pendingKeys(c, rec);
   const cleared = (typeof key === "string" ? [key] : key).reduce((r, k) => reroll(c, r, k), rec);
-  const r = build(c, cleared, { mode: "freeform", roll, pick: (p) => (open.has(p.key) ? undefined : randomPick(p, roll)) }).record;
+  const r = build(c, cleared, { mode: "freeform", roll, pick: (p) => (open.has(p.key) ? undefined : atRandom(p)) }).record;
   return stamp(r, opts.version);
 }
 
-/** Makes (or changes) a choice; what depended on the old answer is cleared and made again (new choices stay open). */
-export function choose(c: Compendium, rec: CharacterRecord, key: string, ids: string[], opts: { version?: string; roll?: RollFn } = {}): CharacterRecord {
+/** Makes (or changes) a choice (and `then`, choices made with it); what depended on the old answer is cleared and made again (new choices stay open). */
+export function choose(c: Compendium, rec: CharacterRecord, key: string, ids: string[], opts: { version?: string; roll?: RollFn; then?: Record<string, string[]> } = {}): CharacterRecord {
   const cleared = reroll(c, rec, key);
   cleared.choices[key] = [...ids];
+  for (const [k, v] of Object.entries(opts.then ?? {})) cleared.choices[k] = [...v];
   const r = build(c, cleared, { mode: "freeform", roll: opts.roll ?? cryptoRoller() }).record;
   return stamp(r, opts.version);
 }
@@ -98,7 +103,7 @@ export function fillPending(c: Compendium, rec: CharacterRecord, opts: { keys?: 
     mode: "freeform",
     roll,
     // Only the asked-for keys, plus choices that open because of them.
-    pick: (p) => (!only || only.has(p.key) || !before.has(p.key) ? randomPick(p, roll) : undefined),
+    pick: (p) => (!only || only.has(p.key) || !before.has(p.key) ? atRandom(p) : undefined),
   }).record;
   return stamp(r, opts.version);
 }
@@ -177,6 +182,6 @@ export function rulesDiff(oldC: Compendium | null, newC: Compendium, rec: Charac
  */
 export function updateRules(newC: Compendium, rec: CharacterRecord, version: string, randomChoices: boolean, roll: RollFn = cryptoRoller()): CharacterRecord {
   const base = { ...cloneRecord(rec), packs: newC.packs.map((p) => p.id) };
-  const r = build(newC, base, { mode: "freeform", roll, pick: randomChoices ? (p) => randomPick(p, roll) : undefined }).record;
+  const r = build(newC, base, { mode: "freeform", roll, pick: randomChoices ? atRandom : undefined }).record;
   return stamp(r, version);
 }

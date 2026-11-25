@@ -393,9 +393,10 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     }
   };
 
-  const remove = async () => {
+  /** `sure`: already confirmed (the delete under the character asks with confirm()). */
+  const remove = async (sure = false) => {
     if (!char || busy) return;
-    if (!confirmDelete) {
+    if (!sure && !confirmDelete) {
       setConfirmDelete(true);
       return;
     }
@@ -440,7 +441,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
           add: (what) => setPicker(what === "abilities" ? { what, tab: "talent" } : { what }),
           reroll: (key) => void commit(ops.rerollDecision(c, record, key, { version: v }), "reroll"),
           rebuild: (archetype, subtype) => void commit(ops.create(c, archetype, subtype, "random", { name: record.name, version: v }), "roll"),
-          choose: (key, ids) => void commit(ops.choose(c, record, key, ids, { version: v }), "choice"),
+          choose: (key, ids, then) => void commit(ops.choose(c, record, key, ids, { version: v, then }), "choice"),
           randomFill: (keys) => void commit(ops.fillPending(c, record, { keys, version: v }), "roll"),
           change: (key) => {
             const p = ops.choiceOptions(c, record, key);
@@ -586,7 +587,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
               )}
             </span>
             <span class="site-group char-delete">
-              <IconButton label={confirmDelete ? L.confirmRemove : L.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={remove}>
+              <IconButton label={confirmDelete ? L.confirmRemove : L.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
                 {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
               </IconButton>
             </span>
@@ -682,19 +683,16 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
                   </button>
                 }
               />
-              <div class="add-char">
-                <button
-                  type="button"
-                  class="text-btn"
-                  disabled={!rules}
+              <div class="char-foot">
+                <IconButton
+                  label={L.remove}
+                  disabled={busy}
                   onClick={() => {
-                    setCreating(true);
-                    syncUrl(null);
-                    window.scrollTo({ top: 0 });
+                    if (confirm(`${L.remove} ${char.name || "–"}?`)) void remove(true);
                   }}
                 >
-                  {T.addCharacter}
-                </button>
+                  <Trash2 size={ICON} />
+                </IconButton>
               </div>
             </>
           )}

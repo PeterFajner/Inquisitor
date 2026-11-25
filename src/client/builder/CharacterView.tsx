@@ -5,7 +5,8 @@
 import { BookOpen, Dices, Info, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useMemo, useState } from "preact/hooks";
-import type { BuildResult, Owned } from "../../shared/engine/build.ts";
+import type { BuildResult, Owned, PendingChoice } from "../../shared/engine/build.ts";
+import { reroll } from "../../shared/engine/reroll.ts";
 import { cloneRecord, type CharacterRecord, type ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { STATS, type Stat } from "../../shared/rules/schema.ts";
@@ -21,7 +22,8 @@ import { choiceOptions, view } from "./ops.ts";
 export type ViewEdits = SheetEdits & {
   reroll(key: string | string[]): void;
   change(key: string): void;
-  choose(key: string, ids: string[]): void;
+  /** `then`: choices made with it (an optional's own pick). */
+  choose(key: string, ids: string[], then?: Record<string, string[]>): void;
   randomFill(keys?: string[]): void;
   /** A new random build of this character as another archetype/subtype. */
   rebuild(archetype: string, subtype: string): void;
@@ -57,6 +59,9 @@ function entryName(c: Compendium, id: string): string {
   }
   return "";
 }
+
+/** The headings every archetype's page has; any other (an archetype's own "Truant?") is part of its occupation. */
+const SHEET_SECTIONS = new Set(["Equipment", "Armour", "Psychic Abilities", "Exotic Abilities", "Talents", "Mutations", "Alignment"]);
 
 const BOON = /^(.*\/boons)(#\d+|:count)$/;
 const fromBoons = (t: Owned) => t.from.some((o) => !!o.key && BOON.test(o.key.split(">")[0]));
@@ -101,7 +106,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
   const arch = c.archetypes.get(ch.archetype.id);
   const picks = useMemo(() => {
     if (!edit) return [];
-    const out: { key: string; label: string; options: { id: string; label: string }[]; value: string }[] = [];
+    const out: { key: string; label: string; options: { id: string; label: string }[]; value: string; inner?: string; optional?: boolean }[] = [];
     for (const e of built.log) {
       if (e.type !== "choice" || e.parent || !e.key.startsWith(`${ch.archetype.id}/`)) continue;
       const p = choiceOptions(c, record, e.key);
@@ -109,6 +114,20 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
       // A pick named only by the archetype (its role: an Inquisitor's belief faction…) is the old site's "Role".
       const label = e.label === arch?.name || e.label === ch.archetype.name ? T.role : e.label;
       out.push({ key: e.key, label, options: p.options, value: record.choices[e.key]?.[0] ?? "" });
+    }
+    // An optional heading of its own before the sheet's ("Truant?", "Repentia", "Servitor Type"): "–", or one of its pick's options.
+    for (const e of built.log) {
+      if (e.type !== "choice" || e.parent || !e.key.startsWith(`${ch.archetype.id}/`) || !e.section || SHEET_SECTIONS.has(e.section)) continue;
+      if (record.choices[e.key]?.[0] !== "yes" && record.choices[e.key]?.[0] !== "no") continue;
+      const r = cloneRecord(record);
+      r.choices[e.key] = ["yes"];
+      let inner: PendingChoice | undefined;
+      try {
+        inner = view(c, reroll(c, r, e.key)).pending.find((x) => x.parent === e.key);
+      } catch {}
+      if (!inner || inner.kind !== "pick" || inner.count !== 1) continue;
+      const on = record.choices[e.key]?.[0] === "yes";
+      out.push({ key: e.key, inner: inner.key, label: e.section, options: inner.options, value: on ? (record.choices[inner.key]?.[0] ?? "") : "", optional: true });
     }
     return out;
   }, [c, record, built, !!edit]);
@@ -153,15 +172,25 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
           <>
             {row(
               p.label,
-              <select class="occ-select" aria-label={p.label} value={p.value} onChange={(e) => edit!.choose(p.key, [e.currentTarget.value])}>
-                {!p.value && <option value="">–</option>}
+              <select
+                class="occ-select"
+                aria-label={p.label}
+                value={p.value}
+                onChange={(e) => {
+                  const v = e.currentTarget.value;
+                  if (!p.optional) edit!.choose(p.key, [v]);
+                  else if (!v) edit!.choose(p.key, ["no"]);
+                  else edit!.choose(p.key, ["yes"], { [p.inner!]: [v] });
+                }}
+              >
+                {(!p.value || p.optional) && <option value="">–</option>}
                 {p.options.map((o) => (
                   <option value={o.id}>{o.label || "–"}</option>
                 ))}
               </select>,
             )}
             {ch.options
-              .filter((o) => o.key === p.key && o.text)
+              .filter((o) => o.key === (p.inner ?? p.key) && o.text)
               .map((o) => (
                 <p class="occ-text">{o.text}</p>
               ))}

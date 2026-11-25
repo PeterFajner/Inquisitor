@@ -48,6 +48,8 @@ export const BIONICS_TABLE = "bionics-table";
 
 /** A powers effect's pending option that rolls its table instead of naming a power. */
 export const ROLL_OPTION = "@roll";
+/** pick()'s answer for "as random mode would". */
+export const RANDOM = "@random";
 
 /** Most attempts at one roll that keeps being re-rolled (duplicates, gear). */
 export const MAX_REROLLS = 200;
@@ -75,8 +77,9 @@ export type BuildOptions = {
   mode: BuildMode;
   roll?: RollFn; // (sides) => 1..sides; default: crypto RNG
   // Make a choice the record doesn't have (both modes); return undefined to
-  // fall back to random (random mode) or pending (freeform mode).
-  pick?: (p: PendingChoice) => string[] | undefined;
+  // fall back to random (random mode) or pending (freeform mode); RANDOM
+  // makes it as random mode would (an open pick's random count, a trade's "no").
+  pick?: (p: PendingChoice) => string[] | typeof RANDOM | undefined;
 };
 
 export type Origin = { entry: string; key?: string; section?: string; override?: boolean };
@@ -658,15 +661,17 @@ class Pass {
     if (x.min !== undefined) pend.min = lo;
     let ids: string[] | undefined;
     if (distinct && lo === count && p.options.length === count) ids = p.options.map((o) => o.id);
+    let random = this.opts.mode === "random";
     if (!ids && this.opts.pick) {
       const got = this.opts.pick(pend);
-      if (got) {
+      if (got === RANDOM) random = true;
+      else if (got) {
         const ok = got.filter((id) => names.has(id));
         if (ok.length === got.length && ok.length >= lo && ok.length <= count && (!distinct || new Set(ok).size === ok.length)) ids = ok;
         else this.warn(`${key}: pick() gave [${got.join(", ")}], which doesn't fit`);
       }
     }
-    if (!ids && this.opts.mode === "random") {
+    if (!ids && random) {
       if (x.randomDefault) ids = [...x.randomDefault];
       else {
         const want = x.randomCount ? Math.max(0, Math.min(count, x.randomCount())) : count;
