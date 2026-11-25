@@ -35,7 +35,6 @@ import { blankEntry } from "./edit/blank.ts";
 import { Editor, type EditTarget } from "./edit/Editor.tsx";
 import { HistoryPanel } from "./History.tsx";
 import { L } from "./labels.ts";
-import { marksOf, type Mark } from "./marks.ts";
 import { connect, load, rules, type Item, type Key } from "./model.ts";
 import { PacksMenu } from "./Packs.tsx";
 import { BASE_PACK, REGIONS, regionOf, shelfOf, shelfRanker } from "./regions.ts";
@@ -175,7 +174,6 @@ export function RulesBook({ data }: { data: PageData }) {
 
   const visiblePacks = useMemo(() => s.packs.filter((p) => !hidden.has(p.id)), [s.packs, hidden]);
   const packName = useMemo(() => new Map(s.packs.map((p) => [p.id, p.name])), [s.packs]);
-  const marks = useMemo(() => marksOf(s.packs), [s.packs]);
   const visible = useMemo(() => {
     const vis = new Set(visiblePacks.map((p) => p.id));
     return [...s.items].filter(([, it]) => vis.has(it.pack));
@@ -384,16 +382,9 @@ export function RulesBook({ data }: { data: PageData }) {
         ctx = { ...ctxOf(e, cache.names), go };
         cache.ctx.set(e, ctx);
       }
-      const mark = marks.get(c.item.pack);
-      const book = packName.get(c.item.pack) ?? c.item.pack;
-      return (
-        <>
-          <Card cardKey={c.id} entry={e} meta={c.item.meta} ctx={ctx} selected={st.selected} signedIn={signedIn} editing={st.editing} flash={st.flash} minHeight={st.minHeight} actions={stableActions} />
-          {mark && <span class="rc-mark" role="img" aria-label={book} title={book} style={{ maskImage: mark.css, WebkitMaskImage: mark.css }} />}
-        </>
-      );
+      return <Card cardKey={c.id} entry={e} meta={c.item.meta} ctx={ctx} selected={st.selected} signedIn={signedIn} editing={st.editing} flash={st.flash} minHeight={st.minHeight} actions={stableActions} />;
     },
-    [go, signedIn, stableActions, marks, packName],
+    [go, signedIn, stableActions],
   );
 
   // The content's width (the masonry's columns follow it).
@@ -412,8 +403,8 @@ export function RulesBook({ data }: { data: PageData }) {
 
   // Search: every shown card by name; choosing one shows it.
   const searchable = useMemo(
-    () => visible.map(([key, it]) => ({ key, name: it.entry.name, kind: it.entry.kind, mark: marks.get(it.pack) ?? null, book: packName.get(it.pack) ?? it.pack })),
-    [visible, marks, packName],
+    () => visible.map(([key, it]) => ({ key, name: it.entry.name, kind: it.entry.kind, book: packName.get(it.pack) ?? it.pack })),
+    [visible, packName],
   );
   const pick = useCallback((key: Key) => goKey(key, { flash: true }), [goKey]);
   const tocPick = useCallback(
@@ -450,7 +441,7 @@ export function RulesBook({ data }: { data: PageData }) {
         </nav>
         <span class="site-end">
           <SearchBox cards={searchable} onPick={pick} />
-          <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} marks={marks} />
+          <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} />
           {signedIn && (
             <div class="menu-wrap">
               <button type="button" class="icon-btn" aria-label={L.newEntry} title={L.newEntry} aria-expanded={newOpen} onClick={() => setNewOpen(!newOpen)}>
@@ -476,7 +467,7 @@ export function RulesBook({ data }: { data: PageData }) {
         {tocOpen && <div class="rb-backdrop" onClick={() => setToc(false)} />}
         {tocEver.current &&
           REGIONS.filter((r) => shown.has(r.id)).map((r) => (
-            <Toc key={r.id} tab={r.id} shown={tocOpen && r.id === tab} shelves={byTab.get(r.id) ?? []} marks={marks} packName={packName} onPick={tocPick} navs={tocs.current} />
+            <Toc key={r.id} tab={r.id} shown={tocOpen && r.id === tab} shelves={byTab.get(r.id) ?? []} onPick={tocPick} navs={tocs.current} />
           ))}
         <div class="rb-main" ref={mainRef} aria-busy={!s.loaded}>
           {s.loaded &&
@@ -523,15 +514,13 @@ type TocProps = {
   tab: string;
   shown: boolean;
   shelves: ShelfGroup<BookCard>[];
-  marks: ReadonlyMap<string, Mark>;
-  packName: ReadonlyMap<string, string>;
   onPick: (key: Key) => void;
   navs: Map<string, HTMLElement | null>;
 };
 
 class Toc extends Component<TocProps> {
   shouldComponentUpdate(n: TocProps) {
-    return n.shown !== this.props.shown || n.shelves !== this.props.shelves || n.marks !== this.props.marks || n.onPick !== this.props.onPick;
+    return n.shown !== this.props.shown || n.shelves !== this.props.shelves || n.onPick !== this.props.onPick;
   }
   render() {
     const p = this.props;
@@ -548,10 +537,7 @@ class Toc extends Component<TocProps> {
           <section>
             {sh.label && <h2>{sh.label}</h2>}
             <ul>
-              {sh.cards.map((c) => {
-                const mark = p.marks.get(c.item.pack);
-                const book = p.packName.get(c.item.pack) ?? c.item.pack;
-                return (
+              {sh.cards.map((c) => (
                   <li>
                     <a
                       href={`#${encodeURIComponent(c.id)}`}
@@ -563,11 +549,9 @@ class Toc extends Component<TocProps> {
                       }}
                     >
                       {c.name}
-                      {mark && <span class="pack-mark" role="img" aria-label={book} title={book} style={{ maskImage: mark.css, WebkitMaskImage: mark.css }} />}
                     </a>
                   </li>
-                );
-              })}
+              ))}
             </ul>
           </section>
         ))}

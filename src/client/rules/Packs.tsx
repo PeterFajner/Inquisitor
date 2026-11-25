@@ -7,7 +7,6 @@ import { Check, Eye, EyeOff, Layers, Pencil, Plus } from "lucide-preact";
 import type { Pack } from "../../shared/rules/schema.ts";
 import { kebab } from "./edit/blank.ts";
 import { L } from "./labels.ts";
-import type { Mark } from "./marks.ts";
 import { newPack } from "./model.ts";
 
 type Props = {
@@ -17,8 +16,6 @@ type Props = {
   active: string;
   onActive: (id: string) => void;
   signedIn: boolean;
-  /** Each article pack's mark (the book's own has none). */
-  marks: ReadonlyMap<string, Mark>;
 };
 
 export function PacksMenu(p: Props) {
@@ -40,7 +37,6 @@ export function PacksMenu(p: Props) {
           <ul class="packs">
             {p.packs.map((pk) => {
               const shown = !p.hidden.has(pk.id);
-              const mark = p.marks.get(pk.id);
               return (
                 <li class={shown ? undefined : "off"}>
                   <button type="button" class="icon-btn icon-sm" aria-label={`${L.show}: ${pk.name}`} title={L.show} aria-pressed={shown} onClick={() => p.onToggle(pk.id)}>
@@ -51,7 +47,6 @@ export function PacksMenu(p: Props) {
                       <Pencil size={14} aria-hidden="true" />
                     </button>
                   )}
-                  <span class="pack-mark" role={mark ? "img" : undefined} aria-label={mark ? pk.name : undefined} title={mark ? pk.name : undefined} style={mark ? { maskImage: mark.css, WebkitMaskImage: mark.css } : { background: "none" }} />
                   <span class="pack-name">{pk.name}</span>
                 </li>
               );

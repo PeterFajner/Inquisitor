@@ -1,7 +1,7 @@
 // Search the shown cards by name: an icon that opens a field (no
 // placeholder: the icon says what it is), the names that match as you type
 // (those starting with it first, then a word starting with it, then the
-// rest; A–Z), each with its kind's icon and its book's mark. Choosing one
+// rest; A–Z), each with its kind's icon. Choosing one
 // (click, tap, or arrows and Enter) selects its card and flies there.
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Search } from "lucide-preact";
@@ -77,7 +77,6 @@ export function SearchBox({ cards, onPick }: { cards: readonly Searchable[]; onP
                 >
                   <Ic icon={KIND_ICON[c.kind]} label={KIND_LABEL[c.kind]} size={14} />
                   <span class="search-name">{c.name}</span>
-                  {c.mark && <span class="pack-mark" role="img" aria-label={c.book} title={c.book} style={{ maskImage: c.mark.css, WebkitMaskImage: c.mark.css }} />}
                 </li>
               ))}
             </ul>

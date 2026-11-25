@@ -2,10 +2,9 @@
 // the query, case and accents aside; names starting with it first, then
 // those with a word starting with it, then the rest, A–Z. Pure.
 import type { Entry } from "../../shared/rules/schema.ts";
-import type { Mark } from "./marks.ts";
 import { compareNames } from "./shelves.ts";
 
-export type Searchable = { key: string; name: string; kind: Entry["kind"]; mark: Mark | null; book: string };
+export type Searchable = { key: string; name: string; kind: Entry["kind"]; book: string };
 
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 

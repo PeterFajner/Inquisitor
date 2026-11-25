@@ -701,7 +701,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
   const barEnd = (
     <span class="rules-tools">
       <SearchBox cards={searchable} onPick={pick} />
-      <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} marks={marks} />
+      <PacksMenu packs={s.packs} hidden={hidden} onToggle={toggleHidden} active={activePack} onActive={setActive} signedIn={signedIn} />
       <AccountButton />
     </span>
   );

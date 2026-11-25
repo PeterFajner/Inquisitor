@@ -55,8 +55,8 @@ step below is done.
   Table of Contents (the shelves and their cards' names; a name scrolls to
   its card, the reader's place is picked out), opened and closed with an
   icon (remembered per browser; open on wide screens, over the page on a
-  phone). The packs menu filters the books (an article's cards carry its
-  mark), a search icon finds a card by name; a link between cards (a chip's
+  phone). The packs menu filters the books (no per-book marks on the
+  cards: owner, November 2026), a search icon finds a card by name; a link between cards (a chip's
   reference, a table's "Rolled on by") switches tab, scrolls to the card and
   flashes it; every card has its own address (#<pack>:<kind>/<id>), so back,
   forward and shared links work. Cards show rules visually as chips
