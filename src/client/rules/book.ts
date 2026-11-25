@@ -4,6 +4,7 @@
 // it would sit highest, ties to the left, so the page reads across then
 // down); the address (#<card key> or #<region>); which card a link goes to
 // and on which tab; and which card the reader is at. No DOM.
+import type { Pack } from "../../shared/rules/schema.ts";
 import type { RefKind } from "./ctx.ts";
 import type { Key } from "./model.ts";
 import { COL, GAP } from "./sizes.ts";
@@ -78,8 +79,8 @@ const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").t
 /**
  * Names as the Table of Contents and search list them: a card's name, or,
  * where a card of the same tab from another book has the same name (case
- * and accents aside), the name with its book's in brackets
- * ("Injuries (Crone World)"). Cards' own titles stay as they are.
+ * and accents aside), the name with its book's in brackets (`book`: the
+ * pack's short name, "Injuries (Crone World)", "Injuries (Loyalist Edition)"). Cards' own titles stay as they are.
  */
 export function listNames(cards: readonly { key: Key; name: string; tab: string; pack: string; book: string }[]): Map<Key, string> {
   const packs = new Map<string, Set<string>>();
@@ -92,6 +93,9 @@ export function listNames(cards: readonly { key: Key; name: string; tab: string;
   }
   return new Map(cards.map((c) => [c.key, packs.get(id(c))!.size > 1 ? `${c.name} (${c.book})` : c.name]));
 }
+
+/** A book's name where room is short (listNames' brackets): its `short`, else its name. */
+export const shortName = (p: Pack): string => p.short ?? p.name;
 
 /** The card a link names (a chip's reference, a table's "Rolled on by"): the topmost shown book's entry, as the compendium has it. */
 export function linkTarget(origin: ReadonlyMap<string, string>, kind: RefKind, id: string): Key | null {

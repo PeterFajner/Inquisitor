@@ -28,6 +28,12 @@ the article's pages). An article pack overrides a book entry only to fill in
 what the book defers to the article; anything else it adds has new ids, and
 optional rules it offers are options, not replacements.
 
+`short` (optional) is a shorter name for the pack, the book's own words for
+it ("Loyalist Edition", "Crone World"), used where the full name won't fit:
+in the rules page's Table of Contents and search, a name another book's card
+on the same tab shares is followed by its book's `short` (else its `name`) in
+brackets. The books menu shows the full `name`.
+
 ## Principles
 
 1. **Book text is sacred.** Every visible word in the app comes from the

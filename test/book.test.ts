@@ -5,7 +5,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { buildCompendium, type PackEntries } from "../src/shared/rules/compendium.ts";
 import type { Entry, Pack } from "../src/shared/rules/schema.ts";
-import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, winners } from "../src/client/rules/book.ts";
+import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, shortName, winners } from "../src/client/rules/book.ts";
 import { REGIONS } from "../src/client/rules/regions.ts";
 import { groupShelves, layoutShelves, type ShelfCard } from "../src/client/rules/shelves.ts";
 
@@ -176,4 +176,9 @@ test("listNames: a name another book's card on the same tab has gets its book's 
     "lo:item/cherubim": "Cherubim",
     "aw:archetype/cherubim": "Cherubim",
   });
+});
+
+test("shortName: a book's short name in brackets where it has one, else its name", () => {
+  assert.equal(shortName({ id: "loyalist", name: "Inquisitor 54mm Warrior Band & Character Creation Guide, Loyalist Edition 0.10", short: "Loyalist Edition" }), "Loyalist Edition");
+  assert.equal(shortName({ id: "x", name: "Crone World" }), "Crone World");
 });

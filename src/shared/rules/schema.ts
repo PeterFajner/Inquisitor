@@ -857,6 +857,8 @@ export type EntryKind = Entry["kind"];
 export const Pack = z.strictObject({
   id: Id,
   name: z.string(),
+  // a shorter name for tight spots (a name another book shares, in brackets)
+  short: z.string().optional(),
   // packs this one builds on; its entries with the same id replace theirs
   extends: z.array(Id).optional(),
 });

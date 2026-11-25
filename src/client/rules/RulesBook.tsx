@@ -28,7 +28,7 @@ import type { Entry } from "../../shared/rules/schema.ts";
 import { MenuToggle, SiteBar } from "../components/SiteBar.tsx";
 import { account } from "../lib/account.ts";
 import { useStore } from "../lib/store.ts";
-import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, winners } from "./book.ts";
+import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, shortName, winners } from "./book.ts";
 import { Card, type CardActions } from "./Card.tsx";
 import { cardHeight, LAYOUT } from "./card-height.tsx";
 import { KIND_ICON, KIND_LABEL } from "./chips/index.ts";
@@ -177,6 +177,7 @@ export function RulesBook({ data }: { data: PageData }) {
 
   const visiblePacks = useMemo(() => s.packs.filter((p) => !hidden.has(p.id)), [s.packs, hidden]);
   const packName = useMemo(() => new Map(s.packs.map((p) => [p.id, p.name])), [s.packs]);
+  const packShort = useMemo(() => new Map(s.packs.map((p) => [p.id, shortName(p)])), [s.packs]);
   const inShown = useMemo(() => {
     const vis = new Set(visiblePacks.map((p) => p.id));
     return [...s.items].filter(([, it]) => vis.has(it.pack));
@@ -190,8 +191,8 @@ export function RulesBook({ data }: { data: PageData }) {
   // An entry an article overrides shows once, as the compendium has it (hide the article to see the book's).
   const visible = useMemo(() => winners(inShown, compendium.origin), [inShown, compendium]);
   const labels = useMemo(
-    () => listNames(visible.map(([key, it]) => ({ key, name: it.entry.name, tab: regionOf(it.entry), pack: it.pack, book: packName.get(it.pack) ?? it.pack }))),
-    [visible, packName],
+    () => listNames(visible.map(([key, it]) => ({ key, name: it.entry.name, tab: regionOf(it.entry), pack: it.pack, book: packShort.get(it.pack) ?? it.pack }))),
+    [visible, packShort],
   );
   const names = useMemo(() => namesOf(compendium), [compendium]);
   const sizes = useCardSizes(visible, names, s.heights);
