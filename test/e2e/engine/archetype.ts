@@ -513,7 +513,8 @@ export function checkCharacter(
   // an option whose source is a talent, exotic, mutation, power or item belongs to one the character has.
   const ownedIds = new Set(ownedAll(ch).map((t) => t.id));
   for (const opt of ch.options) {
-    const thing = c.talents.has(opt.source) || c.exotics.has(opt.source) || c.mutations.has(opt.source) || c.powers.has(opt.source) || c.items.has(opt.source);
+    // (the archetype's own options aside: an item may share its id, the Cherubim)
+    const thing = opt.source !== ch.archetype.id && (c.talents.has(opt.source) || c.exotics.has(opt.source) || c.mutations.has(opt.source) || c.powers.has(opt.source) || c.items.has(opt.source));
     if (thing) r.expect(ownedIds.has(opt.source), `${what}: what a thing chose goes with it`, `option ${opt.name} (${opt.key}) of ${opt.source}, which it doesn't have`, rep, `${opt.source}: ${opt.id}`);
   }
   // Alignment: one the archetype allows (checked as a legal choice too).
