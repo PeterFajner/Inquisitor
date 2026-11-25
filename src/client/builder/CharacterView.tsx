@@ -102,7 +102,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
   const ch = built.character;
   const archetypes = useMemo(() => [...c.archetypes.values()].sort(byArchetypeName), [c]);
   const arch = c.archetypes.get(ch.archetype.id);
-  const picks = useMemo(() => (edit ? occupationPicks(c, record, built) : []), [c, record, built, !!edit]);
+  const picks = useMemo(() => occupationPicks(c, record, built), [c, record, built]);
   const row = (label: string, control: ComponentChildren) => (
     <div class="occ-row">
       <span class="occ-label">{label}</span>
@@ -140,7 +140,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
               <span>{ch.subtype.name}</span>
             ),
           )}
-        {picks.map((p) => (
+        {edit && picks.map((p) => (
           <Fragment key={p.key}>
             {row(
               p.label,
@@ -168,15 +168,18 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
               ))}
           </Fragment>
         ))}
-        {!edit && ch.options.length > 0 && row(T.role, <span>{ch.options.map((o) => o.name).join(", ")}</span>)}
         {!edit &&
-          ch.options
-            .filter((o) => o.text)
-            .map((o) => (
-              <p class="occ-text">
-                <b>{o.name}: </b>
-                {o.text}
-              </p>
+          picks
+            .filter((p) => p.value)
+            .map((p) => (
+              <Fragment key={p.key}>
+                {row(p.label, <span>{p.options.find((o) => o.id === p.value)?.label ?? p.value}</span>)}
+                {ch.options
+                  .filter((o) => o.key === (p.inner ?? p.key) && o.text)
+                  .map((o) => (
+                    <p class="occ-text">{o.text}</p>
+                  ))}
+              </Fragment>
             ))}
       </div>
     </Section>
