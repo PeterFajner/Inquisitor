@@ -13,6 +13,7 @@
     "typecheck": "tsc && tsc -p src/client",
     "build": "tsc -p tsconfig.build.json && node --disable-warning=ExperimentalWarning scripts/client.ts",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "e2e": "node --disable-warning=ExperimentalWarning test/e2e/run.ts",
     "rules:check": "node --disable-warning=ExperimentalWarning scripts/rules-check.ts",
     "simulate": "node --disable-warning=ExperimentalWarning scripts/simulate.ts",
     "heights:check": "node --disable-warning=ExperimentalWarning scripts/heights-check.ts",

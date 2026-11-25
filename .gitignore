@@ -9,3 +9,6 @@ obj/
 # Rules data, the SQLite database and the source PDF stay out of the public
 # repo: rules are their own git repo (data/rules), backed up like speci.
 /data/
+
+# The end-to-end suite's client build cache and results (test/e2e).
+/.e2e/
