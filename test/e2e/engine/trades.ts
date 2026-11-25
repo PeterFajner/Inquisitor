@@ -8,7 +8,8 @@
 // any number of times. If a Common item is downgraded, it is lost instead."
 // Each trade made: a whole character (no open choices, no warnings, a record
 // that replays), as many given up as the trade asks, a downgraded result a
-// step lower (a Common one lost, its item gone), an upgraded one a step
+// step lower (a Common one lost, its item gone, and so is one with nothing
+// of its kind a step down: owner, November 2026), an upgraded one a step
 // higher with an item of that availability; a trade offered "any" number of
 // times taken twice.
 import * as ops from "../../../src/client/builder/ops.ts";
@@ -104,6 +105,15 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
       if (was.availability === "Common") {
         r.expect(!!now?.lost || upgraded, `${what}: a Common result downgraded is lost (p. 38)`, `${slot} (${was.label}) not lost: ${JSON.stringify(now)}`, { ...rep, record: next }, norm(k));
         if (!upgraded) for (const id of slotItems(chB, slot)) lostItems.set(id, (lostItems.get(id) ?? 0) + 1);
+      } else if (!upgraded && now?.lost) {
+        // Lost too when there is nothing of its kind a step down (no Common
+        // Cyber creature; owner, November 2026): a row picked by category has
+        // no item of that category and availability (a sub-table's row, none
+        // of its rows the character could have; not checked here).
+        const lower = step(was.availability, -give.downgrade);
+        const items = [...c.items.values()].filter((it) => it.category === was.label);
+        if (items.length) r.expect(!items.some((it) => it.availability === lower && !it.alien), `${what}: a downgraded result is lost only with nothing of its kind a step down (owner, November 2026)`, `${slot} (${was.availability} ${was.label}) lost, with ${lower} ones`, { ...rep, record: next }, norm(k));
+        for (const id of slotItems(chB, slot)) lostItems.set(id, (lostItems.get(id) ?? 0) + 1);
       } else if (!upgraded) {
         r.expect(now?.availability === step(was.availability, -give.downgrade), `${what}: a downgraded result is a step lower`, `${slot}: ${was.availability} → ${now?.availability}`, { ...rep, record: next }, norm(k));
         const its = chosenAgain(next, chA, `${k}:give>${slot}:item`);

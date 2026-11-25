@@ -387,6 +387,9 @@ export type Restriction = {
   except?: string[]; // of those, these never are (names)
   maxAV?: number; // armour: only pieces whose best AV is at most this
   alien?: false; // no alien entries
+  // "can only take": only what is chosen or rolled; what is granted outright
+  // (a Tech-Priest Sage's Machine Empathy under Puppetmaster) stays, unflagged
+  taken?: true;
 };
 // The character can't have entries the restriction refuses: pools, gear,
 // powers and table results skip them; anything else breaking it (an
@@ -643,6 +646,7 @@ export const Effect: z.ZodType<Effect> = z.lazy(() =>
         except: Names,
         maxAV: z.number().optional(),
         alien: z.literal(false).optional(),
+        taken: z.literal(true).optional(),
       }),
     }),
     z.strictObject({ exclusive: z.strictObject({ pool: Pool, ...Scope }) }),

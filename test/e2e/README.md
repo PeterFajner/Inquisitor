@@ -129,11 +129,14 @@ Each shard writes `<results>/<shard id, : as _>.json`:
   "notes": ["…"], "coverage": ["row:<table>|<label>", "item:<id>", "option:<entry>|<id>", "…"] }
 ```
 
-Notes hold what isn't a failure: timings, pending owner rulings (Study Thy
-Weapon with no weapon, Puppetmaster against a Tech-Priest Sage's Machine
-Empathy, an MIU with nothing to link, a set and an add on one derived value
-such as Curse of Thlezzloath with Scales, a downgrade to an availability
-with no items of that type), what a shard chose not to check. `coverage` is what the shard's
+Notes hold what isn't a failure: timings, pending owner rulings, what a
+shard chose not to check. The owner's rulings of November 2026 are
+asserted (`engine/book.ts` `rulings`, `explainWarning`, `engine/kinds.ts`,
+`engine/trades.ts`): Study Thy Weapon with no weapon and an MIU with
+nothing to link are rolled again (one granted outright keeps the empty
+pick), Puppetmaster leaves a power granted outright alone, a set wins over
+adds whatever order they came in (Curse of Thlezzloath with Scales: BIV
+7), and a downgrade to an availability with nothing of its kind is lost. `coverage` is what the shard's
 characters reached; `coverage.ts` lists what no shard did.
 
 A failure seen many times (300 seeds hitting one bug) is one entry with its

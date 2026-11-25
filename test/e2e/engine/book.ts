@@ -3,6 +3,7 @@
 // returns the rules a character of that archetype breaks; every archetype
 // also gets the general ones (Creating A Character, p. 22).
 import { bestAV, type BuildResult, type Character } from "../../../src/shared/engine/build.ts";
+import { isUnder } from "../../../src/shared/engine/reroll.ts";
 import type { Compendium } from "../../../src/shared/rules/compendium.ts";
 import type { Availability, Item } from "../../../src/shared/rules/schema.ts";
 
@@ -35,7 +36,7 @@ const general: Check = (b, c) => {
       seen.add(t.id);
     }
   }
-  out.push(...boonExpansion(b, c), ...equipmentRules(b, c), ...mounts(b, c));
+  out.push(...boonExpansion(b, c), ...equipmentRules(b, c), ...mounts(b, c), ...rulings(b, c));
   return out;
 };
 
@@ -97,6 +98,54 @@ const mounts: Check = (b, c) => {
   for (const it of b.character.items) {
     if (!m.has(it.id) || it.overridden) continue;
     if (!(it.chosen ?? []).some((x) => x.key.includes("mount"))) out.push(fail("a mount-only weapon has something to mount on, else it is re-rolled (owner, November 2026)", `${it.name} mounted on nothing`, it.id));
+  }
+  return out;
+};
+
+/** Granted outright: no roll or gear result led to it, so it can't be rolled again (ENGINE.md). */
+const outright = (b: BuildResult, t: { from: { key?: string; override?: boolean }[] }) => {
+  const dice = b.log.filter((l) => l.type === "dice").map((l) => l.key);
+  return t.from.some((f) => !f.override && (!f.key || !dice.some((k) => f.key === k || isUnder(f.key!, k))));
+};
+const WEAPONS = ["Close combat weapon", "Pistol", "Basic weapon", "Heavy weapon"];
+const CURSE_STATS = { WS: 52, BS: 13, S: 62, T: 71, I: 36 } as const;
+const CURSE_DERIVED = { Spd: 3, BIV: 7, SS: "No", Cnc: "No" } as const;
+
+/** The owner's rulings of November 2026 on what the end-to-end runs left pending. */
+const rulings: Check = (b, c) => {
+  const out: BookFailure[] = [];
+  const ch = b.character;
+  // p. 27, Study Thy Weapon with no weapon at all: the roll that gave it is
+  // rolled again; one granted outright (an Acolyte Lector's) keeps the empty pick.
+  for (const t of ch.talents.filter((x) => x.id === "study-thy-weapon" && !x.overridden)) {
+    const weapon = (t.chosen ?? []).some((x) => WEAPONS.includes(c.items.get(x.id)?.category ?? ""));
+    if (!weapon && !outright(b, t)) out.push(fail("Study Thy Weapon with no weapon is rolled again (p. 27; owner, November 2026)", "a rolled Study Thy Weapon with no weapon", "study-thy-weapon"));
+  }
+  // An MIU with nothing to link is rolled again, like a mount-only weapon.
+  const miu = ch.items.find((x) => x.id === "miu" && !x.overridden);
+  if (miu && !(miu.chosen ?? []).length && !outright(b, miu)) out.push(fail("an MIU with nothing to link is rolled again (owner, November 2026)", "a rolled MIU linked to nothing", "miu"));
+  // p. 34, "can only take powers from the … Discipline": powers chosen or
+  // rolled are of it; one granted outright stays, unflagged.
+  for (const [id, discipline] of [["puppetmaster", "Telepathy"], ["pyromancer", "Pyromancy"]]) {
+    if (!has(ch, "talents", id)) continue;
+    for (const p of ch.powers) {
+      if (p.overridden) continue;
+      const of = c.powers.get(p.id)?.group === discipline;
+      if (!of && !outright(b, p)) out.push(fail(`${id}: only ${discipline} powers taken (p. 34)`, `${p.name} taken`, `${id} ${p.id}`));
+      if (p.restricted && outright(b, p)) out.push(fail(`${id}: a power granted outright isn't flagged (owner, November 2026)`, `${p.name} flagged`, `${id} ${p.id}`));
+    }
+  }
+  // p. 92, Curse of Thlezzloath: its line wins over adds whatever order they came in (BIV 7 with Scales).
+  if (ch.mutations.some((x) => x.id === "curse-of-thlezzloath" && !x.overridden)) {
+    for (const [s, v] of Object.entries(CURSE_STATS) as [keyof typeof CURSE_STATS, number][]) {
+      const line = ch.stats[s];
+      // (what comes after the set: formulas, caps, multiplies)
+      if (line.caps.length || line.mods.some((m) => m.formula || m.multiply !== undefined)) continue;
+      if (line.modified !== v) out.push(fail("Curse of Thlezzloath's stats win over adds (p. 92; owner, November 2026)", `${s} ${line.modified}, wanted ${v}`, s));
+    }
+    for (const [k, v] of Object.entries(CURSE_DERIVED) as [keyof typeof CURSE_DERIVED, number | "No"][]) {
+      if (ch.derived[k].value !== v) out.push(fail("Curse of Thlezzloath's Spd, BIV, SS, Cnc win over adds (p. 92; owner, November 2026)", `${k} ${ch.derived[k].value}, wanted ${v}`, k));
+    }
   }
   return out;
 };

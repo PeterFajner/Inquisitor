@@ -386,7 +386,6 @@ export function replay(r: Report, c: Compendium, rec: CharacterRecord, rep: Repr
 
 /** Item picks a roll led to with nothing to choose from (ENGINE.md: the documented `empty` result), by key. */
 const emptyKeys = (b: BuildResult) => new Set(b.character.empty.map((e) => e.key));
-const WEAPON_CATEGORIES = ["Close combat weapon", "Pistol", "Basic weapon", "Heavy weapon"];
 
 /**
  * A warning the book or the owner explains: `by design` (no finding), or
@@ -399,31 +398,27 @@ export function explainWarning(c: Compendium, b: BuildResult, w: string): { by: 
   if (/: only 0 to choose from/.test(w) && emptyKeys(b).has(key)) return { by: "design", why: "an empty result the sheet shows (ENGINE.md)" };
   // Puppetmaster with Pyromancer, The Third Eye: a restriction empties the power pool, as the book reads literally.
   if (/: no powers left to generate/.test(w) && ch.restrictions.some((x) => x.pool === "power")) return { by: "design", why: "a power restriction leaves no powers (the book read literally)" };
-  // Study Thy Weapon with no weapon at all: the owner hasn't ruled yet.
-  if (/study-thy-weapon\/weapon(\*\d+)?: only 0 to choose from/.test(w)) {
-    const weapon = ch.items.some((it) => WEAPON_CATEGORIES.includes(c.items.get(it.id)?.category ?? ""));
-    if (!weapon) return { by: "pending", why: "Study Thy Weapon with no weapon at all (owner ruling pending)" };
+  // Study Thy Weapon with no weapon, an MIU with nothing to link: the roll
+  // that gave it is rolled again (owner, November 2026), so only one granted
+  // outright (an Inquisitor Acolyte Lector's Study Thy Weapon) keeps the empty pick.
+  const unmet = /(?:^|>)(study-thy-weapon\/weapon|miu\/equipment)(\*\d+)?: only 0 to choose from/.exec(w);
+  if (unmet) {
+    const id = unmet[1].split("/")[0];
+    const t = [...ch.talents, ...ch.items].find((x) => x.id === id);
+    if (t && grantedOutright(b, t)) return { by: "design", why: `${t.name} granted outright, with nothing to pick, can't be rolled again (owner, November 2026)` };
   }
-  // Puppetmaster against a Tech-Priest Sage's own Machine Empathy (pendingRestriction): the owner hasn't ruled yet.
-  const restricted = /^power "([^"]+)" breaks a restriction$/.exec(w);
-  if (restricted) {
-    const t = ch.powers.find((p) => p.id === restricted[1]);
-    if (t && pendingRestriction(ch, t)) return { by: "pending", why: pendingRestriction(ch, t)! };
-  }
-  // An MIU with nothing to link (no other item): the owner hasn't ruled yet (if "re-roll", `required` on its pick).
-  if (/(^|>)miu\/equipment(\*\d+)?: only 0 to choose from/.test(w) && ch.items.every((it) => it.id === "miu"))
-    return { by: "pending", why: "an MIU with nothing to link (owner ruling pending)" };
-  // A downgrade to an availability with no items of the result's type (no Common Cyber creatures): the book is silent.
-  if (/:give: no (Common|Rare|Exotic|Legendary) .+ to choose$/.test(w))
-    return { by: "pending", why: "a downgrade to an availability with no items of that type (owner ruling pending)" };
   return null;
 }
 
-/** A restricted thing the owner hasn't ruled on yet: Puppetmaster against a Tech-Priest Sage's own Machine Empathy. */
-const pendingRestriction = (ch: Character, t: { kind: string; id: string; from: { entry: string }[] }): string | null =>
-  t.kind === "power" && ch.talents.some((x) => x.id === "puppetmaster") && t.from.some((f) => f.entry === ch.archetype.id)
-    ? `Puppetmaster restricts ${ch.archetype.id}'s own ${t.id} (owner ruling pending)`
-    : null;
+/**
+ * A thing granted outright: no roll or gear result led to it (each origin
+ * has no decision key, or one under no dice the build rolled), so a
+ * `required` pick it leaves empty can't roll it again (ENGINE.md).
+ */
+export function grantedOutright(b: BuildResult, t: { from: { key?: string; override?: boolean }[] }): boolean {
+  const dice = b.log.filter((l) => l.type === "dice").map((l) => l.key);
+  return t.from.some((f) => !f.override && (!f.key || !dice.some((k) => f.key === k || isUnder(f.key!, k))));
+}
 
 /** What every random character (and any made from one at random) must be. */
 export function checkCharacter(
@@ -500,13 +495,9 @@ export function checkCharacter(
     r.expect(v.length <= bound.most, `${what}: open picks within the book's bounds`, `${k}: took ${v.length}, at most ${bound.most} (${bound.kind}${bound.random ? `, random ${bound.random}` : ""})`, rep, `${norm(k)} took more than ${bound.most}`);
   }
 
-  // Restrictions: nothing a restriction refuses.
+  // Restrictions: nothing a restriction refuses (Puppetmaster's "can only
+  // take" leaves a power granted outright alone: owner, November 2026).
   for (const t of ownedAll(ch)) {
-    const pending = t.restricted ? pendingRestriction(ch, t) : null;
-    if (pending) {
-      r.note(`pending owner ruling: ${pending}, e.g. seed ${rep.seed ?? "?"}`);
-      continue;
-    }
     r.expect(!t.restricted, `${what} breaks no restriction`, `${t.kind} ${t.name} is restricted (${ch.restrictions.map((x) => x.source).join(", ")})`, rep, `${t.kind}/${t.id}`);
   }
   // What a thing chose goes with it (ENGINE.md: "Pieces and other contributions of a thing taken away … go with it"):

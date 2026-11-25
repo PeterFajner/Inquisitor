@@ -56,11 +56,9 @@ export function checkKinds(r: Report, c: Compendium, b: BuildResult, sheet: Shee
     let n = deriveStats(counted)[k];
     for (const m of line.mods) if (m.add !== undefined) n += m.add;
     let v: number | "No" = n;
+    // (the last set wins whatever order it came in: Curse of Thlezzloath and Scales, BIV 7; owner, November 2026)
     for (const m of line.mods) if (m.set !== undefined) v = m.set;
-    // A set and an add on one value (Curse of Thlezzloath and Scales: BIV 7 or 8?): the owner hasn't ruled on the order yet.
-    if (line.value !== v && line.mods.some((m) => m.set !== undefined) && line.mods.some((m) => m.add !== undefined))
-      r.note(`pending owner ruling: a set and an add on ${k} (Curse of Thlezzloath and Scales), ${line.value} vs ${v}, e.g. ${rep.archetype}/${rep.subtype} seed ${rep.seed ?? "?"}`);
-    else r.expect(line.value === v, `${what}: derived values worked out from the final stats (derived)`, `${k}: ${line.value}, worked out ${v} (${JSON.stringify(line.mods)})`, rep, k);
+    r.expect(line.value === v, `${what}: derived values worked out from the final stats (derived)`, `${k}: ${line.value}, worked out ${v} (${JSON.stringify(line.mods)})`, rep, k);
     r.expect(sheet.starting[k] === String(line.value), `${what}: derived values on the sheet's Starting row (derived)`, `${k}: sheet ${sheet.starting[k]}, character ${line.value}`, rep, k);
     for (const m of line.mods) r.expect(sources.has(m.source), `${what}: derived changes come from what the character has (derived)`, `${k} ${JSON.stringify(m)} from ${m.source}, not owned`, rep, `${k} ${m.source}`);
   }

@@ -264,7 +264,7 @@ type Access = { pool: ThingKind; group: string[]; source: string; sig: string };
 // What an earlier pass found out: the alignment, restrictions and access,
 // options chosen (conditions on an option chosen later), and the results
 // of rolls to make again (gear needing what the finished character lacks).
-type Look = { alignment?: Alignment; rx: Rx[]; access: Access[]; options?: string[]; reroll?: string[] };
+type Look = { alignment?: Alignment; rx: Rx[]; access: Access[]; options?: string[]; reroll?: string[]; owned?: Set<string> };
 // Something a gear result, or a thing's own effects, made: taken away with it.
 type Made = { kind: ThingKind; id: string; qty: number; origin: Origin } | { option: ChosenOption };
 // What a gear result may be chosen as at an availability (a trade): an item
@@ -543,6 +543,10 @@ class Pass {
   deferring = false;
   attempts = new Set<string>(); // roll and gear results made (keys of the accepted attempts)
   unmet: string[] = []; // where a `required` pick had nothing to choose from (its parent)
+  // pool picks that left out something whose `required` pick had nothing
+  // yet, before an earlier pass said what the finished character owns
+  ownedLate: { key: string; pool: ThingKind; filter: PickFilter }[] = [];
+  picking: string[] = []; // the pool picks being made, innermost last
   wyrdKeys = new Set<string>(); // keys of Wyrd powers effects
 
   constructor(
@@ -1098,15 +1102,15 @@ class Pass {
     return this.capped() ? Math.min(this.base[s], 100) : this.base[s];
   }
 
-  // The stat's value from its base and mods (adds and sets in order; formulas
-  // and multiplies come at the end).
+  // The stat's value from its base and mods: the adds, then the last set,
+  // whatever order they came in (Curse of Thlezzloath's line wins over
+  // Animal Instincts; owner, November 2026). Formulas and multiplies come
+  // at the end.
   fold(s: Stat, skip?: (m: StatMod) => boolean): number {
     let v = this.rolled(s);
-    for (const m of this.mods[s]) {
-      if (m.formula || m.multiply !== undefined || skip?.(m)) continue;
-      if (m.set !== undefined) v = m.set;
-      else if (m.add !== undefined) v += m.add;
-    }
+    const mods = this.mods[s].filter((m) => !m.formula && m.multiply === undefined && !skip?.(m));
+    for (const m of mods) if (m.set === undefined && m.add !== undefined) v += m.add;
+    for (const m of mods) if (m.set !== undefined) v = m.set;
     return v;
   }
 
@@ -1125,7 +1129,7 @@ class Pass {
         if (src.kind === "item" || src.kind === "exotic" || src.kind === "power") m.sourceKind = src.kind;
         if (key) m.key = e.each ? `${key}:${s}` : key;
         this.mods[s].push(m);
-        this.cur[s] = op === "add" ? this.cur[s] + v : v;
+        this.cur[s] = this.fold(s);
       }
     };
     if (e.set !== undefined) apply("set", e.set);
@@ -1310,11 +1314,14 @@ class Pass {
     return a !== undefined && (exact ? a === exact : list.includes(a));
   }
 
-  /** Whether the character may have this entry (restrictions, requires). */
-  allowed(kind: ThingKind, x: Ability | Item): boolean {
+  /**
+   * Whether the character may have this entry (restrictions, requires).
+   * `granted`: it was granted outright, which a `taken` restriction allows.
+   */
+  allowed(kind: ThingKind, x: Ability | Item, granted = false): boolean {
     if (x.kind === "item" && x.requires && !this.test(x.requires)) return false;
     for (const r of this.activeRx()) {
-      if (r.pool !== kind || r.exempt === x.id) continue;
+      if (r.pool !== kind || r.exempt === x.id || (granted && r.taken)) continue;
       const scope = [...(r.group ?? []), ...(r.category ?? []), ...(r.tag ?? [])];
       if (scope.length && !matches(x, scope)) continue;
       if (r.exclusive) return false;
@@ -1357,7 +1364,19 @@ class Pass {
       if (e.filter?.owned === true && e.into && (!e.required || inResult)) continue;
       const d = parseDice(e.pick);
       const need = faceCount(d) === 0 ? d.constant : 1;
-      if (this.poolOf(e.pool, e.filter, { depth: depth + 1 }).length < need) return false;
+      let have = this.poolOf(e.pool, e.filter, { depth: depth + 1 }).length;
+      if (have < need && e.filter?.owned === true && e.into) {
+        // made at the end of the build, among all the gear: what the
+        // finished character owns (an earlier pass) counts too (an MIU
+        // picked before the Archeotech Wargear it links)
+        const pool = e.pool;
+        const owned = this.look.owned;
+        if (!owned) {
+          const key = this.picking[this.picking.length - 1];
+          if (key && !this.ownedLate.some((x) => x.key === key && x.pool === pool && x.filter === e.filter)) this.ownedLate.push({ key, pool, filter: e.filter });
+        } else have += this.poolOf(pool, { ...e.filter, owned: undefined }, { depth: depth + 1 }).filter((y) => !this.owned[pool].has(y.id) && owned.has(`${pool}:${y.id}`)).length;
+      }
+      if (have < need) return false;
     }
     return true;
   }
@@ -1431,6 +1450,15 @@ class Pass {
   }
 
   pickAt(key: string, e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
+    this.picking.push(key);
+    try {
+      this.pickMade(key, e, src, scope);
+    } finally {
+      this.picking.pop();
+    }
+  }
+
+  pickMade(key: string, e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
     const open = e.pick === "any" || typeof e.pick === "object";
     const count = e.pick === "any" ? Infinity : typeof e.pick === "object" ? e.pick.max : this.count(key, e.pick, src.name, scope.parent);
     const distinct = e.distinct !== false;
@@ -2141,15 +2169,19 @@ class Pass {
     sl.rolls = [];
     sl.empty = [];
     const idx = AVAILABILITIES.indexOf(sl.availability ?? "Common") + steps;
-    if (idx < 0) {
+    const to = AVAILABILITIES[Math.min(Math.max(idx, 0), AVAILABILITIES.length - 1)];
+    const pieces = pick ? sl.pieces(to) : [];
+    // A Common result downgraded is lost instead (p. 38), and so is one
+    // downgraded to an availability with nothing of its kind (no Common
+    // Cyber creature; owner, November 2026)
+    if (idx < 0 || (pick && steps < 0 && !pieces.length)) {
       sl.lost = true;
       if (rr) rr.lost = true;
       return;
     }
-    sl.availability = AVAILABILITIES[Math.min(idx, AVAILABILITIES.length - 1)];
+    sl.availability = to;
     if (rr) rr.availability = sl.availability;
     if (!pick) return;
-    const pieces = sl.pieces(sl.availability);
     if (!pieces.length) {
       this.warn(`${base}: no ${sl.availability} ${sl.row} to choose`);
       return;
@@ -2482,7 +2514,8 @@ class Pass {
     const human = this.capped();
     for (const s of STATS) {
       // a human's gear, exotic and power adds come after the cap of 100
-      const past = human ? this.mods[s].filter((m) => this.pastCap(m)) : [];
+      // (a set wins over them too)
+      const past = human && !this.mods[s].some((m) => m.set !== undefined) ? this.mods[s].filter((m) => this.pastCap(m)) : [];
       let v = past.length ? this.fold(s, (m) => this.pastCap(m)) : phase1[s];
       for (const m of this.mods[s]) {
         if (!m.formula) continue;
@@ -2563,11 +2596,13 @@ class Pass {
       const pw = entry.profileWhen?.find((w) => this.test(w.when));
       if (pw) it.profile = { ...entry.profile, ...pw.profile };
     }
-    // restrictions broken (by overrides, or fixed grants)
+    // restrictions broken (by overrides, or fixed grants: those made outside
+    // any decision, which a `taken` restriction allows)
     for (const k of ["talent", "exotic", "mutation", "power", "item"] as const) {
       for (const o of ch[KIND_MAP[k]] as Owned[]) {
         const entry = this.c[KIND_MAP[k]].get(o.id) as Ability | Item | undefined;
-        if (entry && !this.allowed(k, entry)) {
+        const granted = o.from.some((f) => !f.key && !f.override);
+        if (entry && !this.allowed(k, entry, granted)) {
           o.restricted = true;
           this.warn(`${k} "${o.id}" breaks a restriction`);
         }
@@ -2601,11 +2636,11 @@ class Pass {
       const shifted = { ...finals };
       for (const m of mods) for (const [s, v] of Object.entries(m.counts ?? {})) shifted[s as Stat] += v;
       const base = deriveStats(shifted)[d];
+      // adds, then the last set, whatever order they came in (Curse of
+      // Thlezzloath's BIV 7 with Scales; owner, November 2026)
       let value: number | "No" = base;
-      for (const m of mods) {
-        if (m.set !== undefined) value = m.set;
-        else if (m.add !== undefined && typeof value === "number") value += m.add;
-      }
+      for (const m of mods) if (m.add !== undefined) value += m.add;
+      for (const m of mods) if (m.set !== undefined) value = m.set;
       ch.derived[d] = { base, value, mods: mods.map(({ derived: _d, ...m }) => m) };
     }
     // attributes
@@ -2766,7 +2801,16 @@ function passes(
     const reroll = [...(look.reroll ?? [])];
     for (const k of pass.rerollResults()) if (!reroll.includes(k)) reroll.push(k);
     const consLate = sigs(rx) !== sigs(look.rx) || sigs(access) !== sigs(look.access) || reroll.length !== (look.reroll?.length ?? 0);
-    if ((!alignLate && !optionsLate && !consLate) || i === MAX_PASSES - 1) break;
+    // a pick left something out for gear not made yet, which the finished
+    // character has (not counting what those picks made: they are made
+    // again): once more, knowing it
+    const lateKeys = pass.ownedLate.map((x) => x.key);
+    // (those made again: chosen this build, or chosen instead of a stored choice refused)
+    const again = lateKeys.filter((k) => !sameArray(input.choices[k], pass.rec.choices[k]));
+    const byLate = (o: Owned) => o.from.every((f) => f.key && again.some((r) => f.key === r || nestedIn(f.key!, r)));
+    const finalOwned = !look.owned && lateKeys.length ? new Set(THING_KINDS.flatMap((k) => [...pass.owned[k].values()].filter((o) => !byLate(o)).map((o) => `${k}:${o.id}`))) : undefined;
+    const ownedLate = !!finalOwned && pass.ownedLate.some((x) => pass.poolOf(x.pool, x.filter, { depth: 1 }).some((y) => finalOwned.has(`${x.pool}:${y.id}`)));
+    if ((!alignLate && !optionsLate && !consLate && !ownedLate) || i === MAX_PASSES - 1) break;
     // The re-run keeps the dice and the choices made (a choice the new
     // restrictions refuse is made again, among what they allow), so a random
     // build's odds stay the book's.
@@ -2784,12 +2828,17 @@ function passes(
       ? Object.keys(work.choices).filter((k) => !(k in input.choices) && fresh.has(k) && ["give", "upgrade"].includes(pass.kinds.get(k) ?? ""))
       : [];
     const redone = (k: string) => redo.some((r) => k === r || nestedIn(k, r));
-    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access, options: optionsLate ? chosen : look.options, reroll };
+    // A pick made this build that left something out for want of gear made
+    // later is made again, among what the finished character allows.
+    const late = ownedLate ? lateKeys.filter((k) => !(k in input.choices)) : [];
+    const remade = (k: string) => !(k in input.choices) && !(k in input.dice) && late.some((r) => k === r || nestedIn(k, r));
+    const owned = ownedLate ? finalOwned : look.owned;
+    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access, options: optionsLate ? chosen : look.options, reroll, owned };
     const next = cloneRecord(input);
-    next.dice = Object.fromEntries(Object.entries(work.dice).filter(([k]) => !(redone(k) && fresh.has(k))));
+    next.dice = Object.fromEntries(Object.entries(work.dice).filter(([k]) => !(redone(k) && fresh.has(k)) && !remade(k)));
     fallback = {};
     for (const [k, v] of Object.entries(work.choices)) {
-      if (redone(k) && fresh.has(k)) {
+      if ((redone(k) && fresh.has(k)) || remade(k)) {
         fresh.delete(k);
         continue;
       }

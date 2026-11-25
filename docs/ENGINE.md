@@ -109,6 +109,14 @@ trade gave or raised at random this build is chosen again:
   again all the same: it was never there to give (the give is made again;
   a stored one isn't allowed, a warning).
 
+- a pool pick that left out something whose `required` pick among what
+  the character owns had nothing yet, when the finished character has
+  something it would take (an Enginseer's MIU, picked before the
+  Archeotech Wargear it links): once more, knowing what the finished
+  character owns (not counting what those picks made), the pick made this
+  build made again among what that allows. A stored choice the first pass
+  refused is allowed then.
+
 At most six passes. The character's `restrictions` are the archetype's
 own and those the last pass met.
 
@@ -133,19 +141,23 @@ own and those the last pass met.
    is made, under the keys they had where they were met.
 3. Stats: base (the rolled stat line, capped at 100 for a human: an
    archetype without `human: false` and a character with no mutation, a
-   mutation making them a mutant; owner, November 2026) → adds/sets in order → formula adds (`{ stat:
+   mutation making them a mutant; owner, November 2026) → adds, then the
+   last set (a set wins whatever order it came in: Curse of Thlezzloath's
+   line over Animal Instincts; owner, November 2026) → formula adds (`{ stat:
    S, divide: 10 }`, worked out from the stats after their adds/sets) → caps
    (`max`, `min`, `max: average` = the subtype's stat line with every die at
    its mean, rounded down) → multiplies (Power Armour's ×1.2, rounded off) →
    = `modified`. For a human, the roll and everything but gear, exotic
    abilities and powers is capped at 100 before those adds and the
    multiplies (the GM's ruling: augments and powers can take a human past
-   100); `uncapped` keeps what a stat held at 100 would have been.
+   100), unless a set wins over them; `uncapped` keeps what a stat held at
+   100 would have been.
 4. `remove` effects (Warp Disruptor) take things away.
 5. Overrides last (they don't re-trigger rules) = `final`, flagged.
 6. From the final stats: derived values (`deriveStats` with any `counts`,
-   then adds, then sets), attributes, item profiles (`profileWhen`), armour
-   per location.
+   then adds, then the last set, whatever order they came in: Curse of
+   Thlezzloath with Scales is BIV 7), attributes, item profiles
+   (`profileWhen`), armour per location.
 
 ### The character
 
@@ -336,7 +348,10 @@ a pick's random count (`<pick>:count`) clears the pick too.
   names) is listed first in that unit's variants; `covers` makes the item's
   armour cover those locations (or `choose` dice of them) for that grant.
 - **Restrictions** apply to pools, gear candidates, powers, table results
-  and from-picks among grants; an item's `requires` too. Pools, gear
+  and from-picks among grants; an item's `requires` too. What breaks one
+  is flagged (`restricted`) and warned, except under a `taken` restriction
+  a thing granted outright (an origin with no decision key, not an
+  override: a Tech-Priest Sage's Machine Empathy under Puppetmaster). Pools, gear
   candidates, table results and from-picks also leave out an entry whose
   fixed grants a restriction refuses or whose own picks (not open ones,
   nor picks among what it owns into something unless `required` and met
@@ -352,7 +367,9 @@ a pick's random count (`<pick>:count`) clears the pick too.
 - **Trades** (`downgrade`, `upgrade`): every gear result can be given up
   or raised. A downgraded result loses what it made (and what that made:
   an item's chosen options, what they granted) and chooses again one step
-  down; Common is lost (`rolls[…].lost`). A result picked by category
+  down; Common is lost (`rolls[…].lost`), and so is one with nothing of its
+  kind a step down (a Rare Cyber creature: there are no Common ones; owner,
+  November 2026), keeping its availability. A result picked by category
   chooses among the items of its category; one whose row rolls on
   sub-tables (Armour, Bionics and implants, Miscellaneous, Combat stimms,
   Gunsights and auspexes, Special ammunition) among the rows of those tables

@@ -349,7 +349,7 @@ counts while the character has them; abilities' always.
 - { restrict: { pool: item, alien: false } }                               # "can never use alien technology"
 - { restrict: { pool: item, except: [combat-stimms] } }                    # Kroot: "never use combat drugs"
 - { restrict: { pool: item, tag: [power-axe, power-sword, …, bolt-pistol, storm-bolter, …], only: [] } }  # Enforcers: no power or bolt weapons (ids are names too)
-- { restrict: { pool: power, only: [Telepathy] } }                         # Puppetmaster (a discipline is a power's group, spelled exactly)
+- { restrict: { pool: power, only: [Telepathy], taken: true } }           # Puppetmaster: "can only take powers from the Telepathy Discipline" (a discipline is a power's group, spelled exactly)
 - { restrict: { pool: power, only: [the-lidless-stare, warp-gaze, temporal-distortion, inertia] } }  # The Third Eye
 - { exclusive: { pool: talent, group: [Psyker Talents] } }                 # Natural Psyker
 - when: { not: { alignment: [Radical] } }                                  # "Only radical Inquisitors can wield heretical crafts."
@@ -369,6 +369,11 @@ Rune Stone's for a character who "can never have Psychic Powers");
 anything breaking one anyway (an override, a fixed grant) is flagged and
 warned. A restriction in a later
 row (Armour after Equipment) still applies to the gear generated before it.
+`taken: true` ("can only take"; Puppetmaster, Pyromancer) holds only what
+is chosen or rolled: what is granted outright, outside any decision (a
+Tech-Priest Sage's Machine Empathy), stays and isn't flagged (owner,
+November 2026). Without it ("can only use", The Third Eye) a fixed grant
+breaking it is flagged.
 
 ### Picks
 
@@ -404,13 +409,21 @@ them (default: none for `any`, 0 to N for `max`).
 
 `required: true`: the entry is of no use without this pick ("Must be
 mounted onto a Basic weapon"). A pool doesn't offer it while the pick
-would have nothing to choose from; a gear result (or a roll on a table,
+would have nothing to choose from, counting the gear made after it
+(docs/ENGINE.md); a gear result (or a roll on a table,
 Dead Or Alive's equipment) that made it is rolled again when, once all the
 gear is made, there is still nothing to choose from:
 
 ```yaml
 - { id: mount, pick: 1, pool: item, filter: { owned: true, category: [Basic weapon] }, into: self, required: true }   # Chainblade
+- { id: weapon, pick: 1, pool: item, filter: { owned: true, category: [Close combat weapon, Pistol, Basic weapon, Heavy weapon] }, into: self, required: true }   # Study Thy Weapon
+- { id: equipment, pick: 1, pool: item, filter: { owned: true, exclude: [miu] }, into: self, required: true }   # MIU
 ```
+
+The owner's rulings (November 2026): Study Thy Weapon with no weapon at
+all, and an MIU with nothing to link, are rolled again like a mount-only
+weapon. One granted outright (an Inquisitor Acolyte Lector's Study Thy
+Weapon) can't be, and keeps the empty pick (a warning).
 
 A named option (or a grant among `from` effects) is offered only when the
 character could have what it gives: its fixed grants are allowed and its
@@ -559,7 +572,9 @@ when it can be made (docs/ENGINE.md). Random mode never trades.
 ```
 
 Derived values are Kbk, BIV, SS, Cnc, Spd. A formula is `{ stat, times?,
-divide?, add? }`, rounded off.
+divide?, add? }`, rounded off. A `set` wins over every `add`, whatever order
+they came in (Curse of Thlezzloath with Scales is BIV 7; owner, November
+2026), on stats and derived values alike.
 
 ### Item behaviour, reloads, natural weapons
 
