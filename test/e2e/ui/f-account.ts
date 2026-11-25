@@ -76,7 +76,7 @@ export async function passkeyFeature(r: Report, o: RunOptions): Promise<void> {
 }
 
 /** Signs this page up (a new account with a passkey). */
-async function signUp(s: Session, page: Page): Promise<void> {
+export async function signUp(s: Session, page: Page): Promise<void> {
   await authenticator(page);
   await openBuilder(page, s.app.url);
   await accountAction(s, page, "Create account");
@@ -174,6 +174,8 @@ export async function rulesUpdateFeature(r: Report, o: RunOptions): Promise<void
     // The rules change (as the editor saves it): a grant and a new pick on the Inquisitor's Talents.
     await page.click('a.site-tab[href="/rules"]');
     await page.waitFor(() => location.pathname === "/rules" && document.querySelectorAll(".rb-card").length > 0, [], { what: "the rules page", timeout: 30_000 });
+    // (the balance distributions are served for the current rules only: a character on older rules is answered 409 "stale" and the client estimates; by design)
+    page.allow.push(/409 \(Conflict\) \S+\/api\/v1\/balance/);
     await s.step("a rules edit through the API", base, async () => {
       const rules = (await api(page, "GET", "/api/v1/rules")).body as { packs: { pack: { id: string }; entries: any[] }[]; meta: Record<string, Record<string, { commit: string }>> };
       const entry = structuredClone(rules.packs.find((p) => p.pack.id === "loyalist")!.entries.find((e) => e.kind === "archetype" && e.id === "inquisitor"));
@@ -192,11 +194,10 @@ export async function rulesUpdateFeature(r: Report, o: RunOptions): Promise<void
       await page.waitFor(() => !!document.querySelector('[aria-label="Update to the current rules"]')?.checkVisibility(), [], { what: "the Update button", timeout: 10_000 });
     });
     await s.step("after a reload, the character offers the update", { ...base, steps: [...base.steps!, "reload"] }, async () => {
-      page.allow.push(/409 \(Conflict\) \S+\/api\/v1\/balance/);
       await page.reload();
       await page.waitFor(() => !!document.querySelector('[aria-label="Update to the current rules"]')?.checkVisibility(), [], { what: "the Update button", timeout: 20_000 });
-      page.allow.pop();
     });
+    // (kept for the rest: Undo goes back to a version on the older rules)
     await s.step("Update shows what changes, Apply makes it", { ...base, steps: [...base.steps!, "Update to the current rules", "Apply"] }, async () => {
       await page.clickLabel("Update to the current rules");
       await page.waitFor(() => !!document.querySelector(".rules-update"), [], { what: "the update panel" });

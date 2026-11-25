@@ -261,7 +261,16 @@ export class Page {
         // The n-th one shown (kept pages hidden behind the shown one have their own copies).
         const el = [...document.querySelectorAll(sel)].filter((x) => (x as HTMLElement).checkVisibility())[n] as HTMLElement | undefined;
         if (!el) return { error: `no element ${sel}${n ? ` #${n}` : ""}` };
-        el.scrollIntoView({ block: "center", inline: "center" });
+        // Scrolled only when not wholly on screen (a sticky tab is: scrolling it would move the page under it),
+        // or when something sticky covers it (the top bar over a row near the top).
+        const r0 = el.getBoundingClientRect();
+        if (r0.top < 0 || r0.left < 0 || r0.bottom > innerHeight || r0.right > innerWidth) el.scrollIntoView({ block: "center", inline: "center" });
+        const covered = () => {
+          const b = el.getBoundingClientRect();
+          const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          return !!t && t !== el && !el.contains(t) && !(t as HTMLElement).closest?.("label")?.contains(el);
+        };
+        if (covered()) el.scrollIntoView({ block: "center", inline: "center" });
         const b = el.getBoundingClientRect();
         if (!b.width || !b.height) return { error: `${sel} has no size` };
         const x = b.left + b.width / 2;
@@ -320,7 +329,8 @@ export class Page {
     const ok = await this.eval(
       (sel: string, v: string) => {
         const el = document.querySelector(sel) as HTMLSelectElement;
-        el.scrollIntoView({ block: "center" });
+        const r0 = el.getBoundingClientRect();
+        if (r0.top < 0 || r0.bottom > innerHeight) el.scrollIntoView({ block: "center" });
         if (![...el.options].some((o) => o.value === v)) return false;
         el.focus();
         el.value = v;

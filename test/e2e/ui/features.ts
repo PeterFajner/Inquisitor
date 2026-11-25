@@ -5,6 +5,8 @@ import { balanceFeature, desktopDark, desktopLight, errorPagesFeature, phoneDark
 import { passkeyFeature, ruleEditFeature, rulesUpdateFeature } from "./f-account.ts";
 import { navigationFeature, rulesFeature } from "./f-rules.ts";
 import { historyFeature, shareFeature, warbandFeature } from "./f-share.ts";
+import { legacyImportFeature, rulesEditorFeature } from "./f-editor.ts";
+import { accountsFeature, docxFeature, historyStatesFeature, networkFeature, rulesUpdateStatesFeature, warbandStatesFeature } from "./f-states.ts";
 import { duplicateDeleteFeature, editsFeature, exportFeature, newCharacterFeature, rollsFeature, undoFeature } from "./f-builder.ts";
 
 export const FEATURES: Record<string, (r: Report, o: RunOptions) => Promise<void>> = {
@@ -28,4 +30,12 @@ export const FEATURES: Record<string, (r: Report, o: RunOptions) => Promise<void
   "desktop-dark": desktopDark,
   "error-pages": errorPagesFeature,
   balance: balanceFeature,
+  "rules-editor": rulesEditorFeature,
+  "legacy-import": legacyImportFeature,
+  network: networkFeature,
+  accounts: accountsFeature,
+  "warband-states": warbandStatesFeature,
+  "history-states": historyStatesFeature,
+  docx: docxFeature,
+  "rules-update-states": rulesUpdateStatesFeature,
 };

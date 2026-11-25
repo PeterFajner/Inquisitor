@@ -29,6 +29,8 @@ export type ShardResult = {
   failures: Failure[];
   error?: string;
   notes: string[];
+  /** What the shard's characters reached (table rows, things, named options): for the coverage report (coverage.ts). */
+  coverage?: string[];
 };
 
 export class Report {
@@ -38,6 +40,7 @@ export class Report {
   failures = new Map<string, Failure>();
   notes: string[] = [];
   error?: string;
+  coverage = new Set<string>();
 
   constructor(shard: string) {
     this.shard = shard;
@@ -62,8 +65,9 @@ export class Report {
     return ok;
   }
 
+  /** A note once (by its text). */
   note(s: string): void {
-    this.notes.push(s);
+    if (!this.notes.includes(s)) this.notes.push(s);
   }
 
   result(): ShardResult {
@@ -77,6 +81,7 @@ export class Report {
       failures,
       ...(this.error ? { error: this.error } : {}),
       notes: this.notes,
+      ...(this.coverage.size ? { coverage: [...this.coverage].sort() } : {}),
     };
   }
 

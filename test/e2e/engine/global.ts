@@ -1,7 +1,7 @@
 // Rules changes against saved characters (engine:rules-update): for every
 // archetype, random characters built under the real rules, then the rules
-// changed three ways (a stat line's dice, an option of an archetype pick
-// removed, a new pick added); diff() must say what changes and
+// changed two ways (a stat line's dice, a new pick added; the entries a
+// character uses changed: engine/rules-entries.ts); diff() must say what changes and
 // updateRules() must make a whole character: no open choices when made at
 // random, the new decisions left open otherwise, a record that replays.
 import * as ops from "../../../src/client/builder/ops.ts";

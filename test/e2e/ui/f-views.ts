@@ -6,7 +6,11 @@
 import type { Page, View } from "../lib/cdp.ts";
 import { DESKTOP, PHONE } from "../lib/cdp.ts";
 import type { Report, Repro } from "../lib/report.ts";
-import { idle, newCharacter, openBuilder, openList, Session } from "../lib/ui.ts";
+import { api, idle, newCharacter, openBuilder, openCharacter, openList, saveRecord, Session } from "../lib/ui.ts";
+import { powerScore } from "../../../src/shared/engine/balance.ts";
+import { realCompendium } from "../lib/rules.ts";
+import { randomBuild } from "../engine/archetype.ts";
+import { signUp } from "./f-account.ts";
 import type { RunOptions } from "../shards.ts";
 import { withSession } from "./f-builder.ts";
 import { openRules } from "./f-rules.ts";
@@ -220,6 +224,49 @@ export async function balanceFeature(r: Report, o: RunOptions): Promise<void> {
         });
         await s.checkText("the balance label", repro);
       }
+      // The two ends: the weakest and the strongest of 300 random Inquisitor Fighters.
+      const c = realCompendium();
+      const builds = Array.from({ length: 300 }, (_, i) => randomBuild(c, "inquisitor", "fighter", i + 1)).map((b) => ({ b, score: powerScore(b.character, c) })).sort((x, y) => x.score - y.score);
+      for (const [end, word, side] of [[builds[0], "underpowered", "bottom"], [builds[builds.length - 1], "overpowered", "top"]] as const) {
+        const repro: Repro = { archetype: "inquisitor", subtype: "fighter", record: end.b.record, steps: [`the ${side} of 300 random Inquisitor Fighters (power score ${end.score}), saved`, "open it", "Balance details"] };
+        await s.step(`the balance label at the ${side}`, repro, async () => {
+          const id = await saveRecord(s, end.b.record);
+          await openCharacter(page, s.app.url, id);
+          await page.waitFor(() => !!document.querySelector(".ccard .balance-word"), [], { what: "the balance label", timeout: 30_000 });
+          const got = await page.eval(() => document.querySelector(".ccard .balance-word")!.textContent);
+          if (got !== word) throw new Error(`"${got}", wanted "${word}" (score ${end.score})`);
+          await page.click('.ccard [aria-label="Balance details"]');
+          await page.waitFor(() => !document.querySelector(".ccard .balance-pop")!.hasAttribute("hidden"));
+          const text = await page.eval(() => document.querySelector(".ccard .balance-pop")!.textContent ?? "");
+          const m = SENTENCE.exec(text);
+          if (!m || m[1] !== side) throw new Error(`popover "${text}"`);
+          await page.key("Escape");
+        });
+        await s.checkText(`the balance label (${side})`, repro);
+      }
+      // An archetype the rules just gained: no distribution yet.
+      const repro: Repro = { steps: ["Create account", "rules: a copy of the Kroot as a new archetype", "a character of it", "open it"] };
+      await s.step("a character of an archetype with no distribution yet opens without errors", repro, async () => {
+        page.allow.push(/409 \(Conflict\) \S+\/api\/v1\/balance|404 \(Not Found\) \S+\/api\/v1\/balance/);
+        await signUp(s, page);
+        const rules = (await api(page, "GET", "/api/v1/rules")).body as { packs: { pack: { id: string }; entries: any[] }[] };
+        const kroot = structuredClone(rules.packs.flatMap((p) => p.entries).find((e) => e.kind === "archetype" && e.id === "kroot"));
+        kroot.id = "e2e-kroot";
+        kroot.name = "Kroot";
+        const res = await api(page, "POST", "/api/v1/rules/entries", { pack: "loyalist", entry: kroot, base: null });
+        if (res.status !== 200) throw new Error(`rules edit ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`);
+        s.rulesVersion = ((await api(page, "GET", "/api/v1/rules")).body as { version: string }).version;
+        const c2 = { ...c, archetypes: new Map(c.archetypes).set("e2e-kroot", kroot) };
+        const rec = randomBuild(c2, "e2e-kroot", kroot.subtypes[0].id, 1).record;
+        const id = await saveRecord(s, rec);
+        await openCharacter(page, s.app.url, id);
+        await new Promise((res) => setTimeout(res, 2000));
+        await idle(page);
+        const word = await page.eval(() => document.querySelector(".ccard .balance-word")?.textContent ?? null);
+        if (word !== null && !["overpowered", "underpowered", "balanced"].includes(word)) throw new Error(`word "${word}"`);
+        page.allow.pop();
+      });
+      await s.checkText("an archetype with no distribution", repro);
     },
     { balance: true },
   );
