@@ -5,7 +5,7 @@
 // (a visitor's until "Create account" or "Sign in": src/client/lib/account.ts);
 // characters this browser kept itself before that go there once on load
 // (src/client/lib/legacy.ts).
-import { CircleArrowUp, Copy, History, Info, Plus, Redo2, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
+import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
@@ -557,7 +557,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     <div class={`builder${listOpen ? " list-open" : ""}`} aria-busy={busy || !rules} style={{ "--topbar-h": `${barH}px` }}>
       <SiteBar page="characters" onHeight={setBarH} onSignedOut={() => remember(null)}>
         <MenuToggle label={L.characters} open={listOpen} onToggle={() => toggleList(!listOpen)} />
-        {char && built && !wb && (
+        {char && built && !wb && !creating && (
           <span class="site-scroll char-tools">
             <span class="site-group">
               <IconButton label={L.undo} disabled={!undoTo || busy} onClick={() => char && void moveHead(undoTo, char.head_id)}>
@@ -569,7 +569,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
             </span>
             <span class="site-group">
               <IconButton label={L.duplicate} disabled={busy} onClick={duplicate}>
-                <Copy size={ICON} />
+                <CopyPlus size={ICON} />
               </IconButton>
               <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char.id)} />
               <ExportButtons disabled={busy} caption rows={() => [{ name: char.name, head: headVersion(char) }]} />
@@ -608,8 +608,8 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
                 setWb(null);
                 setUpdate(null);
                 setCreating(true);
-                syncUrl(char);
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                syncUrl(null);
+                window.scrollTo({ top: 0 });
               }}
             >
               <Plus size={ICON} />
@@ -618,7 +618,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
           <ul>
             {(list ?? []).map((r) => (
               <li>
-                <button type="button" class="char-row" aria-current={!wb && r.id === char?.id ? "true" : undefined} onClick={() => void select(r.id)}>
+                <button type="button" class="char-row" aria-current={!wb && !creating && r.id === char?.id ? "true" : undefined} onClick={() => void select(r.id)}>
                   <span class="char-row-name">{r.name || "–"}</span>
                   <span class="char-row-tag">{archOf(r)}</span>
                 </button>
@@ -631,7 +631,10 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
         <main class="builder-main">
           <h1 class="site-title builder-title">{T.title}</h1>
           {creating && c && rules && (
-            <NewCharacter c={c} onCreate={create} onClose={char ? () => setCreating(false) : undefined} onPreview={(a, s) => {
+            <NewCharacter c={c} onCreate={create} onClose={char ? () => {
+              setCreating(false);
+              syncUrl(char);
+            } : undefined} onPreview={(a, s) => {
               void quickDistribution(rules, a, s);
               void distribution(rules, a, s);
             }} />
@@ -664,7 +667,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
               }}
             />
           )}
-          {!wb && rules && built && record && char && (
+          {!wb && !creating && rules && built && record && char && (
             <>
               <CharacterView
                 key={char.id}
@@ -686,7 +689,8 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
                   disabled={!rules}
                   onClick={() => {
                     setCreating(true);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    syncUrl(null);
+                    window.scrollTo({ top: 0 });
                   }}
                 >
                   {T.addCharacter}

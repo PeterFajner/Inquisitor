@@ -4,7 +4,7 @@
 // characters, duplicate it (with copies of its characters), share it, save
 // the Word sheet, print, and delete it (tap twice; its characters stay);
 // they go in the bar's second row (`tools`, from the builder).
-import { ArrowDown, ArrowUp, Copy, Trash2, TriangleAlert, UserPlus, Users, X } from "lucide-preact";
+import { ArrowDown, ArrowUp, CopyPlus, Trash2, TriangleAlert, UserPlus, Users, X } from "lucide-preact";
 import { createPortal } from "preact/compat";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Warband } from "../../shared/api.ts";
@@ -233,7 +233,7 @@ export function WarbandView(p: Props) {
       </span>
       <span class="site-group">
         <IconButton label={W.duplicate} disabled={busy} onClick={() => void duplicate()}>
-          <Copy size={ICON} />
+          <CopyPlus size={ICON} />
         </IconButton>
         <ShareButton disabled={busy || !members.length} link={() => shareWarband(warband.id)} />
         <ExportButtons disabled={busy || !members.length} caption rows={() => members} name={warband.name} />
