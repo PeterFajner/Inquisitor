@@ -101,7 +101,7 @@ test("warnings: the book's warband rules, each with its own sentence", () => {
   assert.deepEqual(warbandWarnings(c, [member("p", "hero", { alignment: "Puritan" }), member("q", "hero", { alignment: "Neutral" })]), []);
 
   const models = warbandWarnings(c, [
-    member("e", "hero", { companions: [{ archetype: "servitors", source: "enginseers" }] }),
+    member("e", "hero", { companions: [{ archetype: "servitors", source: "enginseers", key: "enginseers/technical-servitor>@companion" }] }),
     member("d", "hero", {
       notes: [{ text: "Each game they have a 50% chance of having an Enforcer character join the Warrior Band for that game.", kind: "gameplay", source: "inquisitor-acolyte" }],
     }),

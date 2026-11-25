@@ -39,6 +39,7 @@ import {
 import { averageStats, faceCount, parseDice, rollFaces, total, validFaces } from "./dice.ts";
 import { deriveStats } from "./derived.ts";
 import { cloneRecord, THING_KINDS, type CharacterRecord, type Override, type ThingKind } from "./record.ts";
+import { companionName } from "./companion-name.ts";
 import { cryptoRoller } from "./rng.ts";
 
 // Table ids the engine looks up by convention (docs/ENGINE.md).
@@ -182,7 +183,8 @@ export type Character = {
   taken: { kind: ThingKind; id: string; name: string; by: string }[]; // lost to a remove effect
   reloads: { add: number; multiply: number };
   psyker: boolean;
-  companions: { archetype: string; subtype?: string; option?: string; source: string }[];
+  // key: where the companion's own decisions live in the record ("<key>>…", src/shared/engine/companions.ts); parent: the decision that gave it
+  companions: { archetype: string; subtype?: string; option?: string; source: string; key: string; parent?: string }[];
   locations: { source: string; location: string }[]; // chosen/rolled/added hit locations
   restrictions: (Restriction & { source: string; exclusive?: boolean })[];
 };
@@ -885,7 +887,9 @@ class Pass {
       return;
     }
     if ("companion" in e) {
-      this.companions.push(this.from(src, { ...e.companion, source: src.id }));
+      // nested by its spelling under the decision that gave it (an optional), so re-rolling that clears the companion's own
+      const key = scope.parent ? this.alloc({ ...scope, prefix: "" }, `${scope.parent}>@companion`) : this.alloc(scope, `${src.id}/@companion`);
+      this.companions.push(this.from(src, { ...e.companion, source: src.id, key, ...(scope.parent ? { parent: scope.parent } : {}) }));
       return;
     }
     if ("warband" in e) return; // checked across a warband (warbandWarnings)
@@ -1112,6 +1116,7 @@ class Pass {
     if ("roll" in o) return this.c.tables.get(o.roll)?.name ?? o.roll;
     if ("prose" in o) return o.prose;
     if ("weapon" in o) return o.weapon.name ?? "";
+    if ("companion" in o) return companionName(this.c, o.companion);
     if ("then" in o && !("chance" in o)) return this.describe(o.then);
     return "";
   }

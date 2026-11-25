@@ -1,7 +1,7 @@
 // Re-rolling: clear a decision, and every decision nested under it, from a
-// record; the next build() makes them again.
+// record; the next build() makes them again (a companion's too: companions.ts).
 import type { Compendium } from "../rules/compendium.ts";
-import { build } from "./build.ts";
+import { buildAll } from "./companions.ts";
 import { cloneRecord, type CharacterRecord } from "./record.ts";
 
 // Separators after a key that mark a key nested under it (docs/ENGINE.md):
@@ -29,7 +29,7 @@ export function clearDecisions(record: CharacterRecord, keys: string[]): Charact
  * record once. Choice overrides on those keys stay.
  */
 export function reroll(c: Compendium, record: CharacterRecord, key: string): CharacterRecord {
-  const { log } = build(c, record, { mode: "freeform", roll: () => 1 });
+  const { log } = buildAll(c, record, { mode: "freeform", roll: () => 1 });
   const children = new Map<string, string[]>();
   for (const e of log) {
     if (!e.parent) continue;

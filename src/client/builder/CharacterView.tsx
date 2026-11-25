@@ -3,10 +3,10 @@
 // character has, what built it), and below it the GM's sheet. With `edit`
 // every part is editable; without, it's the read-only view of a share link.
 import { BookOpen, Dices, Info, TriangleAlert } from "lucide-preact";
-import type { ComponentChildren } from "preact";
+import { Fragment, type ComponentChildren } from "preact";
 import { useMemo, useState } from "preact/hooks";
-import type { BuildResult, Owned, PendingChoice } from "../../shared/engine/build.ts";
-import { reroll } from "../../shared/engine/reroll.ts";
+import type { BuildResult, Owned } from "../../shared/engine/build.ts";
+import type { FullBuild } from "../../shared/engine/companions.ts";
 import { cloneRecord, type CharacterRecord, type ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { STATS, type Stat } from "../../shared/rules/schema.ts";
@@ -17,7 +17,8 @@ import { Decisions, Pending } from "./Decisions.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 import { archetypeName, byArchetypeName } from "./NewCharacter.tsx";
-import { choiceOptions, view } from "./ops.ts";
+import { occupationPicks } from "./occupation.ts";
+import { view } from "./ops.ts";
 
 export type ViewEdits = SheetEdits & {
   reroll(key: string | string[]): void;
@@ -60,9 +61,6 @@ function entryName(c: Compendium, id: string): string {
   return "";
 }
 
-/** The headings every archetype's page has; any other (an archetype's own "Truant?") is part of its occupation. */
-const SHEET_SECTIONS = new Set(["Equipment", "Armour", "Psychic Abilities", "Exotic Abilities", "Talents", "Mutations", "Alignment"]);
-
 const BOON = /^(.*\/boons)(#\d+|:count)$/;
 const fromBoons = (t: Owned) => t.from.some((o) => !!o.key && BOON.test(o.key.split(">")[0]));
 
@@ -104,38 +102,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
   const ch = built.character;
   const archetypes = useMemo(() => [...c.archetypes.values()].sort(byArchetypeName), [c]);
   const arch = c.archetypes.get(ch.archetype.id);
-  const picks = useMemo(() => {
-    if (!edit) return [];
-    const out: { key: string; label: string; options: { id: string; label: string }[]; value: string; inner?: string; optional?: boolean }[] = [];
-    for (const e of built.log) {
-      if (e.type !== "choice" || e.parent || !e.key.startsWith(`${ch.archetype.id}/`)) continue;
-      const p = choiceOptions(c, record, e.key);
-      if (!p || p.kind !== "pick" || p.count !== 1 || p.options.length < 2) continue;
-      // A pick named only by the archetype (its role: an Inquisitor's belief faction…) is the old site's "Role".
-      const label = e.label === arch?.name || e.label === ch.archetype.name ? T.role : e.label;
-      out.push({ key: e.key, label, options: p.options, value: record.choices[e.key]?.[0] ?? "" });
-    }
-    // An optional heading of its own before the sheet's ("Truant?", "Repentia", "Servitor Type"): "–", or one of its pick's options.
-    for (const e of built.log) {
-      if (e.type !== "choice" || e.parent || !e.key.startsWith(`${ch.archetype.id}/`) || !e.section || SHEET_SECTIONS.has(e.section)) continue;
-      if (record.choices[e.key]?.[0] !== "yes" && record.choices[e.key]?.[0] !== "no") continue;
-      let inner: Pick<PendingChoice, "key" | "kind" | "count" | "options"> | undefined;
-      try {
-        const r = reroll(c, record, e.key);
-        r.choices[e.key] = ["yes"];
-        const b = view(c, r);
-        inner = b.pending.find((x) => x.parent === e.key);
-        // a pick of one (Truant) is made by itself: its one option is the choice made
-        const only = !inner && b.log.find((x) => x.parent === e.key && x.type === "choice");
-        const id = only && b.record.choices[only.key]?.[0];
-        if (only && id) inner = { key: only.key, kind: "pick", count: 1, options: [{ id, label: only.result[0] ?? id }] };
-      } catch {}
-      if (!inner || inner.kind !== "pick" || inner.count !== 1) continue;
-      const on = record.choices[e.key]?.[0] === "yes";
-      out.push({ key: e.key, inner: inner.key, label: e.section, options: inner.options, value: on ? (record.choices[inner.key]?.[0] ?? "") : "", optional: true });
-    }
-    return out;
-  }, [c, record, built, !!edit]);
+  const picks = useMemo(() => (edit ? occupationPicks(c, record, built) : []), [c, record, built, !!edit]);
   const row = (label: string, control: ComponentChildren) => (
     <div class="occ-row">
       <span class="occ-label">{label}</span>
@@ -174,7 +141,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
             ),
           )}
         {picks.map((p) => (
-          <>
+          <Fragment key={p.key}>
             {row(
               p.label,
               <select
@@ -199,7 +166,7 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
               .map((o) => (
                 <p class="occ-text">{o.text}</p>
               ))}
-          </>
+          </Fragment>
         ))}
         {!edit && ch.options.length > 0 && row(T.role, <span>{ch.options.map((o) => o.name).join(", ")}</span>)}
         {!edit &&
@@ -340,6 +307,7 @@ export function CharacterView({
   edit,
   balance,
   footer,
+  companion,
 }: {
   c: Compendium;
   record: CharacterRecord;
@@ -349,6 +317,8 @@ export function CharacterView({
   balance?: ComponentChildren;
   /** The card's footer (Download Docx). */
   footer?: ComponentChildren;
+  /** A companion's card: its rolls are the character's (in the character's Rolls). */
+  companion?: boolean;
 }) {
   const ch = built.character;
   const parts = useMemo(() => sheetParts(ch, c), [ch, c]);
@@ -423,12 +393,14 @@ export function CharacterView({
             </Section>
           )}
 
-          <Section wide class={`csec-log${showRolls ? "" : " collapsed"}`}>
-            <IconButton label={L.rolls} pressed={showRolls} onClick={() => setShowRolls(!showRolls)}>
-              <Dices size={ICON} />
-            </IconButton>
-            {showRolls && <Decisions log={built.log} rolls={ch.rolls} record={record} edit={edit} alias={arch ? { [arch.name]: ch.archetype.name } : undefined} />}
-          </Section>
+          {!companion && (
+            <Section wide class={`csec-log${showRolls ? "" : " collapsed"}`}>
+              <IconButton label={L.rolls} pressed={showRolls} onClick={() => setShowRolls(!showRolls)}>
+                <Dices size={ICON} />
+              </IconButton>
+              {showRolls && <Decisions log={built.log} rolls={ch.rolls} record={record} edit={edit} alias={arch ? { [arch.name]: ch.archetype.name } : undefined} />}
+            </Section>
+          )}
 
           {prose.length > 0 && (
             <Section wide>
@@ -473,3 +445,14 @@ export function CharacterView({
   );
 }
 
+
+/** A character's companions (a Technical Servitor), each its own card and sheet, read-only: their rolls are re-rolled from the character's Rolls. */
+export function Companions({ c, built }: { c: Compendium; built: FullBuild }) {
+  return (
+    <>
+      {built.companions.map((m) => (
+        <CharacterView key={m.key} c={c} record={m.record} built={m.result} companion />
+      ))}
+    </>
+  );
+}

@@ -137,7 +137,7 @@ type Character = {
   taken: { kind, id, name, by }[];                      // lost to a remove effect
   reloads: { add, multiply };                           // for every firearm
   psyker: boolean;
-  companions: { archetype, subtype?, option?, source }[];
+  companions: { archetype, subtype?, option?, source, key, parent? }[];   // see "Companions"
   locations: { source, location }[];                    // chosen, rolled or added hit locations
   restrictions: (Restriction & { source, exclusive? })[];
 };
@@ -215,6 +215,7 @@ adding or removing unrelated effects leaves every other key alone.
 | `<trade>#<n>:give` | what it gives up |
 | `<give>><slot>:item` | the item chosen again for a downgraded (or upgraded) gear result |
 | `<trade>#<n>><entry>/<effect id>` | what the trade gets |
+| `<parent>>@companion` (or `<entry>/@companion`) | a companion's key; its own decisions are `<that>><its key>` (see Companions) |
 
 Effects inside an option of the same entry need no nesting: effect ids are
 unique within an entry (`inquisitor-acolyte/deductor-stat`). Effects of a
@@ -331,6 +332,28 @@ chosen option's nested picks); the next build makes them again.
   entries per map; call `invalidateCompendium(c)` after changing its maps
   in place (or build a new one).
 
+## Companions
+
+A `companion` effect ("May be accompanied by a Technical Servitor") gives
+the character a model of its own. build() lists it in `companions` with a
+key: `<parent>>@companion`, the decision that gave it (the optional) plus
+`>@companion`, or `<entry>/@companion` when nothing did.
+`buildAll()` (src/shared/engine/companions.ts) is build() plus each
+companion built as a character: its archetype and subtype, with the
+companion's `option` chosen (the pick offering it, and the optionals
+leading there, `findOption()`), named by the book ("Technical" +
+"Servitor"). It is rolled with the character, and its dice and choices are
+kept in the character's record under `<companion key>>` (
+`enginseers/technical-servitor>@companion>servitors/@stats:WS`), so
+replaying the record rebuilds both. The choices that make its option are
+the effect's, made every build: not in the record, the log or the open
+choices. Its log and open choices join the character's (keys prefixed, its
+top ones under the decision that gave it), so re-rolling and choosing work
+as for any decision; re-rolling the optional clears all of it (nested by
+spelling). The builder, print and the Word export show each companion's
+card and sheet after the character's; the character's own sheet names it
+under Other Equipment/Bionics/Etc.
+
 ## The sheet
 
 `src/shared/sheet-map.ts` (outside the engine, shared by the builder, the
@@ -350,14 +373,16 @@ the book's text:
 - **Melee rows**: profiles with `Reach`: `Reach Damage Parry Penalty`, the
   item's text; natural weapons.
 - **Other Equipment/Bionics/Etc**: every other item, then any `empty`
-  result ("Heavy weapon (Common)").
+  result ("Heavy weapon (Common)"), then each companion by its book name
+  ("Technical Servitor"; its own sheet follows: `characterSheets()`).
 - Every item and ability shows its variants (one group per unit, joined by
   "; ") and what was picked into it in brackets, and `×qty`.
 - **Starting row**: final stats and the derived values.
 - **Abilities**: talents, exotic abilities, mutations, powers, as
   "Name (variants)" and the entry's text ("Word of the Emperor (Curse Of
   Undoing; Litany Of Spite)").
-- **Name line**: archetype, subtype, the archetype's own options, alignment.
+- **Name line**: archetype, subtype, the archetype's own options and those
+  a rule chose (p. 83's Chaos discipline, "Chaos Undivided"), alignment.
 - **Game Notes**: attributes ("Warp Strength 5") and gameplay prose; then
   for each roll made at the start of each game (`eachGame`), the book's
   sentence, the table's name and its rows unrolled ("1-10 The gods are

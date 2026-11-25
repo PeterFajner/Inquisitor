@@ -1,18 +1,18 @@
 // Characters (their head versions) as the GM's sheet (src/shared/sheet.ts),
-// for the Word export and the print view. Each is built under the rules it
+// for the Word export and the print view, each followed by its companions. Each is built under the rules it
 // was made with when this browser has them, else the current ones, like
 // the builder shows it.
 import type { Version } from "../../shared/api.ts";
-import { toSheetCharacter } from "../../shared/sheet-map.ts";
+import { characterSheets } from "../../shared/sheet-map.ts";
 import type { SheetCharacter } from "../../shared/sheet.ts";
 import { engineRecord, view } from "../builder/ops.ts";
-import type { BuildResult } from "../../shared/engine/build.ts";
+import type { FullBuild } from "../../shared/engine/companions.ts";
 import { loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 
 export type SheetSource = { name: string; head: Version };
 
 /** A head version built for showing: under its own rules when this browser has them, else `current`; null when it can't be built. */
-export async function buildRow(r: SheetSource, current: Rules): Promise<{ rules: Rules; result: BuildResult } | null> {
+export async function buildRow(r: SheetSource, current: Rules): Promise<{ rules: Rules; result: FullBuild } | null> {
   const rec = engineRecord(r.head.record);
   if (!rec) return null;
   const rules = (r.head.rules_version && r.head.rules_version !== current.version ? await rulesAt(r.head.rules_version) : null) ?? current;
@@ -30,9 +30,10 @@ export async function sheetsOf(rows: SheetSource[]): Promise<SheetCharacter[]> {
   for (const r of rows) {
     const b = await buildRow(r, current);
     if (!b) continue;
-    const sheet = toSheetCharacter(b.result.character, b.rules.compendium);
+    // Its companions' sheets (a Technical Servitor's) after its own.
+    const [sheet, ...companions] = characterSheets(b.result, b.rules.compendium);
     if (!sheet.name) sheet.name = r.name;
-    out.push(sheet);
+    out.push(sheet, ...companions);
   }
   return out;
 }

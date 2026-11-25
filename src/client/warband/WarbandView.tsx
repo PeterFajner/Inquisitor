@@ -8,7 +8,7 @@ import { ArrowDown, ArrowUp, CopyPlus, Trash2, TriangleAlert, UserPlus, Users, X
 import { createPortal } from "preact/compat";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Warband } from "../../shared/api.ts";
-import type { BuildResult } from "../../shared/engine/build.ts";
+import type { FullBuild } from "../../shared/engine/companions.ts";
 import { sheetParts } from "../../shared/sheet-map.ts";
 import { BalanceLabel } from "../builder/Builder.tsx";
 import { ICON, ICON_SM, IconButton } from "../builder/Icon.tsx";
@@ -25,7 +25,7 @@ import { shareWarband } from "./share.ts";
 import { warbandWarnings, type WarbandWarning } from "./warnings.ts";
 import "./warband.css";
 
-export type BuiltMember = { row: ListRow; rules: Rules; result: BuildResult };
+export type BuiltMember = { row: ListRow; rules: Rules; result: FullBuild };
 
 /** The members built for showing (each under its own rules when this browser has them). */
 export function useBuiltMembers(rules: Rules | null, members: ListRow[]): (BuiltMember | null)[] {
@@ -100,6 +100,9 @@ function MemberSheet({ b }: { b: BuiltMember }) {
         <BalanceLabel rules={b.rules} built={b.result} />
       </div>
       <Sheet parts={parts} character={b.result.character} />
+      {b.result.companions.map((m) => (
+        <Sheet key={m.key} parts={sheetParts(m.result.character, b.rules.compendium)} character={m.result.character} />
+      ))}
     </section>
   );
 }

@@ -8,7 +8,7 @@ import {
 } from "../../shared/api.ts";
 import type { Entry, Pack } from "../../shared/rules/schema.ts";
 import { markSignedOut } from "../lib/account.ts";
-import { loadRules } from "../lib/rules.ts";
+import { loadRules, rulesChanged } from "../lib/rules.ts";
 import { store } from "../lib/store.ts";
 
 export type Key = string;
@@ -98,6 +98,7 @@ export function applyEntry(pack: string, kind: string, id: string, entry: Entry 
   if (entry) items.set(key, { pack, entry, meta: meta ?? undefined });
   else items.delete(key);
   rules.set({ items, version: version || s.version });
+  rulesChanged(version);
   if (live && entry) flash(key);
 }
 
@@ -107,8 +108,10 @@ function applyEvent(ev: RulesEvent): void {
     const s = rules.get();
     const packs = s.packs.some((p) => p.id === ev.pack.id) ? s.packs.map((p) => (p.id === ev.pack.id ? ev.pack : p)) : [...s.packs, ev.pack];
     rules.set({ packs, version: ev.version });
+    rulesChanged(ev.version);
   } else if (ev.type === "reset") {
     if (ev.version !== rules.get().version) void load(true);
+    rulesChanged(ev.version);
   }
 }
 
@@ -203,6 +206,7 @@ export async function newPack(id: string, name: string, ext: string[]): Promise<
     const s = rules.get();
     const pack = r.body.pack;
     if (!s.packs.some((p) => p.id === pack.id)) rules.set({ packs: [...s.packs, pack], version: r.body.version });
+    rulesChanged(r.body.version);
     return { ok: true };
   }
   return { ok: false, error: r.body?.error ?? `http_${r.status}` };

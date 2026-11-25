@@ -9,6 +9,7 @@ import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, TriangleAl
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
+import type { BuildResult } from "../../shared/engine/build.ts";
 import type { CharacterDiff } from "../../shared/engine/diff.ts";
 import type { ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
@@ -18,9 +19,9 @@ import { balanceText, distribution, quickDistribution } from "../lib/balance.ts"
 import { characters as backend, headVersion, redoTarget, undoTarget, type ListRow } from "../lib/characters.ts";
 import { migrateLegacy } from "../lib/legacy.ts";
 import { setUrl } from "../lib/router.ts";
-import { loadRules, rulesAt, type Rules } from "../lib/rules.ts";
+import { currentRules, followRules, loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 import { useStore } from "../lib/store.ts";
-import { CharacterView, type ViewEdits } from "./CharacterView.tsx";
+import { CharacterView, Companions, type ViewEdits } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 import { archetypeName, NewCharacter } from "./NewCharacter.tsx";
@@ -108,7 +109,7 @@ export function usePinnedRules(rules: Rules | null, version: string | null | und
 }
 
 /** The balance label for a built character (once its distribution is simulated). */
-export function BalanceLabel({ rules, built }: { rules: Rules; built: ReturnType<typeof ops.view> }) {
+export function BalanceLabel({ rules, built }: { rules: Rules; built: BuildResult }) {
   const ch = built.character;
   const [dist, setDist] = useState<Distribution | null>(null);
   useEffect(() => {
@@ -224,8 +225,18 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
   const wbRef = useRef(wb);
   wbRef.current = wb;
 
+  // The current rules, following live rules edits (an outdated character then offers its update).
   useEffect(() => {
     void loadRules().then(setRules, () => setRules(null));
+    const off = currentRules.subscribe(() => {
+      const r = currentRules.get().rules;
+      if (r) setRules(r);
+    });
+    const stop = followRules();
+    return () => {
+      off();
+      stop();
+    };
   }, []);
 
   // The list (after this browser's own kept characters, if any, went to the server).
@@ -683,6 +694,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
                   </button>
                 }
               />
+              <Companions c={(shown ?? rules).compendium} built={built} />
               <div class="char-foot">
                 <IconButton
                   label={L.remove}

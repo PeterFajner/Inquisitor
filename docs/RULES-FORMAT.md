@@ -548,7 +548,7 @@ named ("A random body part is replaced …").
 - { access: { pool: talent, group: [Space Marine Talents] } }   # Strong: in every talent pool
 - { access: { pool: power, group: [Chaos Undivided] } }         # in every power pool and powers effect
 - { psyker: true }                                              # "All Navigator Characters are psykers"
-- { companion: { archetype: servitors, option: technical-servitor } }   # "May be accompanied by a Technical Servitor"
+- { companion: { archetype: servitors, subtype: servitor, option: technical } }   # "May be accompanied by a Technical Servitor": built as its own character (docs/ENGINE.md "Companions")
 - { warband: { max: 1, archetype: [inquisitor] } }              # "never have more than one Inquisitor" (a warning)
 - { id: hand, location: { from: [Left Arm, Right Arm] } }       # Club Hand: "Choose one of the character's hands"
 - { id: limb, location: { from: [Left Arm, Right Arm, Left Leg, Right Leg], random: true } }  # Atrophied Limb
