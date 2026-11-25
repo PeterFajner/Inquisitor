@@ -40,7 +40,7 @@ export const freshRecord = (c: Compendium, a: string, s: string): CharacterRecor
 export const randomBuild = (c: Compendium, a: string, s: string, seed: number): BuildResult => build(c, freshRecord(c, a, s), { mode: "random", roll: seededRoller(seed) });
 
 /** What a character is, in numbers, for comparing how two ways of making it are distributed. */
-function metrics(b: BuildResult, c: Compendium): Record<string, number> {
+export function metrics(b: BuildResult, c: Compendium): Record<string, number> {
   const ch = b.character;
   return {
     items: ch.items.reduce((n, i) => n + i.qty, 0),
@@ -71,12 +71,12 @@ function under(b: BuildResult, key: string): number {
   return [...Object.keys(b.record.dice), ...Object.keys(b.record.choices)].filter((k) => k !== key && leads(k)).length;
 }
 
-const ownedAll = (ch: Character) => [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items];
+export const ownedAll = (ch: Character) => [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items];
 const thingKey = (t: { kind: string; id: string }) => `${t.kind}/${t.id}`;
-const norm = (w: string) => [...new Set(w.replace(/#\d+|~\d+|\*\d+/g, "#N").replace(/\d+/g, "N").split(", "))].join(", ");
+export const norm = (w: string) => [...new Set(w.replace(/#\d+|~\d+|\*\d+/g, "#N").replace(/\d+/g, "N").split(", "))].join(", ");
 
 /** Open picks of every entry, by "<entry>/<effect id>": the most a random character takes. */
-function openPickBounds(c: Compendium): Map<string, { most: number; kind: "any" | "max"; random?: string }> {
+export function openPickBounds(c: Compendium): Map<string, { most: number; kind: "any" | "max"; random?: string }> {
   const out = new Map<string, { most: number; kind: "any" | "max"; random?: string }>();
   const entries = [...c.archetypes.values(), ...c.talents.values(), ...c.exotics.values(), ...c.mutations.values(), ...c.powers.values(), ...c.items.values(), ...c.tables.values(), ...c.rules.values()];
   for (const e of entries) {
@@ -97,10 +97,10 @@ function openPickBounds(c: Compendium): Map<string, { most: number; kind: "any" 
 }
 
 /** The entry/effect a key ends in ("a/b#2>table/row>item/mount*2" → "item/mount"). */
-const leafOf = (key: string): string => key.split(">").pop()!.replace(/(\*\d+|#\d+|~\d+)+$/, "");
+export const leafOf = (key: string): string => key.split(">").pop()!.replace(/(\*\d+|#\d+|~\d+)+$/, "");
 
 /** The gear effects of an archetype, by key prefix: their alien policy. */
-function gearPolicies(a: Archetype): Map<string, Effect & { gear: unknown }> {
+export function gearPolicies(a: Archetype): Map<string, Effect & { gear: unknown }> {
   const out = new Map<string, Effect & { gear: unknown }>();
   for (const { effects } of effectLists(a)) walkEffects(effects, (x) => void ("gear" in x && "id" in x && x.id && out.set(`${a.id}/${x.id}`, x as Effect & { gear: unknown })));
   return out;
@@ -368,7 +368,7 @@ const rolledAgain = (b: BuildResult, rec: CharacterRecord): string[] => {
 };
 
 /** Rebuilds a record the builder saved: it must roll nothing (ENGINE.md). A record that needs dice is a finding; it is then built with fixed dice to go on. */
-function replay(r: Report, c: Compendium, rec: CharacterRecord, rep: Repro, what: string): BuildResult {
+export function replay(r: Report, c: Compendium, rec: CharacterRecord, rep: Repro, what: string): BuildResult {
   try {
     const b = build(c, rec, { mode: "freeform", roll: THROW });
     r.pass(`${what}: the saved record replays without rolling`);
@@ -576,7 +576,7 @@ const powersSlots = (b: BuildResult, k: string) => b.log.some((x) => x.key.start
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The record replays exactly: freeform with no dice, random with no dice, and through JSON. */
-function checkReplay(r: Report, c: Compendium, b: BuildResult, rep: Repro): void {
+export function checkReplay(r: Report, c: Compendium, b: BuildResult, rep: Repro): void {
   for (const mode of ["freeform", "random"] as const) {
     let again: BuildResult;
     try {
@@ -610,7 +610,7 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string {
 }
 
 /** Every choice in the record is one of its options, as many as it asks. */
-function checkChoicesLegal(r: Report, c: Compendium, b: BuildResult, rep: Repro, what: string, only?: (k: string) => boolean, seen?: Set<string>): void {
+export function checkChoicesLegal(r: Report, c: Compendium, b: BuildResult, rep: Repro, what: string, only?: (k: string) => boolean, seen?: Set<string>): void {
   for (const [k, chosen] of Object.entries(b.record.choices)) {
     if (only && !only(k)) continue;
     seen?.add(norm(k));
@@ -663,7 +663,7 @@ function checkOpenPickDistribution(r: Report, fresh: BuildResult[], bounds: Retu
   }
 }
 
-function compare(r: Report, check: string, what: string, a: Record<string, number>[], b: Record<string, number>[], base: Repro): void {
+export function compare(r: Report, check: string, what: string, a: Record<string, number>[], b: Record<string, number>[], base: Repro): void {
   if (a.length < 20) return;
   for (const m of Object.keys(a[0])) compareOne(r, check, what, m, a.map((x) => x[m]), b.map((x) => x[m]), base);
 }
@@ -804,8 +804,8 @@ function overrides(r: Report, c: Compendium, b: BuildResult, rep: Repro): void {
 }
 
 /** A character's categories for χ² comparisons: each choice (key normalised) → the ids chosen; each table → the rows rolled. */
-type Cats = Map<string, string[]>;
-function categories(b: BuildResult): Cats {
+export type Cats = Map<string, string[]>;
+export function categories(b: BuildResult): Cats {
   const m: Cats = new Map();
   const add = (k: string, v: string) => m.set(k, [...(m.get(k) ?? []), v]);
   for (const [k, ids] of Object.entries(b.record.choices)) for (const id of ids) add(`choice ${norm(k)}`, id);
@@ -814,7 +814,7 @@ function categories(b: BuildResult): Cats {
 }
 
 /** Two sets of characters choose alike: per choice and per table, χ² on what came up (only with 30 or more of each). */
-function compareCats(r: Report, check: string, what: string, a: Cats[], b: Cats[], base: Repro): void {
+export function compareCats(r: Report, check: string, what: string, a: Cats[], b: Cats[], base: Repro): void {
   if (a.length < 20) return;
   const merge = (xs: Cats[]) => {
     const m: Cats = new Map();
