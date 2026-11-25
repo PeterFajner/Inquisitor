@@ -263,7 +263,7 @@ talents and exotic abilities, so it is `after: Talents`. Rules without
 | `{ when: <condition>, then: [ … ], else: [ … ] }` | conditional |
 | `{ id, alignment: [Puritan, Radical] }` | allowed alignments |
 | `{ id, gear: { count: D6+3, availability: [Common, Rare], alien: { alignment: [Radical] }, downgrade: 1, exclude: [power-weapon] } }` | generate equipment |
-| `{ id, powers: { count: D6, maxDifficulty: 10, crossDisciplinePenalty: 1, table: starting-powers-for-each-discipline } }` | generate psychic powers (`table`, `column`: the book's generation table, rolled in random mode; see ENGINE.md) |
+| `{ id, powers: { count: D6, maxDifficulty: 10, crossDisciplinePenalty: 1, table: starting-powers-for-each-discipline } }` | generate psychic powers (`table`, `column`: the book's generation table, rolled in random mode; see ENGINE.md; `wyrd: true` for a Wyrd's power, below) |
 | `{ prose: "…", kind: gameplay \| gm \| unfit, proposal: "…" }` | uninterpreted book text |
 
 The extended vocabulary (below) adds `armour`, `restrict`, `exclusive`,
@@ -281,9 +281,17 @@ and:
 |---|---|
 | `{ stat: S, below: 75 }` / `{ stat: WS, above: 90 }` | the stat's value so far (final values in `profileWhen`) |
 | `{ rolled: [random-armor-types] }` | the character has a result on any of these tables ("If a character generates at least one piece of armor from the table above") |
-| `{ psyker: true }` | it has powers, the psyker subtype or a `{ psyker: true }` effect |
+| `{ psyker: true }` | it has powers (not only a Wyrd's), has met a powers effect (not a Wyrd's), has the psyker subtype or a `{ psyker: true }` effect |
 | `{ generates: [Rare] }` | a gear effect so far may generate any of these availabilities ("Pick a quality you can generate") |
 | `{ availability: [Common] }` | in an equipment generator row's effects: the result being made is of one of these (Armour: "Common Armour" for a Common result) |
+
+A condition on an option (`{ option: [the-seer] }`) met before the pick
+that offers it (the Seer is chosen under Cherubim Roles, after the
+Equipment row's auspex) looks ahead, like one on the alignment: the build
+runs again knowing what was chosen, so "the Seer cannot be fitted with an
+Internal-Auspex" is `when: { not: { option: [the-seer] } }` on the auspex
+pick, wherever the rows put it. Once the pick is made, the condition is
+whether it chose the option.
 
 Dice: integers and `[N]D<M>` terms joined by `+`/`-`: `60+2D10`, `D3+3`,
 `-D10`, `D100`. A dice term may be multiplied: `D6x10` ("+ [D6 x 10]
@@ -354,8 +362,12 @@ that kind when none is given); of those, `only` allows just these names,
 `alien: false` no alien ones. `exclusive`: while the character has the
 entry the effect belongs to, it can't have any other entry in that scope.
 Pools, gear, powers and table results never give what a restriction
-refuses (table results are re-rolled); anything breaking one anyway (an
-override, a fixed grant) is flagged and warned. A restriction in a later
+refuses (table results are re-rolled), nor anything that would give what a
+restriction refuses or whose own picks would have nothing to choose from
+(Archeotech Wargear's power, The Third Eye's powers or an Alien Teleport
+Rune Stone's for a character who "can never have Psychic Powers");
+anything breaking one anyway (an override, a fixed grant) is flagged and
+warned. A restriction in a later
 row (Armour after Equipment) still applies to the gear generated before it.
 
 ### Picks
@@ -372,7 +384,7 @@ New fields on `pick`:
 - { id: grenades, pick: 1, pool: item, filter: { owned: true, category: [Grenade] }, qty: D3 }  # "D3 extra grenades"
 - { id: toxin, pick: 1, pool: item, filter: { group: [Gases, Toxins, And Viral Effects] }, into: self }  # needle weapons
 - { id: power, pick: 1, pool: power, filter: { maxDifficulty: 10 }, into: self }          # Archeotech
-- { id: weapon, pick: 1, pool: item, filter: { owned: true, group: [Ranged Weapons, Melee Weapons] }, into: self }  # Study Thy Weapon
+- { id: weapon, pick: 1, pool: item, filter: { owned: true, category: [Close combat weapon, Pistol, Basic weapon, Heavy weapon] }, into: self }  # Study Thy Weapon
 - { id: gear, pick: any, pool: item, filter: { availability: [Common] } }                  # "any Common gear of their choosing"
 - { id: powers, pick: { max: 2 }, pool: power }                                            # "can have up to 2 psychic powers"
 - { id: gear, pick: any, pool: item, filter: { availability: [Common] }, random: D6 }      # open pick, D6 of them in random mode
@@ -382,9 +394,32 @@ New fields on `pick`:
 and `owned` (true: only what the character has; false: only what it
 hasn't). `qty` gives each picked item that many; `implanted` marks them.
 `into: self` (or an item id the character has) puts the choice on that
-item or ability instead of the character. `pick: any` / `pick: { max: N }`
+item or ability instead of the character. A pick among what the character
+owns into something (Study Thy Weapon's weapon, a mount, an MIU's
+equipment) is made at the end of the build, once all its gear is made
+(the book's p38: "Generate the types of gear first before rolling for
+specifics"), under the same key. `pick: any` / `pick: { max: N }`
 let the player take as many as they like; random mode takes `random` of
 them (default: none for `any`, 0 to N for `max`).
+
+`required: true`: the entry is of no use without this pick ("Must be
+mounted onto a Basic weapon"). A pool doesn't offer it while the pick
+would have nothing to choose from; a gear result (or a roll on a table,
+Dead Or Alive's equipment) that made it is rolled again when, once all the
+gear is made, there is still nothing to choose from:
+
+```yaml
+- { id: mount, pick: 1, pool: item, filter: { owned: true, category: [Basic weapon] }, into: self, required: true }   # Chainblade
+```
+
+A named option (or a grant among `from` effects) is offered only when the
+character could have what it gives: its fixed grants are allowed and its
+own picks (not open ones, nor picks among what it owns into something)
+have something to choose from. "D3 extra grenades" (`{ owned: true,
+category: [Grenade] }`) isn't offered to a character with no grenade, nor
+"Legendary weapon" when no Legendary heavy weapon is allowed. When no
+option could be had, all are offered, and the pick shows what it led to
+(ENGINE.md, `empty`).
 
 Named options may carry `when`: the option is offered only when it holds
 (Bionic Organs: "Pick a quality you can generate"):
@@ -396,6 +431,10 @@ Named options may carry `when`: the option is offered only when it holds
 Inside a roll that re-rolls duplicates (boons), picks among grants don't
 offer what the character already has (an expansion talent instead of
 "Roll again on another subtype's table").
+
+Each unit of an item makes its own picks (a second Executor Pistol has
+three toxins of its own, any of them the first's). A grant with `again`
+(another variant: a second Word of the Emperor) offers what's left.
 
 ### Grants
 
@@ -455,6 +494,10 @@ The builder doesn't roll it: the character shows the sentence where the
 result would be, and the GM's sheet lists the table unrolled under it
 (docs/ENGINE.md, "The sheet"). A chance rolled each game that changes
 nothing at creation (Reptilian's "30% chance that it's cold") stays prose.
+
+A gear effect's `alien` and `exclude` hold for everything its results
+make, also the items of a sub-table's rows (rare-miscellaneous-gear's Teef
+for a character who can't have alien gear): such a row is rolled again.
 
 `downgrade` stays a number for every result. `only` and `require` name
 generator rows. `matchAvailability`: under a gear result, rows whose items
@@ -541,6 +584,20 @@ Rolls `count` times on `bionics-table` (or `table:`); each bionic is of
 `quality` (`Crude`, `Average`, `Advanced`), with an `upgrade`% chance of
 the next quality up. `only: [Bionic Limb, Bionic sense]` re-rolls rows not
 named ("A random body part is replaced …").
+
+### Wyrd powers
+
+A Wyrd's power ("This character may use those powers listed even if they
+aren't a psyker", p33; "a random Wyrd power from the Telekinesis
+discipline", p93) is a powers effect with `wyrd: true`: it doesn't make the
+character a psyker (the `psyker` condition, p83's Chaos disciplines), and
+disciplines opened by `access` don't widen it.
+
+```yaml
+- { exotic: wyrd }
+- id: wyrd-power
+  powers: { count: 1, disciplines: [Telekinesis], table: random-psychic-power-2nd-roll, column: telekinesis, wyrd: true }
+```
 
 ### Access, psykers, companions, warbands, hit locations
 

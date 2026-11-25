@@ -243,6 +243,12 @@ export type PickFilter = {
 //  - into: the pick goes onto an item (or ability) instead of the character:
 //    "self" is the entry these effects belong to, else an item id the
 //    character has (a toxin in a needle pistol, a power in archeotech).
+//    A pick among what the character owns (`filter.owned: true`) into
+//    something is made at the end of the build, once all its gear is made.
+//  - required: the entry is of no use without this pick ("Must be mounted
+//    onto a Basic weapon"): it isn't offered while the pick has nothing to
+//    choose from, and a gear result that makes it with nothing to choose
+//    once the gear effect's results are made is rolled again.
 export type PickEffect = {
   id: string;
   pick: Dice | "any" | { max: number };
@@ -254,6 +260,7 @@ export type PickEffect = {
   implanted?: boolean;
   into?: string;
   random?: Dice;
+  required?: boolean;
 };
 
 // "May have …": the player decides (random mode flips a coin).
@@ -331,6 +338,11 @@ export type PowersEffect = {
     // multi-column table; freeform offers the powers the table can give
     table?: string;
     column?: string;
+    // a Wyrd's power ("may use those powers listed even if they aren't a
+    // psyker", p33; "a random Wyrd power from the Telekinesis discipline",
+    // p93): doesn't make the character a psyker, and disciplines opened by
+    // `access` don't widen it
+    wyrd?: boolean;
   };
 };
 
@@ -548,6 +560,7 @@ export const Effect: z.ZodType<Effect> = z.lazy(() =>
         implanted: z.boolean().optional(),
         into: z.string().optional(),
         random: Dice.optional(),
+        required: z.boolean().optional(),
       })
       .refine((e) => (e.from === undefined) !== (e.pool === undefined), { message: "pick needs exactly one of from/pool" }),
     z.strictObject({ id: Id, optional: EffectArray }),
@@ -599,6 +612,7 @@ export const Effect: z.ZodType<Effect> = z.lazy(() =>
         disciplines: z.array(z.string()).optional(),
         table: Id.optional(),
         column: z.string().optional(),
+        wyrd: z.boolean().optional(),
       }),
     }),
     z.strictObject({

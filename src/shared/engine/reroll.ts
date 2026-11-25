@@ -45,5 +45,9 @@ export function reroll(c: Compendium, record: CharacterRecord, key: string): Cha
     for (const e of log) if (isUnder(e.key, k)) for (const ch of children.get(e.key) ?? []) if (!clear.has(ch)) visit(ch);
   };
   visit(key);
+  // How many a pick makes (`<pick>:count`) goes with what it chose: the
+  // choice is made again for the new count
+  const pick = key.endsWith(":count") ? key.slice(0, -":count".length) : undefined;
+  if (pick && log.some((e) => e.key === pick && e.type === "choice")) visit(pick);
   return clearDecisions(record, [...clear]);
 }

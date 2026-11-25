@@ -39,7 +39,7 @@ import {
 import { averageStats, faceCount, parseDice, rollFaces, total, validFaces } from "./dice.ts";
 import { deriveStats } from "./derived.ts";
 import { cloneRecord, THING_KINDS, type CharacterRecord, type Override, type ThingKind } from "./record.ts";
-import { cryptoRoller } from "./rng.ts";
+import { cryptoRoller, seededRoller } from "./rng.ts";
 
 // Table ids the engine looks up by convention (docs/ENGINE.md).
 export { EQUIPMENT_GENERATOR };
@@ -244,15 +244,22 @@ type Scope = {
   matchAvail?: Availability; // a roll's matchAvailability: its rows' items must be of this
   only?: Set<string>; // powers a table roll may give (a powers effect's candidates)
   covers?: { entry: string; covers: GrantCovers }; // a grant's `covers` for the item's armour
+  noAlien?: boolean; // the gear result being made may not be alien (its gear effect's `alien`)
+  exclude?: string[]; // nor anything its gear effect's `exclude` names
+  again?: boolean; // a grant's effects run again for another variant (`again`): picks offer what's left
 };
 type Source = { id: string; name: string; kind?: string };
 // What a table roll checks its rows against (unusable).
 //  inSlot: under a gear result (items the GM rules on are never generated);
 //  matchAvail: items must be of this availability (a roll's matchAvailability).
-type RollCtx = { dupes: boolean; inSlot?: boolean; matchAvail?: Availability; only?: Set<string> };
+//  noAlien, exclude: the gear effect's policy for what its results make.
+type RollCtx = { dupes: boolean; inSlot?: boolean; matchAvail?: Availability; only?: Set<string>; noAlien?: boolean; exclude?: string[] };
 type Rx = Restriction & { source: string; exempt?: string; exclusive?: boolean; sig: string };
 type Access = { pool: ThingKind; group: string[]; source: string; sig: string };
-type Look = { alignment?: Alignment; rx: Rx[]; access: Access[] };
+// What an earlier pass found out: the alignment, restrictions and access,
+// options chosen (conditions on an option chosen later), and the results
+// of rolls to make again (gear needing what the finished character lacks).
+type Look = { alignment?: Alignment; rx: Rx[]; access: Access[]; options?: string[]; reroll?: string[] };
 type Slot = {
   key: string;
   row: string;
@@ -458,6 +465,10 @@ class Pass {
   rollDie: RollFn;
   look: Look;
   peekedAlignment = false;
+  asked = false; // a choice the record lacks was asked of opts.pick
+  peekedOptions = new Set<string>(); // option conditions answered by the lookahead
+  offered = new Set<string>(); // ids of the options of picks made this pass
+  fresh: Set<string>; // keys whose dice or choice this build rolled (across passes)
   forced = new Map<string, string[]>();
   forcedUsed = new Set<string>();
 
@@ -505,6 +516,12 @@ class Pass {
   slotAvail?: Availability; // the gear result being made (the `availability` condition)
   lastGear?: Availability[];
   collect: { entry: string; list: string[] }[] = [];
+  // picks among what the character owns, into something, made at the end
+  deferred: (() => void)[] = [];
+  deferring = false;
+  attempts = new Set<string>(); // roll and gear results made (keys of the accepted attempts)
+  unmet: string[] = []; // where a `required` pick had nothing to choose from (its parent)
+  wyrdKeys = new Set<string>(); // keys of Wyrd powers effects
 
   constructor(
     c: Compendium,
@@ -515,6 +532,7 @@ class Pass {
     opts: BuildOptions,
     rollDie: RollFn,
     look: Look,
+    fresh = new Set<string>(),
   ) {
     this.c = c;
     this.arch = arch;
@@ -524,6 +542,7 @@ class Pass {
     this.opts = opts;
     this.rollDie = rollDie;
     this.look = look;
+    this.fresh = fresh;
     for (const o of rec.overrides) if (o.op === "choice") this.forced.set(o.key, o.value);
   }
 
@@ -566,6 +585,7 @@ class Pass {
       if (faces !== undefined) this.staleWarn(`${key}: stored dice [${faces}] don't fit ${e.text}; rolled again`);
       faces = rollFaces(e, this.rollDie);
       this.rec.dice[key] = faces;
+      this.fresh.add(key);
     }
     const t = total(e, faces);
     this.log.push({
@@ -663,6 +683,7 @@ class Pass {
     if (distinct && lo === count && p.options.length === count) ids = p.options.map((o) => o.id);
     let random = this.opts.mode === "random";
     if (!ids && this.opts.pick) {
+      this.asked = true;
       const got = this.opts.pick(pend);
       if (got === RANDOM) random = true;
       else if (got) {
@@ -676,6 +697,7 @@ class Pass {
       else {
         const want = x.randomCount ? Math.max(0, Math.min(count, x.randomCount())) : count;
         ids = valid.slice(0, want);
+        if (ids.length < want) this.fresh.add(key);
         while (ids.length < want) {
           const rest = distinct ? p.options.filter((o) => !ids!.includes(o.id)) : p.options;
           ids.push(rest[this.rollDie(rest.length) - 1].id);
@@ -725,6 +747,44 @@ class Pass {
       for (const r of rules) if (!done.has(r.id) && at(r, "after", section.name)) runRule(r);
     }
     for (const r of rules) if (!done.has(r.id)) runRule(r);
+    // Picks among what the character owns, into something (a mount, Study
+    // Thy Weapon's weapon), once all its gear is made.
+    this.deferring = true;
+    for (const run of this.deferred) run();
+    this.deferred = [];
+  }
+
+  // A result rolled again because of what it made (look.reroll) keeps the
+  // decisions that made it in the record, so a replay makes it, finds the
+  // same, and rolls it again too.
+  keepUnder(k: string): void {
+    const under = (x: string) => x.startsWith(k) && [":", ">", "#"].includes(x[k.length]);
+    for (const x of Object.keys(this.rec.dice).filter(under)) {
+      this.usedDice.add(x);
+      this.used.add(x);
+    }
+    for (const x of Object.keys(this.rec.choices).filter(under)) {
+      this.usedChoices.add(x);
+      this.used.add(x);
+    }
+  }
+
+  // The gear results to roll again: for each `required` pick left with
+  // nothing to choose from, the outermost roll or gear result that led to it
+  // (none when a fixed grant or a pick did).
+  rerollResults(): string[] {
+    const parent = new Map(this.log.map((l) => [l.key, l.parent]));
+    const out: string[] = [];
+    for (const u of this.unmet) {
+      let found: string | undefined;
+      const seen = new Set<string>();
+      for (let k: string | undefined = u; k !== undefined && !seen.has(k); k = parent.get(k)) {
+        seen.add(k);
+        if (this.attempts.has(k)) found = k;
+      }
+      if (found && !out.includes(found)) out.push(found);
+    }
+    return out;
   }
 
   effects(list: Effect[], src: Source, scope: Scope): void {
@@ -931,7 +991,7 @@ class Pass {
       return a !== undefined && c.alignment.includes(a);
     }
     if ("subtype" in c) return c.subtype.includes(this.sub.id);
-    if ("option" in c) return c.option.some((o) => this.options.some((x) => x.id === o));
+    if ("option" in c) return c.option.some((o) => this.hasOption(o));
     if ("archetype" in c) return c.archetype.includes(this.arch.id);
     if ("has" in c) {
       return (Object.entries(c.has) as [ThingKind, string | undefined][]).every(
@@ -951,8 +1011,22 @@ class Pass {
     return c.generates.some((a) => this.gearAvail.has(a));
   }
 
+  // An option chosen, or (its pick not made yet this pass) chosen later:
+  // what the pass before found (the Seer's "cannot be fitted with an
+  // Internal-Auspex", chosen in Cherubim Roles after the Equipment row).
+  hasOption(id: string): boolean {
+    if (this.options.some((x) => x.id === id)) return true;
+    if (this.offered.has(id)) return false;
+    this.peekedOptions.add(id);
+    return !!this.look.options?.includes(id);
+  }
+
+  // A psyker: a { psyker: true } effect, a powers effect met (not a Wyrd's),
+  // a power other than a Wyrd's, or the Psyker subtype.
   isPsyker(): boolean {
-    return this.psykerFlag.length > 0 || this.owned.power.size > 0 || this.sub.id === "psyker";
+    if (this.psykerFlag.length > 0 || this.sub.id === "psyker") return true;
+    const wyrd = (key: string | undefined) => key !== undefined && this.wyrdKeys.has(key.replace(/~\d+$/, ""));
+    return [...this.owned.power.values()].some((p) => p.from.some((f) => !wyrd(f.key)));
   }
 
   // The rolled stat line, capped for humans: p3 "Human characters' stats
@@ -1046,6 +1120,7 @@ class Pass {
       this.applied.add(tag);
       this.collect.push(frame);
       const inner: Scope = { prefix: scope.prefix, parent: scope.parent, depth: scope.depth + 1 };
+      if (extra.again) inner.again = true;
       if (Object.keys(set).length) inner.preset = { entry: id, answers: set };
       if (extra.covers) inner.covers = { entry: id, covers: extra.covers };
       this.effects(entry.effects, entry, inner);
@@ -1163,10 +1238,60 @@ class Pass {
     return true;
   }
 
+  // Whether the character may take this entry and have what it gives: it is
+  // allowed, so are its fixed grants (The Third Eye's power for a character
+  // who can never have one), and its own picks (not open ones) have enough
+  // to choose from (Archeotech's power). A pick among what the character
+  // owns, into something, is made at the end of the build: only a
+  // `required` one counts (a Chainblade with nothing to mount it on), and
+  // not in a roll or gear result (`inResult`), which is rolled again instead
+  // once all the gear is made.
+  takeable(kind: ThingKind, x: Ability | Item, inResult = false, depth = 0): boolean {
+    return this.allowed(kind, x) && this.fulfils(x.effects ?? [], inResult, depth);
+  }
+
+  fulfils(list: Effect[], inResult: boolean, depth: number): boolean {
+    for (const e of list) {
+      if ("when" in e && !("chance" in e)) {
+        if (!this.fulfils(this.test(e.when) ? e.then : (e.else ?? []), inResult, depth)) return false;
+        continue;
+      }
+      const t = thingOf(e);
+      if (t) {
+        const entry = this.c[KIND_MAP[t.kind]].get(t.id) as Ability | Item | undefined;
+        if (entry && !this.allowed(t.kind, entry)) return false;
+        continue;
+      }
+      if (!("pick" in e) || !e.pool || e.pick === "any" || typeof e.pick === "object") continue;
+      if (e.filter?.owned === true && e.into && (!e.required || inResult)) continue;
+      const d = parseDice(e.pick);
+      const need = faceCount(d) === 0 ? d.constant : 1;
+      if (this.poolOf(e.pool, e.filter, { depth: depth + 1 }).length < need) return false;
+    }
+    return true;
+  }
+
   // --- picks --------------------------------------------------------------
 
   pick(e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
     const key = this.alloc(scope, `${src.id}/${e.id}`);
+    // Among what the character owns, into something (a mount, Study Thy
+    // Weapon's weapon): made once all its gear is made, at the end.
+    if (e.filter?.owned === true && e.into && !this.deferring && !this.presetFor(src, scope, e.id)) {
+      const section = this.section;
+      this.deferred.push(() => {
+        // (the thing was taken away again: a trade)
+        const kind = src.kind;
+        if (e.into === "self" && kind && kind in KIND_MAP && !this.owned[kind as ThingKind].has(src.id)) return;
+        this.section = section;
+        this.pickAt(key, e, src, scope);
+      });
+      return;
+    }
+    this.pickAt(key, e, src, scope);
+  }
+
+  pickAt(key: string, e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
     const open = e.pick === "any" || typeof e.pick === "object";
     const count = e.pick === "any" ? Infinity : typeof e.pick === "object" ? e.pick.max : this.count(key, e.pick, src.name, scope.parent);
     const distinct = e.distinct !== false;
@@ -1187,22 +1312,30 @@ class Pass {
     let qtyValue: number | undefined;
     const qtyOf = () => (qtyValue ??= e.qty === undefined ? 1 : this.value(scope, `${src.id}/${e.id}:qty`, e.qty, src.name));
     if (e.from) {
-      const opts = e.from
+      const inResult = scope.prefix !== "";
+      const all = e.from
         .map((o, i) => ({ id: this.optionId(o, i), label: this.labelOf(o), o }))
         .filter(({ o }) => {
           if (x.preset) return true; // the rules' own answer: every option stands
           if (isOption(o)) {
             if (o.when && !this.test(o.when)) return false;
-            // the same pick run again (a second Word of the Emperor) offers what's left
-            return !this.options.some((c) => c.source === src.id && c.id === o.id);
+            // the same pick run again for another variant (a second Word of
+            // the Emperor) offers what's left; each unit of an item (a second
+            // Executor Pistol) makes its own
+            return !scope.again || !this.options.some((c) => c.source === src.id && c.id === o.id);
           }
           const t = thingOf(o);
           if (!t || t.kind === "item") return true;
           const entry = this.c[KIND_MAP[t.kind]].get(t.id) as Ability | undefined;
-          if (entry && !this.allowed(t.kind, entry)) return false;
+          if (entry && !this.takeable(t.kind, entry, inResult)) return false;
           if (scope.dupes) return !this.isDuplicate(t.kind, t.id);
           return e.filter?.owned !== false || !this.owned[t.kind].has(t.id);
         });
+      // An option whose own grants or picks can't be had ("D3 extra grenades"
+      // with no grenade, a Legendary weapon when there is none) isn't
+      // offered, unless none can be.
+      const ok = x.preset ? all : all.filter(({ o }) => !isOption(o) || this.fulfils(o.effects ?? [], inResult, 0));
+      const opts = ok.length ? ok : all;
       const { ids } = this.choose(
         key,
         {
@@ -1244,10 +1377,17 @@ class Pass {
         }
         this.effects([o], src, inner);
       }
+      // (made: a condition on these options no longer looks ahead)
+      for (const o of e.from) if (isOption(o)) this.offered.add(o.id);
       return;
     }
     const kind = e.pool!;
-    const cands = this.poolOf(kind, e.filter);
+    let cands = this.poolOf(kind, e.filter, { inResult: scope.prefix !== "" });
+    // under a gear result: what its gear effect allows (alien, exclude)
+    if (kind === "item" && (scope.noAlien || scope.exclude)) {
+      cands = cands.filter((y) => !(scope.noAlien && (y as Item).alien) && !(scope.exclude && matches(y, scope.exclude)));
+    }
+    if (e.required && !cands.length && !x.preset && !this.forced.has(key)) this.unmet.push(scope.parent ?? key);
     // A roll that led to an item with nothing to choose from (no Common heavy
     // weapon exists): the character still shows what was rolled.
     if (kind === "item" && !cands.length && !open && count > 0 && !x.preset && !this.forced.has(key)) {
@@ -1309,9 +1449,14 @@ class Pass {
     return (o.chosen ??= []);
   }
 
-  poolOf(kind: ThingKind, f?: PickFilter): (Ability | Item)[] {
-    const groups = f?.group ? [...f.group, ...this.accessGroups(kind)] : undefined;
-    const disciplines = f?.discipline ? [...f.discipline, ...this.accessGroups("power")] : undefined;
+  // An entry pool's candidates, in id order. At the top (depth 0) only what
+  // the character can take and have what it gives (takeable), below that
+  // what it may have. `access: false`: no group opened by `access` (a Wyrd).
+  poolOf(kind: ThingKind, f?: PickFilter, o: { depth?: number; inResult?: boolean; access?: boolean } = {}): (Ability | Item)[] {
+    const depth = o.depth ?? 0;
+    const opened = (k: ThingKind) => (o.access === false ? [] : this.accessGroups(k));
+    const groups = f?.group ? [...f.group, ...opened(kind)] : undefined;
+    const disciplines = f?.discipline ? [...f.discipline, ...opened("power")] : undefined;
     const inList = (g: string | undefined, list: string[]) => g !== undefined && list.includes(g);
     return sortedValues(this.c[KIND_MAP[kind]] as Map<string, Ability | Item>).filter((x) => {
       const owned = this.owned[kind].has(x.id);
@@ -1323,7 +1468,7 @@ class Pass {
       if (f?.exclude && matches(x, f.exclude)) return false;
       if (f?.availability && !(x.kind === "item" && this.availOk(x, f.availability))) return false;
       if (f?.maxDifficulty !== undefined && !("difficulty" in x && difficultyWithin(x.difficulty, f.maxDifficulty))) return false;
-      return f?.owned === true || this.allowed(kind, x);
+      return f?.owned === true || (depth === 0 ? this.takeable(kind, x, !!o.inResult, depth) : this.allowed(kind, x));
     });
   }
 
@@ -1352,7 +1497,7 @@ class Pass {
   // `onlyRows` doesn't name, or a row whose own rolls can't land anywhere.
   unusable(row: TableRow, dupes: boolean, unless?: { profile: string; includes: string }, scope?: Scope, onlyRows?: string[]): boolean {
     if (onlyRows && !onlyRows.includes(row.label)) return true;
-    const ctx: RollCtx = { dupes, inSlot: !!scope?.slotAvail, matchAvail: scope?.matchAvail, only: scope?.only };
+    const ctx: RollCtx = { dupes, inSlot: !!scope?.slotAvail, matchAvail: scope?.matchAvail, only: scope?.only, noAlien: scope?.noAlien, exclude: scope?.exclude };
     return this.refused(row, ctx, unless) || !this.feasible(row.effects, ctx, new Set(), 0);
   }
 
@@ -1373,7 +1518,10 @@ class Pass {
       if (!t) return false;
       if (ctx.dupes && t.kind !== "item" && this.isDuplicate(t.kind, t.id)) return true;
       const entry = this.c[KIND_MAP[t.kind]].get(t.id) as Ability | Item | undefined;
-      if (entry && !this.allowed(t.kind, entry)) return true;
+      if (entry && !this.takeable(t.kind, entry, true)) return true;
+      // under a gear result: what its gear effect allows (alien, exclude)
+      if (t.kind === "item" && entry && ctx.noAlien && (entry as Item).alien) return true;
+      if (t.kind === "item" && entry && ctx.exclude && matches(entry, ctx.exclude)) return true;
       if (t.kind === "power" && ctx.only && !ctx.only.has(t.id)) return true;
       if (t.kind === "item" && entry && ctx.inSlot && (entry as Item).availabilityWhen && this.availabilityFor(entry as Item) === undefined) return true;
       if (t.kind === "item" && entry && ctx.matchAvail && !this.fitsSlot(entry as Item, ctx.matchAvail)) return true;
@@ -1546,10 +1694,16 @@ class Pass {
         return undefined;
       }
       last.result = [row.label];
+      if (this.look.reroll?.includes(k)) {
+        last.rerolled = true;
+        this.keepUnder(k);
+        continue;
+      }
       if (this.unusable(row, !!scope.dupes, x.unless, scope, x.onlyRows)) {
         last.rerolled = true;
         continue;
       }
+      this.attempts.add(k);
       this.rolls.push({ key: k, table: table.id, label: row.label });
       this.variant(src, row.label);
       this.effects(row.effects, table, { ...scope, prefix: `${k}>`, parent: k, depth: scope.depth + 1, preset: undefined });
@@ -1619,7 +1773,10 @@ class Pass {
       const slot = `${key}#${i}`;
       const d = parseDice(gen.die);
       let faces = this.rec.dice[slot];
-      if (!validFaces(d, faces)) this.rec.dice[slot] = faces = rollFaces(d, this.rollDie);
+      if (!validFaces(d, faces)) {
+        this.rec.dice[slot] = faces = rollFaces(d, this.rollDie);
+        this.fresh.add(slot);
+      }
       const first = findRow(gen, total(d, faces), col);
       (first && byOwned(first) ? later : order).push(i);
     }
@@ -1636,6 +1793,12 @@ class Pass {
           break;
         }
         genLog.result = [row.label];
+        // gear the finished character can't use (a Chainblade with nothing to mount it on): rolled again
+        if (this.look.reroll?.includes(k)) {
+          genLog.rerolled = true;
+          this.keepUnder(k);
+          continue;
+        }
         // "must generate at least one …": the last slots must fill what's missing
         const unmet = required.filter((r) => !got.some((l) => inRow(l, r)));
         if (unmet.length && unmet.length >= n - i + 1 && !unmet.some((r) => inRow(row.label, r))) {
@@ -1660,6 +1823,8 @@ class Pass {
           continue;
         }
         const inner: Scope = { prefix: `${k}>`, parent: k, section: scope.section, depth: scope.depth + 1, slotAvail: avail };
+        if (!alienOk) inner.noAlien = true;
+        if (g.exclude) inner.exclude = g.exclude;
         const quality = avail ? row.quality?.[avail] : undefined;
         if (quality) inner.grant = { quality };
         const result: RollResult = { key: k, table: gen.id, label: row.label };
@@ -1671,7 +1836,7 @@ class Pass {
         if (row.effects.some((x) => !("prose" in x))) {
           const was = this.slotAvail;
           this.slotAvail = avail;
-          const ok = this.feasible(row.effects, { dupes: false, inSlot: true }, new Set(), 0);
+          const ok = this.feasible(row.effects, { dupes: false, inSlot: true, noAlien: inner.noAlien, exclude: inner.exclude }, new Set(), 0);
           if (!ok) {
             this.slotAvail = was;
             genLog.rerolled = true;
@@ -1679,6 +1844,7 @@ class Pass {
           }
           done = true;
           got.push(row.label);
+          this.attempts.add(k);
           this.rolls.push(result);
           this.effects(row.effects, gen, inner);
           this.slotAvail = was;
@@ -1700,7 +1866,7 @@ class Pass {
               (a ? this.availOk(it, [], a) : this.availOk(it, allowedAvail)) &&
               (alienOk || !it.alien) &&
               !(g.exclude && matches(it, g.exclude)) &&
-              this.allowed("item", it),
+              this.takeable("item", it, true),
           );
         const cands = candidates(avail);
         if (!cands.length) {
@@ -1709,6 +1875,7 @@ class Pass {
         }
         done = true;
         got.push(row.label);
+        this.attempts.add(k);
         this.rolls.push(result);
         this.effects(row.effects, gen, inner);
         const sl: Slot = { key: k, row: row.label, availability: avail, qty: 1, candidates, src, scope };
@@ -1909,7 +2076,13 @@ class Pass {
     const key = this.alloc(scope, `${src.id}/${e.id}`);
     const p = e.powers;
     const n = this.count(key, p.count, src.name, scope.parent);
-    let cands = this.poolOf("power", { maxDifficulty: p.maxDifficulty, discipline: p.disciplines }) as Ability[];
+    // Generating powers makes the character a psyker as it starts (the
+    // rules met after it, p83's Chaos disciplines, know it whatever
+    // the slots give); a Wyrd's power doesn't ("even if they aren't a psyker").
+    if (p.wyrd) for (let i = 1; i <= n; i++) this.wyrdKeys.add(`${key}#${i}`);
+    else if (n > 0) this.psykerFlag.push(src.id);
+    // (a Wyrd's power comes from its own disciplines: none opened by `access`)
+    let cands = this.poolOf("power", { maxDifficulty: p.maxDifficulty, discipline: p.disciplines }, { access: !p.wyrd }) as Ability[];
     // The book's generation table: random mode rolls it for each power; the
     // powers it can't give are never offered (disciplines opened by `access`
     // aren't on it: with any, every candidate is chosen among evenly).
@@ -1919,7 +2092,7 @@ class Pass {
     let rollTable = !!table && col !== false;
     if (rollTable) {
       const onTable = this.tablePowers(table!, col || undefined);
-      const opened = new Set(this.accessGroups("power"));
+      const opened = new Set(p.wyrd ? [] : this.accessGroups("power"));
       cands = cands.filter((x) => onTable.has(x.id) || (x.group !== undefined && opened.has(x.group)));
       if (opened.size) rollTable = false;
     }
@@ -2201,6 +2374,11 @@ function seedLook(arch: Archetype): Look {
   return look;
 }
 
+/** Most passes one build makes (see passes()). */
+const MAX_PASSES = 6;
+/** The roller of a replay's first try (its rolls are never kept). */
+const REPLAY_SEED = 0x5eed;
+
 /**
  * Build a character. Throws BuildError when the record's archetype or
  * subtype isn't in the compendium.
@@ -2210,13 +2388,49 @@ export function build(c: Compendium, input: CharacterRecord, opts: BuildOptions)
   if (!arch) throw new BuildError(`no archetype "${input.archetype}"`);
   const sub = arch.subtypes.find((s) => s.id === input.subtype);
   if (!sub) throw new BuildError(`archetype "${arch.id}" has no subtype "${input.subtype}"`);
-  const rollDie = opts.roll ?? cryptoRoller();
-  // Some rules are met after the decisions they affect: conditions on the
-  // alignment before it is chosen (gear in the Equipment row, alignment in
-  // the last row), restrictions and access stated after the gear or pools
-  // they limit (the Armour row after Equipment). When a pass meets any of
-  // these late, it is run again knowing them, keeping the dice it rolled and
-  // the choices it made (a choice they now refuse is made again).
+  // A record that holds decisions is first replayed without rolling or
+  // asking for real: a pass that doesn't yet know what a later one meets
+  // may need decisions the record never kept (a row a restriction met later
+  // refuses, a power from a discipline opened later), which the last pass
+  // doesn't use. When the last pass needs nothing the record lacks, that is
+  // the character, and rebuilding rolls and asks nothing; else it is built
+  // again, rolling and asking what it needs.
+  if (Object.keys(input.dice).length || Object.keys(input.choices).length) {
+    const fresh = new Set<string>();
+    const quiet: BuildOptions = { ...opts, pick: opts.pick && (() => undefined) };
+    const r = passes(c, arch, sub, input, quiet, seededRoller(REPLAY_SEED), fresh);
+    const kept = (got: Record<string, unknown[]>, had: Record<string, unknown[]>) =>
+      Object.entries(got).every(([k, v]) => !fresh.has(k) || sameArray(had[k], v));
+    if (!r.pass.asked && kept(r.record.dice, input.dice) && kept(r.record.choices, input.choices)) return finish(c, input, r);
+  }
+  return finish(c, input, passes(c, arch, sub, input, opts, opts.roll ?? cryptoRoller(), new Set()));
+}
+
+function finish(c: Compendium, input: CharacterRecord, { pass, record }: { pass: Pass; record: CharacterRecord }): BuildResult {
+  const packs = c.packs.map((p) => p.id);
+  if (!sameArray(packs, input.packs)) pass.warn(`record packs [${input.packs.join(", ")}] differ from the compendium's [${packs.join(", ")}]`);
+  const character = pass.character(record);
+  return { character, record, pending: pass.pending, log: pass.log, warnings: pass.warnings };
+}
+
+// Walks the rules as often as needed. Some rules are met after the
+// decisions they affect: conditions on the alignment before it is chosen
+// (gear in the Equipment row, alignment in the last row), on an option
+// chosen in a later row (the Seer's auspex), restrictions and access stated
+// after the gear or pools they limit (the Armour row after Equipment), gear
+// the finished character can't use (a Chainblade with nothing to mount it
+// on). When a pass meets any of these late, it is run again knowing them,
+// keeping the dice it rolled and the choices it made (a choice they now
+// refuse is made again).
+function passes(
+  c: Compendium,
+  arch: Archetype,
+  sub: Subtype,
+  input: CharacterRecord,
+  opts: BuildOptions,
+  rollDie: RollFn,
+  fresh: Set<string>,
+): { pass: Pass; record: CharacterRecord } {
   let work = cloneRecord(input);
   const seed = seedLook(arch);
   let look: Look = { rx: [...seed.rx], access: [...seed.access] };
@@ -2233,19 +2447,23 @@ export function build(c: Compendium, input: CharacterRecord, opts: BuildOptions)
   }
   let pass!: Pass;
   const stale: string[] = [];
-  for (let i = 0; i < 4; i++) {
-    pass = new Pass(c, arch, sub, work, input, opts, rollDie, look);
+  for (let i = 0; i < MAX_PASSES; i++) {
+    pass = new Pass(c, arch, sub, work, input, opts, rollDie, look, fresh);
     pass.seedRx = seed.rx;
     pass.run();
     for (const w of pass.stale) if (!stale.includes(w)) stale.push(w);
     const alignLate = pass.peekedAlignment && pass.alignment !== undefined && pass.alignment !== look.alignment;
+    const chosen = pass.options.map((o) => o.id);
+    const optionsLate = [...pass.peekedOptions].some((id) => chosen.includes(id) !== !!look.options?.includes(id));
     const rx = [...seed.rx];
     for (const r of pass.metRx) if (!rx.some((x) => x.sig === r.sig)) rx.push(r);
     const access = [...seed.access];
     for (const a of pass.metAccess) if (!access.some((x) => x.sig === a.sig)) access.push(a);
-    const consLate = sigs(rx) !== sigs(look.rx) || sigs(access) !== sigs(look.access);
-    if ((!alignLate && !consLate) || i === 3) break;
-    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access };
+    const reroll = [...(look.reroll ?? [])];
+    for (const k of pass.rerollResults()) if (!reroll.includes(k)) reroll.push(k);
+    const consLate = sigs(rx) !== sigs(look.rx) || sigs(access) !== sigs(look.access) || reroll.length !== (look.reroll?.length ?? 0);
+    if ((!alignLate && !optionsLate && !consLate) || i === MAX_PASSES - 1) break;
+    look = { alignment: alignLate ? pass.alignment : look.alignment, rx, access, options: optionsLate ? chosen : look.options, reroll };
     // The re-run keeps the dice and the choices made (a choice the new
     // restrictions refuse is made again, among what they allow), so a random
     // build's odds stay the book's.
@@ -2260,10 +2478,7 @@ export function build(c: Compendium, input: CharacterRecord, opts: BuildOptions)
   const record = cloneRecord(work);
   record.dice = Object.fromEntries(Object.entries(work.dice).filter(([k]) => pass.usedDice.has(k)));
   record.choices = Object.fromEntries(Object.entries(work.choices).filter(([k]) => pass.usedChoices.has(k)));
-  const packs = c.packs.map((p) => p.id);
-  if (!sameArray(packs, input.packs)) pass.warn(`record packs [${input.packs.join(", ")}] differ from the compendium's [${packs.join(", ")}]`);
-  const character = pass.character(record);
-  return { character, record, pending: pass.pending, log: pass.log, warnings: pass.warnings };
+  return { pass, record };
 }
 
 /** Convenience: a full random build from a seedless roller. */

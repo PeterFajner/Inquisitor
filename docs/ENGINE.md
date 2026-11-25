@@ -67,7 +67,12 @@ build(compendium, record, {
 - The returned `record` is the input plus every new decision, minus
   decisions this character no longer uses (an option's nested picks after
   choosing another option). Rebuilding it reproduces the character exactly
-  and rolls nothing.
+  and rolls and asks nothing: a record holding decisions is first built
+  without rolling or calling `pick` for real (a seeded stand-in roller,
+  `pick` answering nothing), and that is the character when its last pass
+  used nothing the record lacks (an earlier pass may need dice the record
+  never kept: a row a restriction met later refuses); else it is built
+  again, rolling and asking.
 - Throws `BuildError` for an unknown archetype or subtype; everything else
   is a warning.
 
@@ -82,8 +87,15 @@ allows, so random builds keep the book's odds):
 - a `restrict`, `exclusive` or `access` effect met after the decisions it
   limits (the Armour row comes after the Equipment row's gear). Those stated
   outright in an archetype's sections are known before the first pass.
+- a condition on an option before the pick offering it is made (Cherubim:
+  the Equipment row's auspex isn't for the Seer, chosen under Cherubim
+  Roles). Once the pick is made, the condition is whether it chose it.
+- gear the finished character can't use: a `required` pick (a Chainblade's
+  mount) with nothing to choose from once all the gear is made. The
+  outermost roll or gear result that led to it is rolled again (`~n`); the
+  decisions that made it stay in the record, so a replay finds the same.
 
-At most four passes. The character's `restrictions` are the archetype's
+At most six passes. The character's `restrictions` are the archetype's
 own and those the last pass met.
 
 ### Order
@@ -97,8 +109,14 @@ own and those the last pass met.
    power or item run once, the first time the character gets it, except:
    a grant with `set`, `again` or a `quality` runs them again, and an
    item whose effects decide something (a pick, roll, chance or optional)
-   runs them for every grant (each Bionic Organs rolls its own organ), and
-   so does a grant with `covers`.
+   runs them for every grant (each Bionic Organs rolls its own organ, each
+   Executor Pistol chooses its own toxins), and so does a grant with
+   `covers`. Picks among named options run again by `again` offer what the
+   entry hasn't chosen yet (another prayer).
+   Picks among what the character owns into something (`filter: { owned:
+   true }` with `into`: Study Thy Weapon's weapon, a mount, an MIU's
+   equipment) are made after the last section and rule, once all the gear
+   is made, under the keys they had where they were met.
 3. Stats: base (the rolled stat line, capped at 100 unless
    `archetype.human === false`: the book's cap applies to the roll, and
    later bonuses may pass it) → adds/sets in order → formula adds (`{ stat:
@@ -202,7 +220,7 @@ adding or removing unrelated effects leaves every other key alone.
 | `<key>:set` | a stat effect's dice `set` |
 | `<key>:count` | dice for how many (`pick: D3`, `times`, gear and powers `count`) |
 | `<key>#<n>` | the n-th repeat (1-based): `times` table rolls, gear slots, power slots |
-| `<key>~<n>` | the n-th attempt (n ≥ 2) at a roll re-rolled as a duplicate or unusable gear |
+| `<key>~<n>` | the n-th attempt (n ≥ 2) at a roll re-rolled as a duplicate, unusable gear, or gear the finished character can't use |
 | `<key>:avail` | a gear slot's availability roll |
 | `<key>:item` | a gear slot's item choice |
 | `<key>><entry>/<effect id>` | an effect inside a table row's (or a gear slot's) result: the row's entry is the table |
@@ -228,7 +246,8 @@ duplicate), `hero/boons#5>boons/again` (row "Roll again" in boon 5),
 A key is *nested under* another (`isUnder`) when it continues it with `#`,
 `~`, `:` or `>`. `reroll(compendium, record, key)` clears the key, keys
 nested under it, and every decision whose `parent` chain leads to it (a
-chosen option's nested picks); the next build makes them again.
+chosen option's nested picks); the next build makes them again. Re-rolling
+a pick's random count (`<pick>:count`) clears the pick too.
 
 ## Conventions the engine relies on
 
@@ -247,9 +266,12 @@ chosen option's nested picks); the next build makes them again.
   item whose `availabilityWhen` leaves it to the GM is never generated. A
   row whose rolls can't land on anything the character may have (Combat
   Stimms for a Tech-Priest, Special ammunition of an availability no
-  ammunition has) re-rolls the slot. Rows rolling a `column: { owned }`
+  ammunition has) re-rolls the slot, and so does one granting an item the
+  gear effect's `alien` or `exclude` refuses (Teef from
+  rare-miscellaneous-gear for a Puritan). Rows rolling a `column: { owned }`
   (Special ammunition: the column of a weapon the character carries) are
-  made after the effect's other results.
+  made after the effect's other results. Item picks in a row's effects
+  leave out what the gear effect's `alien` and `exclude` refuse too.
 - **Table `weapon-availability`**: rolled per gear slot; the row label names
   the availability (`Common`, `Rare`, `Exotic*`, `Legendary weapon` all
   work). A row with a `roll` effect rolls on (the book's 6 → roll another
@@ -293,7 +315,13 @@ chosen option's nested picks); the next build makes them again.
   names) is listed first in that unit's variants; `covers` makes the item's
   armour cover those locations (or `choose` dice of them) for that grant.
 - **Restrictions** apply to pools, gear candidates, powers, table results
-  and from-picks among grants; an item's `requires` too. Availability
+  and from-picks among grants; an item's `requires` too. Pools, gear
+  candidates, table results and from-picks also leave out an entry whose
+  fixed grants a restriction refuses or whose own picks (not open ones,
+  nor picks among what it owns into something unless `required` and met
+  outside a roll or gear result) would have nothing to choose from
+  (`takeable()`), and a named option whose effects are like that
+  (`fulfils()`; when no option is left, all are offered). Availability
   filters and gear use an item's availability for this character
   (`availabilityWhen`; `unrestricted` items fit any).
 - **Armour**: per location, the best piece (`av`/`as`) of everything the
@@ -307,7 +335,10 @@ chosen option's nested picks); the next build makes them again.
 - **Pools** (`pick … pool`) and **powers** never offer what the character
   already has (items excepted). `filter.group`/`discipline` are the
   entry's `group`, exactly; a power's discipline is its `group`.
-- **Powers**: `count` slots, one choice each, among powers with
+- **Powers**: a powers effect with a count makes the character a psyker
+  when it is met (the `psyker` condition), unless `wyrd`; a Wyrd's powers
+  don't count as having powers there, and `access` doesn't widen it.
+  `count` slots, one choice each, among powers with
   `difficulty ≤ maxDifficulty` in `disciplines` (plus any `access` power
   groups). A formula difficulty (`TT/2`, `Wp/2`, `Wt`) counts as within any
   maximum (`difficultyWithin()`); a power with no difficulty never does. With
