@@ -10,9 +10,12 @@ import { effectLists, entryNames, walkEffects, type Compendium } from "../../../
 import { STATS, type Ability, type Effect, type Item } from "../../../src/shared/rules/schema.ts";
 import { SHEET_LOCATION_OF } from "../../../src/shared/sheet-map.ts";
 import type { SheetCharacter } from "../../../src/shared/sheet.ts";
+import { optionsOf } from "../lib/outcomes.ts";
 import type { Report, Repro } from "../lib/report.ts";
 
 const DERIVED = ["Kbk", "BIV", "SS", "Cnc", "Spd"] as const;
+/** The entry/effect a key ends in (as archetype.ts's leafOf). */
+const leafOf = (key: string): string => key.split(">").pop()!.replace(/(\*\d+|#\d+|~\d+)+$/, "");
 const ownedAll = (ch: Character): Owned[] => [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items];
 
 let effectIndex: WeakMap<Compendium, Map<string, Effect[]>> = new WeakMap();
@@ -54,7 +57,10 @@ export function checkKinds(r: Report, c: Compendium, b: BuildResult, sheet: Shee
     for (const m of line.mods) if (m.add !== undefined) n += m.add;
     let v: number | "No" = n;
     for (const m of line.mods) if (m.set !== undefined) v = m.set;
-    r.expect(line.value === v, `${what}: derived values worked out from the final stats (derived)`, `${k}: ${line.value}, worked out ${v} (${JSON.stringify(line.mods)})`, rep, k);
+    // A set and an add on one value (Curse of Thlezzloath and Scales: BIV 7 or 8?): the owner hasn't ruled on the order yet.
+    if (line.value !== v && line.mods.some((m) => m.set !== undefined) && line.mods.some((m) => m.add !== undefined))
+      r.note(`pending owner ruling: a set and an add on ${k} (Curse of Thlezzloath and Scales), ${line.value} vs ${v}, e.g. ${rep.archetype}/${rep.subtype} seed ${rep.seed ?? "?"}`);
+    else r.expect(line.value === v, `${what}: derived values worked out from the final stats (derived)`, `${k}: ${line.value}, worked out ${v} (${JSON.stringify(line.mods)})`, rep, k);
     r.expect(sheet.starting[k] === String(line.value), `${what}: derived values on the sheet's Starting row (derived)`, `${k}: sheet ${sheet.starting[k]}, character ${line.value}`, rep, k);
     for (const m of line.mods) r.expect(sources.has(m.source), `${what}: derived changes come from what the character has (derived)`, `${k} ${JSON.stringify(m)} from ${m.source}, not owned`, rep, `${k} ${m.source}`);
   }
@@ -159,12 +165,17 @@ export function checkKinds(r: Report, c: Compendium, b: BuildResult, sheet: Shee
 
   // --- powers: each slot's power is within its powers effect's difficulty and disciplines (plus access).
   const byId = effectsById(c);
+  // The groups `access` opened for this character only: stated outright by its archetype or something it has, by an
+  // option it chose, or by an optional access it took ("yes"); not every rule's (they would open every Chaos discipline).
   const opened = new Set<string>();
-  for (const t of [...owned, { kind: "archetype", id: ch.archetype.id } as unknown as Owned]) {
-    const list = t.kind === ("archetype" as never) ? c.archetypes.get(t.id)!.sections.flatMap((s) => s.effects) : topEffects(c, t.kind, t.id);
-    walkEffects(list, (e) => void ("access" in e && e.access.pool === "power" && e.access.group.forEach((g) => opened.add(g))));
+  const openBy = (list: Effect[]) => list.forEach((e) => "access" in e && e.access.pool === "power" && e.access.group.forEach((g) => opened.add(g)));
+  openBy(c.archetypes.get(ch.archetype.id)!.sections.flatMap((s) => s.effects));
+  for (const t of owned) openBy(topEffects(c, t.kind, t.id));
+  for (const o of ch.options) openBy(optionsOf(c).get(`${o.source}|${o.id}`)?.effects ?? []);
+  for (const e of b.log) {
+    if (e.type !== "choice" || b.record.choices[e.key]?.[0] !== "yes") continue;
+    for (const x of byId.get(leafOf(e.key)) ?? []) if ("optional" in x) openBy(x.optional);
   }
-  for (const rule of c.rules.values()) for (const { effects } of effectLists(rule)) walkEffects(effects, (e) => void ("access" in e && e.access.pool === "power" && e.access.group.forEach((g) => opened.add(g))));
   for (const p of ch.powers) {
     if (p.overridden) continue;
     const entry = c.powers.get(p.id);
@@ -177,7 +188,9 @@ export function checkKinds(r: Report, c: Compendium, b: BuildResult, sheet: Shee
         if (!eff || !("powers" in eff)) continue;
         const pw = eff.powers;
         if (pw.maxDifficulty !== undefined) r.expect(difficultyWithin(entry?.difficulty, pw.maxDifficulty), `${what}: powers within their effect's difficulty (powers)`, `${p.name} difficulty ${entry?.difficulty} > ${pw.maxDifficulty} (${f.key})`, rep, `${k} ${p.id}`);
-        if (pw.disciplines?.length && !opened.size) r.expect(!!entry?.group && pw.disciplines.includes(entry.group), `${what}: powers within their effect's disciplines (powers)`, `${p.name} (${entry?.group}) not in ${pw.disciplines.join(", ")} (${f.key})`, rep, `${k} ${p.id}`);
+        // (a Wyrd's powers are its own disciplines', never widened by `access`: ENGINE.md)
+        const allowed = [...(pw.disciplines ?? []), ...(pw.wyrd ? [] : opened)];
+        if (pw.disciplines?.length) r.expect(!!entry?.group && allowed.includes(entry.group), `${what}: powers within their effect's disciplines (powers)`, `${p.name} (${entry?.group}) not in ${allowed.join(", ")} (${f.key})`, rep, `${k} ${p.id}`);
         break;
       }
     }

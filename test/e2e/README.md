@@ -29,18 +29,20 @@ shard opens per subtype, 4). The exit code is 1 when any shard failed.
   the real rules in `data/rules` (read only). Random characters: no open
   choices, no engine warnings (except those the book or the owner explains:
   an `empty` result, a power restriction that leaves no powers; pending owner
-  rulings are notes, `explainWarning`), the record replays exactly (freeform
+  rulings are notes, `explainWarning`), the record replays exactly (built
+  with `buildAll`, so a companion's dice are in it; freeform
   and random, through JSON), every choice legal (among its options, as many
   as it asks: every key of the first few seeds, then every seed with a key
   not seen yet), `:count` dice made as many results, open picks within the
   book's bounds ("any": none at random; "up to N": 0..N, χ² against
   uniform), base stats within the stat line, gear of the rolled
   availability, alien gear only where allowed, nothing a restriction
-  refuses, everything owned and every option on the GM sheet (names without
+  refuses, what a thing chose gone with it, everything owned and every option on the GM sheet (names without
   case; a routing option by what it led to, a stat option by its stats), the
   effect kinds worked out again (`engine/kinds.ts`: derived values,
   attributes, wielded, remove, natural weapons, armour per location,
-  exclusive, # Rld, powers within their effect, no duplicate rows), the
+  exclusive, # Rld, powers within their effect's difficulty and disciplines
+  plus the groups the character's own `access` opened, no duplicate rows), the
   book's own rules and the owner's rulings (`engine/book.ts`), optional
   effects, chances and alignments as often as the book says (χ²). Then
   every top-level decision re-rolled (and the Stats and Boons Rerolls),
@@ -55,20 +57,24 @@ shard opens per subtype, 4). The exit code is 1 when any shard failed.
 - `engine:rules-update`: the rules changed under saved characters (dice, a
   new pick): `diff()` and `updateRules()`.
 - `engine:rules-update-entries`: the entries a character uses changed: an
-  option it chose removed, a table row it rolled moved, an item's
+  option it chose removed, a table row it rolled moved (to a row it didn't roll), an item's
   availability or category, a talent's effects, an item deleted, a pick's
   id renamed, the archetype renamed, its subtype removed (a BuildError).
 - `engine:trades`: every trade a few random characters are offered taken
-  ("yes", then at random): what is given up is gone, a downgrade a step
+  ("yes", then at random): as many given up as it asks (a give that can't
+  be met isn't offered), what is given up is gone (an item got again
+  counted by its origins under the trade), a downgrade a step
   lower (a Common lost), an upgrade a step higher; "any" trades twice.
 - `engine:open-picks`: every open pick filled with one, two, the most and
   every option in turn.
 - `engine:packs`: book-only (`loyalist`) records, then every pack added.
 - `engine:subtype-roll`: the Alien Bounty Hunter's rolled Level of
-  Experience: its distribution, a record holding the roll, a re-roll of it.
+  Experience: its distribution, a record holding the roll, a re-roll of it
+  (a note: no app path records the roll yet).
 - `engine:static`: the rules themselves and the places like the confirmed
   bugs: the GM-approval list (p. 3), the warband warnings, pool picks with
-  nothing (or only one archetype's things) to choose from, two units of an
+  nothing (or only one archetype's things, unless the pick is one option of
+  several) to choose from, two units of an
   item that makes its own choices.
 - `ui:<archetype>` (one per archetype, ~10–50 s): each subtype made with
   the New character form, then seeded characters chosen to cover the most
@@ -125,7 +131,9 @@ Each shard writes `<results>/<shard id, : as _>.json`:
 
 Notes hold what isn't a failure: timings, pending owner rulings (Study Thy
 Weapon with no weapon, Puppetmaster against a Tech-Priest Sage's Machine
-Empathy), what a shard chose not to check. `coverage` is what the shard's
+Empathy, an MIU with nothing to link, a set and an add on one derived value
+such as Curse of Thlezzloath with Scales, a downgrade to an availability
+with no items of that type), what a shard chose not to check. `coverage` is what the shard's
 characters reached; `coverage.ts` lists what no shard did.
 
 A failure seen many times (300 seeds hitting one bug) is one entry with its

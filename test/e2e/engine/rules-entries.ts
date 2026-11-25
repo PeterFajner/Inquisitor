@@ -8,7 +8,8 @@
 // and nothing throws but the documented BuildError (a subtype or archetype
 // that is gone).
 import * as ops from "../../../src/client/builder/ops.ts";
-import { build, BuildError, type BuildResult } from "../../../src/shared/engine/build.ts";
+import { buildAll as build } from "../../../src/shared/engine/companions.ts";
+import { BuildError, type BuildResult } from "../../../src/shared/engine/build.ts";
 import { diff, type CharacterDiff } from "../../../src/shared/engine/diff.ts";
 import type { CharacterRecord } from "../../../src/shared/engine/record.ts";
 import { seededRoller } from "../../../src/shared/engine/rng.ts";
@@ -76,14 +77,22 @@ const CHANGES: Change[] = [
     },
   },
   {
-    name: "a table row the character rolled moved (its range given to the next row)",
+    name: "a table row the character rolled moved (its range given to a row it didn't roll)",
     make: (c, b) => {
       // (a roll whose dice the record holds: a power chosen among a table's isn't rolled on it)
-      const roll = b.character.rolls.find((x) => c.tables.get(x.table)?.rows.length! > 2 && !x.table.startsWith("equipment-generator") && b.record.dice[x.key]);
+      // Swapped with a row the character also rolled, it would be the same character (diff compares rolls as a multiset).
+      const rolled = (table: string) => new Set(b.character.rolls.filter((x) => x.table === table).map((x) => x.label));
+      const other = (table: string, label: string) => {
+        const rows = c.tables.get(table)!.rows;
+        const i = rows.findIndex((x) => x.label === label);
+        const not = (k: number) => k >= 0 && k < rows.length && !rolled(table).has(rows[k].label);
+        return [i + 1, i - 1, ...rows.keys()].find(not) ?? -1;
+      };
+      const roll = b.character.rolls.find((x) => c.tables.get(x.table)?.rows.length! > 2 && !x.table.startsWith("equipment-generator") && b.record.dice[x.key] && other(x.table, x.label) >= 0);
       if (!roll) return null;
       const t = structuredClone(c.tables.get(roll.table)!);
       const i = t.rows.findIndex((x) => x.label === roll.label);
-      const j = i + 1 < t.rows.length ? i + 1 : i - 1;
+      const j = other(roll.table, roll.label);
       [t.rows[i].range, t.rows[j].range, t.rows[i].ranges, t.rows[j].ranges] = [t.rows[j].range, t.rows[i].range, t.rows[j].ranges, t.rows[i].ranges];
       return { nc: withEntry(c, "tables", t.id, t), expect: (d) => (d.changed ? null : `${t.id} rows ${t.rows[i].label} and ${t.rows[j].label} swapped ranges, diff says unchanged`) };
     },

@@ -12,7 +12,8 @@ import { isDeepStrictEqual } from "node:util";
 import { renderSheetDocx } from "../../../src/client/export/docx.ts";
 import * as ops from "../../../src/client/builder/ops.ts";
 import { powerScore } from "../../../src/shared/engine/balance.ts";
-import { build, ROLL_OPTION, type BuildResult, type Character, type RollFn } from "../../../src/shared/engine/build.ts";
+import { ROLL_OPTION, type BuildResult, type Character, type RollFn } from "../../../src/shared/engine/build.ts";
+import { buildAll as build } from "../../../src/shared/engine/companions.ts";
 import * as dice from "../../../src/shared/engine/dice.ts";
 import { diff } from "../../../src/shared/engine/diff.ts";
 import { cloneRecord, newRecord, parseRecord, THING_KINDS, type CharacterRecord, type ThingKind } from "../../../src/shared/engine/record.ts";
@@ -403,6 +404,18 @@ export function explainWarning(c: Compendium, b: BuildResult, w: string): { by: 
     const weapon = ch.items.some((it) => WEAPON_CATEGORIES.includes(c.items.get(it.id)?.category ?? ""));
     if (!weapon) return { by: "pending", why: "Study Thy Weapon with no weapon at all (owner ruling pending)" };
   }
+  // Puppetmaster against a Tech-Priest Sage's own Machine Empathy (pendingRestriction): the owner hasn't ruled yet.
+  const restricted = /^power "([^"]+)" breaks a restriction$/.exec(w);
+  if (restricted) {
+    const t = ch.powers.find((p) => p.id === restricted[1]);
+    if (t && pendingRestriction(ch, t)) return { by: "pending", why: pendingRestriction(ch, t)! };
+  }
+  // An MIU with nothing to link (no other item): the owner hasn't ruled yet (if "re-roll", `required` on its pick).
+  if (/(^|>)miu\/equipment(\*\d+)?: only 0 to choose from/.test(w) && ch.items.every((it) => it.id === "miu"))
+    return { by: "pending", why: "an MIU with nothing to link (owner ruling pending)" };
+  // A downgrade to an availability with no items of the result's type (no Common Cyber creatures): the book is silent.
+  if (/:give: no (Common|Rare|Exotic|Legendary) .+ to choose$/.test(w))
+    return { by: "pending", why: "a downgrade to an availability with no items of that type (owner ruling pending)" };
   return null;
 }
 
@@ -455,6 +468,9 @@ export function checkCharacter(
     }
     r.expect(line.base >= lo && line.base <= hi, `${what}: base stats within the stat line`, `${s} base ${line.base} outside ${d} [${lo}..${hi}]`, rep, s);
   }
+  // Human final stats past 100: the owner hasn't ruled whether they are capped.
+  const past = arch.human !== false ? STATS.filter((s) => ch.stats[s].final > 100 && !ch.stats[s].overridden) : [];
+  if (past.length) r.note(`pending owner ruling: human final stats over 100 (${past.map((s) => `${s} ${ch.stats[s].final}`).join(", ")}), e.g. ${arch.id}/${b.record.subtype} seed ${rep.seed ?? "?"}`);
 
   // `:count` dice: as many results as rolled.
   for (const e of b.log) {
@@ -470,7 +486,9 @@ export function checkCharacter(
       const penalty = penalties.get(k.split(">").pop()!) ?? 0;
       if (slots || !b.log.some((x) => x.key.startsWith(`${k}#`)))
         r.expect((slots <= e.total && slots >= e.total - penalty) || slots === 0, `${what}: as many rolls as the count rolled`, `${k}: rolled ${e.total}, made ${slots}`, rep, norm(k));
-      if (slots === 0 && e.total > 0 && !b.log.some((x) => x.key.startsWith(`${k}#`) || x.key.startsWith(`${k}>`)) && !powersSlots(b, k))
+      // (a warning the book explains made none on purpose: a restriction that empties the power pool)
+      const excused = b.warnings.some((w) => w.startsWith(`${k}: `) && explainWarning(c, b, w));
+      if (slots === 0 && e.total > 0 && !excused && !b.log.some((x) => x.key.startsWith(`${k}#`) || x.key.startsWith(`${k}>`)) && !powersSlots(b, k))
         r.fail(`${what}: as many rolls as the count rolled`, `${k}: rolled ${e.total}, made none`, rep, `${norm(k)} made none`);
     }
   }
@@ -490,6 +508,13 @@ export function checkCharacter(
       continue;
     }
     r.expect(!t.restricted, `${what} breaks no restriction`, `${t.kind} ${t.name} is restricted (${ch.restrictions.map((x) => x.source).join(", ")})`, rep, `${t.kind}/${t.id}`);
+  }
+  // What a thing chose goes with it (ENGINE.md: "Pieces and other contributions of a thing taken away … go with it"):
+  // an option whose source is a talent, exotic, mutation, power or item belongs to one the character has.
+  const ownedIds = new Set(ownedAll(ch).map((t) => t.id));
+  for (const opt of ch.options) {
+    const thing = c.talents.has(opt.source) || c.exotics.has(opt.source) || c.mutations.has(opt.source) || c.powers.has(opt.source) || c.items.has(opt.source);
+    if (thing) r.expect(ownedIds.has(opt.source), `${what}: what a thing chose goes with it`, `option ${opt.name} (${opt.key}) of ${opt.source}, which it doesn't have`, rep, `${opt.source}: ${opt.id}`);
   }
   // Alignment: one the archetype allows (checked as a legal choice too).
   if (ch.alignment) r.expect(ALIGNMENTS.includes(ch.alignment), `${what}: alignment is the book's`, ch.alignment, rep);
@@ -559,7 +584,7 @@ export function checkCharacter(
 
 let penaltyCache: Map<string, number> | null = null;
 /** Powers effects with a cross-discipline penalty, by "<entry>/<effect id>". */
-function powersPenalties(c: Compendium): Map<string, number> {
+export function powersPenalties(c: Compendium): Map<string, number> {
   if (penaltyCache) return penaltyCache;
   penaltyCache = new Map();
   for (const e of [...c.archetypes.values(), ...c.talents.values(), ...c.exotics.values(), ...c.mutations.values(), ...c.items.values(), ...c.tables.values(), ...c.rules.values()]) {

@@ -65,9 +65,15 @@ export class Report {
     return ok;
   }
 
-  /** A note once (by its text). */
+  private noted = new Map<string, number>();
+
+  /** A note once (by its text); one with examples (", e.g. …") at most 5 times, then counted. */
   note(s: string): void {
-    if (!this.notes.includes(s)) this.notes.push(s);
+    if (this.notes.includes(s)) return;
+    const kind = s.split(", e.g.")[0];
+    const n = (this.noted.get(kind) ?? 0) + 1;
+    this.noted.set(kind, n);
+    if (kind === s || n <= 5) this.notes.push(s);
   }
 
   result(): ShardResult {
@@ -80,7 +86,7 @@ export class Report {
       passed: this.passed,
       failures,
       ...(this.error ? { error: this.error } : {}),
-      notes: this.notes,
+      notes: [...this.notes, ...[...this.noted].filter(([, n]) => n > 5).map(([kind, n]) => `${kind}: ${n} times in all`)],
       ...(this.coverage.size ? { coverage: [...this.coverage].sort() } : {}),
     };
   }

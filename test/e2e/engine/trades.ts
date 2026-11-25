@@ -78,19 +78,22 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
   const given = next.choices[`${k}:give`] ?? [];
   const want = give.count ?? 1;
   const offered = ops.choiceOptions(c, next, `${k}:give`)?.options.length;
-  if (offered !== undefined) r.expect(given.length === Math.min(want, offered), `${what} gives up as many as it asks`, `${k}:give: ${given.length} given, ${want} asked, ${offered} offered`, { ...rep, record: next }, norm(k));
+  // (a trade whose give can't be met isn't offered: p. 38's "lose two items" needs two)
+  if (offered !== undefined) r.expect(offered >= want && given.length === want, `${what} gives up as many as it asks`, `${k}:give: ${given.length} given, ${want} asked, ${offered} offered`, { ...rep, record: next }, norm(k));
   const chB = before.character;
   const chA = after.character;
   if (give.lose) {
     for (const g of given) {
       const [kind, id] = g.split(":");
       const qty = (ch: typeof chA) => (ch[`${kind}s` as "items"] as { id: string; qty?: number }[] | undefined)?.find((t) => t.id === id)?.qty ?? ((ch[`${kind}s` as "items"] as { id: string }[] | undefined)?.some((t) => t.id === id) ? 1 : 0);
-      // (what the trade gets may be the same thing again: a roll again on the equipment table)
-      const again = after.log.filter((e) => e.key.startsWith(`${k}>`) && e.type === "choice" && (next.choices[e.key] ?? []).some((x) => x === id || x === g)).length;
-      r.expect(qty(chA) - again < qty(chB), `${what}: what is given up is gone`, `${g}: ${qty(chB)} before, ${qty(chA)} after (${again} got again)`, { ...rep, record: next }, `${norm(k)} ${kind}`);
+      // (what the trade gets may be the same thing again, by a choice or by dice: a roll again on the equipment table)
+      const again = (ch: typeof chA) => (ch[`${kind}s` as "items"] as { id: string; from: { key?: string }[] }[] | undefined)?.find((t) => t.id === id)?.from.filter((f) => f.key?.startsWith(`${k}>`)).length ?? 0;
+      r.expect(qty(chA) - (again(chA) - again(chB)) < qty(chB), `${what}: what is given up is gone`, `${g}: ${qty(chB)} before, ${qty(chA)} after (${again(chA) - again(chB)} got again)`, { ...rep, record: next }, `${norm(k)} ${kind}`);
     }
   }
   if (give.downgrade) {
+    // Each result's item by the record's `:item` choice, not by `from`: a quantity given up leaves an origin no one reads (ENGINE.md).
+    const lostItems = new Map<string, number>();
     for (const slot of given) {
       const was = chB.rolls.find((x) => x.key === slot);
       const now = chA.rolls.find((x) => x.key === slot);
@@ -98,13 +101,19 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
       const upgraded = Object.entries(next.choices).some(([kk, v]) => kk.startsWith(`${k}>`) && v.includes(slot));
       if (was.availability === "Common") {
         r.expect(!!now?.lost || upgraded, `${what}: a Common result downgraded is lost (p. 38)`, `${slot} (${was.label}) not lost: ${JSON.stringify(now)}`, { ...rep, record: next }, norm(k));
-        const left = chA.items.filter((it) => it.from.some((f) => f.key && (f.key === `${slot}:item` || f.key.startsWith(`${slot}>`) || f.key.endsWith(`>${slot}:item`))));
-        if (!upgraded) r.expect(!left.length, `${what}: a lost result's item is gone`, `${slot}: still ${left.map((x) => x.name).join(", ")}`, { ...rep, record: next }, norm(k));
+        const id = slotItem(rec, slot);
+        if (!upgraded && id) lostItems.set(id, (lostItems.get(id) ?? 0) + 1);
       } else if (!upgraded) {
         r.expect(now?.availability === step(was.availability, -give.downgrade), `${what}: a downgraded result is a step lower`, `${slot}: ${was.availability} → ${now?.availability}`, { ...rep, record: next }, norm(k));
-        const its = chA.items.filter((it) => it.from.some((f) => f.key?.endsWith(`${slot}:item`)));
+        const its = chA.items.filter((it) => it.id === slotItem(next, slot, k));
         for (const it of its) if (it.availability && c.items.get(it.id)?.unrestricted !== true) r.expect(it.availability === now?.availability, `${what}: the item chosen again is of the new availability`, `${it.name} ${it.availability}, result ${now?.availability}`, { ...rep, record: next }, norm(k));
       }
+    }
+    for (const [id, n] of lostItems) {
+      const qty = (ch: typeof chA) => ch.items.find((it) => it.id === id)?.qty ?? 0;
+      const got = (ch: typeof chA) => ch.items.find((it) => it.id === id)?.from.filter((f) => f.key?.startsWith(`${k}>`)).length ?? 0;
+      const left = qty(chA) - (got(chA) - got(chB));
+      r.expect(left <= qty(chB) - n, `${what}: a lost result's item is gone`, `${id}: ${qty(chB)} before, ${n} lost, ${qty(chA)} after`, { ...rep, record: next }, norm(k));
     }
   }
   // An upgrade: the result chosen a step higher, its item of that availability.
@@ -120,8 +129,14 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
     const wantAvail = step(step(was?.availability, -down), e.upgrade);
     if (was?.availability) r.expect(now?.availability === wantAvail, `${what}: an upgraded result is a step higher (p. 38)`, `${slot}: ${was.availability}${down ? ` (downgraded too)` : ""} → ${now?.availability}, wanted ${wantAvail}`, { ...rep, record: next }, norm(k));
     if (given.includes(slot)) r.note(`${k}: the upgrade chose ${slot}, a result it also downgraded (the book doesn't forbid it), e.g. ${rep.archetype}/${rep.subtype} seed ${rep.seed}`);
-    const its = chA.items.filter((it) => it.from.some((f) => f.key?.startsWith(`${upKey}>`)));
+    const its = chA.items.filter((it) => it.id === next.choices[`${upKey}>${slot}:item`]?.[0]);
     for (const it of its) if (it.availability && c.items.get(it.id)?.unrestricted !== true) r.expect(it.availability === now?.availability, `${what}: the upgraded item is of the new availability`, `${it.name} ${it.availability}, result ${now?.availability}`, { ...rep, record: next }, norm(k));
   }
   return { rec: next, after };
+}
+
+/** The item a gear result holds, by the record's choice: chosen again under trade `k` if it was, else its own. */
+function slotItem(rec: CharacterRecord, slot: string, k?: string): string | undefined {
+  const again = k ? Object.keys(rec.choices).filter((x) => x.startsWith(`${k}>`) && x.endsWith(`>${slot}:item`)).pop() : undefined;
+  return rec.choices[again ?? `${slot}:item`]?.[0];
 }

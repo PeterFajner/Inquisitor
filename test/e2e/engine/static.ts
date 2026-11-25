@@ -82,6 +82,12 @@ export async function engineStatic(r: Report, _o: RunOptions): Promise<void> {
   const archetypeOnly = (x: Ability | Item) => (x.kind === "item" && x.requires ? JSON.stringify(x.requires) : null);
   for (const e of [...c.archetypes.values(), ...c.talents.values(), ...c.exotics.values(), ...c.mutations.values(), ...c.powers.values(), ...c.items.values(), ...c.tables.values(), ...c.rules.values()]) {
     for (const { effects } of effectLists(e)) {
+      // A pool pick in one option of several ("they can have a Legendary weapon"): the character may take another.
+      const optional = new WeakSet<Effect>();
+      walkEffects(effects, (x: Effect) => {
+        if (!("pick" in x) || !x.from || x.from.length < 2) return;
+        for (const o of x.from) if ("effects" in o && o.effects) walkEffects(o.effects, (y: Effect) => void optional.add(y));
+      });
       walkEffects(effects, (x: Effect) => {
         if (!("pick" in x) || !x.pool || x.filter?.owned === true) return;
         const kind = x.pool as keyof typeof KINDS;
@@ -92,7 +98,8 @@ export async function engineStatic(r: Report, _o: RunOptions): Promise<void> {
         // (an item pick in a table row with nothing to choose from is the documented `empty` result: "Heavy weapon (Common)", ENGINE.md)
         if (!cs.length && want > 0 && e.kind === "table" && kind === "item") r.note(`${where}: nothing to choose from, shown as an empty result (ENGINE.md)`);
         else r.expect(cs.length > 0 || want === 0, "a pool pick has something to choose from", `${where}: nothing (${JSON.stringify(x.filter)})`, { key: `${e.id}/${x.id}` }, where);
-        if (cs.length && cs.every((y) => archetypeOnly(y))) r.fail("a pool pick offers more than one archetype's things", `${where}: only ${cs.map((y) => `${y.name} (${archetypeOnly(y)})`).join(", ")}`, { key: `${e.id}/${x.id}` }, where);
+        if (cs.length && cs.every((y) => archetypeOnly(y)) && optional.has(x)) r.note(`${where}: only ${cs.map((y) => y.name).join(", ")}, in an option the character may pass over`);
+        else if (cs.length && cs.every((y) => archetypeOnly(y))) r.fail("a pool pick offers more than one archetype's things", `${where}: only ${cs.map((y) => `${y.name} (${archetypeOnly(y)})`).join(", ")}`, { key: `${e.id}/${x.id}` }, where);
         else if (cs.length) r.pass("a pool pick offers more than one archetype's things");
         if (want > 1 && cs.length < want) r.fail("a pool pick's count fits its options", `${where}: ${want} wanted, ${cs.length} to choose from`, { key: `${e.id}/${x.id}` }, where);
       });

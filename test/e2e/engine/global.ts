@@ -5,7 +5,8 @@
 // updateRules() must make a whole character: no open choices when made at
 // random, the new decisions left open otherwise, a record that replays.
 import * as ops from "../../../src/client/builder/ops.ts";
-import { build, type RollFn } from "../../../src/shared/engine/build.ts";
+import type { RollFn } from "../../../src/shared/engine/build.ts";
+import { buildAll as build } from "../../../src/shared/engine/companions.ts";
 import { diff } from "../../../src/shared/engine/diff.ts";
 import { seededRoller } from "../../../src/shared/engine/rng.ts";
 import type { Compendium } from "../../../src/shared/rules/compendium.ts";

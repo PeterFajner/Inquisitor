@@ -6,12 +6,15 @@
 // labelled icon controls).
 import { join } from "node:path";
 import type { BuildResult } from "../../../src/shared/engine/build.ts";
+import type { FullBuild } from "../../../src/shared/engine/companions.ts";
 import type { CharacterRecord } from "../../../src/shared/engine/record.ts";
 import { startApp, type App } from "./app.ts";
 import { Chrome, DESKTOP, type Page, type View } from "./cdp.ts";
 import type { Report, Repro } from "./report.ts";
 import { fileName } from "./report.ts";
+import { realCompendium } from "./rules.ts";
 import { bookWords, uiTextProblems } from "./text.ts";
+import { powersPenalties } from "../engine/archetype.ts";
 
 /** Counts the page's fetches in flight, so `idle` knows when the app has settled. */
 const INSTRUMENT = `(() => {
@@ -136,28 +139,29 @@ export function visibleTexts(page: Page, root = "body", skip = ""): Promise<{ te
     (rootSel: string, skipSel: string) => {
       const texts: string[] = [];
       const unlabelled: string[] = [];
-      const base = document.querySelector(rootSel);
-      if (!base) return { texts, unlabelled };
       const hidden = (el: Element) => (skipSel && el.closest(skipSel)) || !(el as HTMLElement).checkVisibility({ visibilityProperty: true, opacityProperty: true });
-      const walk = document.createTreeWalker(base, NodeFilter.SHOW_TEXT);
-      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-        const p = n.parentElement;
-        // (an author's public id is data, not words)
-        if (!p || p.closest("option, script, style, noscript, .hv-author") || hidden(p)) continue;
-        if (n.textContent!.trim()) texts.push(n.textContent!.trim());
-      }
-      for (const s of base.querySelectorAll("select")) if (!hidden(s) && s.selectedOptions[0]) texts.push(s.selectedOptions[0].text.trim());
-      for (const i of base.querySelectorAll("input, textarea")) {
-        if (hidden(i)) continue;
-        const el = i as HTMLInputElement;
-        if (!el.value && el.placeholder) texts.push(el.placeholder);
-      }
-      for (const c of base.querySelectorAll("button, a[href], [role=button]")) {
-        if (hidden(c)) continue;
-        const label = c.getAttribute("aria-label");
-        const text = (c.textContent ?? "").trim();
-        if (!text && !label) unlabelled.push(`<${c.tagName.toLowerCase()} class="${c.getAttribute("class") ?? ""}"> has no text and no aria-label`);
-        else if (!text && c.classList.contains("icon-btn") && c.getAttribute("title") !== label) unlabelled.push(`<${c.tagName.toLowerCase()} aria-label="${label}"> tooltip "${c.getAttribute("title")}"`);
+      // Every match (a companion has a card of its own), not only the first.
+      for (const base of document.querySelectorAll(rootSel)) {
+        const walk = document.createTreeWalker(base, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const p = n.parentElement;
+          // (an author's public id is data, not words)
+          if (!p || p.closest("option, script, style, noscript, .hv-author") || hidden(p)) continue;
+          if (n.textContent!.trim()) texts.push(n.textContent!.trim());
+        }
+        for (const s of base.querySelectorAll("select")) if (!hidden(s) && s.selectedOptions[0]) texts.push(s.selectedOptions[0].text.trim());
+        for (const i of base.querySelectorAll("input, textarea")) {
+          if (hidden(i)) continue;
+          const el = i as HTMLInputElement;
+          if (!el.value && el.placeholder) texts.push(el.placeholder);
+        }
+        for (const c of base.querySelectorAll("button, a[href], [role=button]")) {
+          if (hidden(c)) continue;
+          const label = c.getAttribute("aria-label");
+          const text = (c.textContent ?? "").trim();
+          if (!text && !label) unlabelled.push(`<${c.tagName.toLowerCase()} class="${c.getAttribute("class") ?? ""}"> has no text and no aria-label`);
+          else if (!text && c.classList.contains("icon-btn") && c.getAttribute("title") !== label) unlabelled.push(`<${c.tagName.toLowerCase()} aria-label="${label}"> tooltip "${c.getAttribute("title")}"`);
+        }
       }
       return { texts, unlabelled };
     },
@@ -252,11 +256,15 @@ export async function openCharacter(page: Page, url: string, id: string): Promis
   await idle(page);
 }
 
-/** The names a built character should show (things, chosen options), and its choices' results. */
-export function expectedShown(b: BuildResult): { things: string[]; choices: { key: string; label: string; result: string }[] } {
-  const ch = b.character;
-  const things = [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items].map((t) => t.name);
+/** The names a built character (and its companions) should show (things, chosen options), and its choices' results. */
+export function expectedShown(b: BuildResult | FullBuild): { things: string[]; choices: { key: string; label: string; result: string }[] } {
+  const chars = [b.character, ...("companions" in b ? b.companions.map((x) => x.result.character) : [])];
+  const things = chars.flatMap((ch) => [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items]).map((t) => t.name);
+  const powers = new Set(chars.flatMap((ch) => ch.powers.map((p) => p.name)));
+  const penalties = powersPenalties(realCompendium());
   // (a `:column` pick is the ammunition's column: forced by the weapon carried, or the table's `else`; not a choice shown)
-  const choices = b.log.filter((e) => e.type === "choice" && !e.key.endsWith(":column")).flatMap((e) => e.result.filter(Boolean).map((result) => ({ key: e.key, label: e.label, result })));
+  // (a power slot past a cross-discipline penalty is dropped, its pick kept for replay (ENGINE.md): not shown)
+  const dropped = (e: { key: string; result: string[] }) => penalties.has(e.key.split(">").pop()!.replace(/#\d+$/, "")) && /#\d+$/.test(e.key) && !e.result.some((x) => powers.has(x));
+  const choices = b.log.filter((e) => e.type === "choice" && !e.key.endsWith(":column") && !dropped(e)).flatMap((e) => e.result.filter(Boolean).map((result) => ({ key: e.key, label: e.label, result })));
   return { things: [...new Set(things)], choices };
 }
