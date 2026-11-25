@@ -3,7 +3,8 @@
 // changed, update?" prompt.
 import type { Compendium } from "../rules/compendium.ts";
 import { STATS, type Alignment, type Stat } from "../rules/schema.ts";
-import { build, type BuildMode, type Character, type PendingChoice } from "./build.ts";
+import { type BuildMode, type Character, type PendingChoice } from "./build.ts";
+import { buildAll } from "./companions.ts";
 import type { CharacterRecord, ThingKind } from "./record.ts";
 
 export type ThingChange = { kind: ThingKind; id: string; name: string; qty?: number };
@@ -59,8 +60,9 @@ export function diff(
   opts: { mode?: BuildMode } = {},
 ): CharacterDiff {
   const mode = opts.mode ?? "freeform";
-  const before = build(oldC, record, { mode, roll: middle });
-  const after = build(newC, record, { mode, roll: middle });
+  // with companions: their keys are the character's record too
+  const before = buildAll(oldC, record, { mode, roll: middle });
+  const after = buildAll(newC, record, { mode, roll: middle });
   const a = before.character;
   const b = after.character;
   const stats = STATS.filter((s) => a.stats[s].final !== b.stats[s].final).map((s) => ({
