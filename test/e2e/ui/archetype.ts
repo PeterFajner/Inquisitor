@@ -193,7 +193,8 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
   const rollSteps = [...(base.steps ?? []), "Rolls"];
   await s.step("the Rolls panel opens", { ...base, steps: rollSteps }, async () => {
     await page.clickLabel("Rolls");
-    await page.waitFor(() => document.querySelectorAll(".log .log-row").length > 0, [], { what: "the Rolls table" });
+    // (a fixed profile, as an Arbite's, has nothing rolled or chosen: an empty table)
+    await page.waitFor(() => !!document.querySelector(".csec-log:not(.collapsed)"), [], { what: "the Rolls panel open" });
   });
   const tops = await page.eval(() =>
     [...document.querySelectorAll(".log .log-row")]

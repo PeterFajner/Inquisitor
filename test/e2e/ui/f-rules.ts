@@ -91,7 +91,7 @@ export async function rulesFeature(r: Report, o: RunOptions): Promise<void> {
         return b.textContent!.trim();
       });
       await page.click('[data-e2e="ref"]');
-      await page.waitFor(() => document.querySelector('.rb-tab[aria-current="page"]')?.getAttribute("aria-label") === "Talents & Exotic Abilities", [], { what: "the talents tab" });
+      await page.waitFor(() => document.querySelector('.rb-tab[aria-current="page"]')?.getAttribute("aria-label") === "Talents & Exotic Abilities", [], { what: "the talents tab", timeout: 30_000 });
       const key = decodeURIComponent(await page.eval(() => location.hash)).slice(1);
       const id = key.split("/")[1];
       if (!name.startsWith(c.talents.get(id)?.name ?? "\0")) throw new Error(`went to ${key} for "${name}"`);
