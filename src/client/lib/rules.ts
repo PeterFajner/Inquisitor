@@ -4,7 +4,7 @@
 // (online, an ETag makes an unchanged answer a cheap 304), and older
 // versions stay around so a character pinned to them can show what an
 // update changes (diff needs the old rules too).
-import { API, type RulesPayload } from "../../shared/api.ts";
+import { API, type RulesEvent, type RulesPayload } from "../../shared/api.ts";
 import { buildCompendium, type Compendium } from "../../shared/rules/compendium.ts";
 import { store } from "./store.ts";
 
@@ -88,12 +88,16 @@ function rulesOf(payload: RulesPayload): Rules {
 export const currentRules = store<{ rules: Rules | null }>({ rules: null });
 
 let loading: Promise<Rules> | null = null;
+// Loads started; only the latest one sets the current rules.
+let generation = 0;
 
-/** The current rules: the network's, or offline the last ones this browser kept. */
-export function loadRules(): Promise<Rules> {
-  if (loading) return loading;
-  loading = (async () => {
-    const net = fetch(`${API}/rules`, { credentials: "same-origin" }).then(async (res) => {
+/** The current rules: the network's, or offline the last ones this browser kept. `fresh`: ask the network again (revalidating). */
+export function loadRules(fresh = false): Promise<Rules> {
+  if (loading && !fresh) return loading;
+  const gen = ++generation;
+  const latest = () => gen === generation;
+  const p = (async () => {
+    const net = fetch(`${API}/rules`, { credentials: "same-origin", ...(fresh ? { cache: "no-cache" as const } : {}) }).then(async (res) => {
       if (!res.ok) throw new Error(`http_${res.status}`);
       return (await res.json()) as RulesPayload;
     });
@@ -104,25 +108,78 @@ export function loadRules(): Promise<Rules> {
     try {
       const payload = await net;
       const r = rulesOf(payload);
-      currentRules.set({ rules: r });
-      try {
-        localStorage.setItem(LAST, payload.version);
-      } catch {}
+      if (latest()) {
+        currentRules.set({ rules: r });
+        try {
+          localStorage.setItem(LAST, payload.version);
+        } catch {}
+      }
       void writeRow(payload);
       return r;
     } catch (e) {
       // Offline: the last rules this browser saw.
+      const have = currentRules.get().rules;
+      if (fresh && have) return have;
       const row = last ? await readRow(last) : null;
       if (!row) throw e;
       const r = rulesOf(row.payload);
-      currentRules.set({ rules: r });
+      if (latest()) currentRules.set({ rules: r });
       return r;
     }
   })();
-  loading.catch(() => {
-    loading = null;
+  loading = p;
+  p.catch(() => {
+    if (loading === p) loading = null;
   });
-  return loading;
+  return p;
+}
+
+let wanted: string | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * A rules version seen live (a rules event, a write's answer): when it isn't
+ * the current rules', they are loaded again (once for a burst of events), so
+ * loadRules() and currentRules follow it.
+ */
+export function rulesChanged(version: string | null | undefined): void {
+  if (!version || currentRules.get().rules?.version === version || wanted === version) return;
+  wanted = version;
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    void loadRules(true).then(
+      () => (wanted = null),
+      () => (wanted = null),
+    );
+  }, 200);
+}
+
+let follow: { es: EventSource; users: number } | null = null;
+
+/** Follows the live rules events (GET /api/v1/rules/events) so the current rules stay current; returns the stop. */
+export function followRules(): () => void {
+  if (typeof EventSource === "undefined") return () => {};
+  if (!follow) {
+    const es = new EventSource(`${API}/rules/events`);
+    es.onmessage = (m) => {
+      try {
+        rulesChanged((JSON.parse(m.data) as RulesEvent).version);
+      } catch {}
+    };
+    follow = { es, users: 0 };
+  }
+  const f = follow;
+  f.users++;
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    if (--f.users === 0) {
+      f.es.close();
+      if (follow === f) follow = null;
+    }
+  };
 }
 
 /** Rules at an older version, if this browser kept them. */

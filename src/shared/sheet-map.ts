@@ -4,7 +4,9 @@
 //
 // - Name line: the record's name; the tag line is "Archetype, Subtype,
 //   <chosen options>, Alignment" (the sheet's "Archtype, Subtype, Role,
-//   Alignment"; a character's chosen options are its role).
+//   Alignment"; a character's chosen options are its role): the archetype's
+//   own, and those a rule chose for it (p. 83's Chaos discipline: "Chaos
+//   Undivided").
 // - Starting: final stats (overrides included) and the derived Kbk, BIV, SS,
 //   Cnc, Spd from them.
 // - Abilities: talents, exotic abilities, mutations, psychic powers, as
@@ -20,8 +22,11 @@
 //   for the GM to roll at the table.
 // - A roll that led to an item with nothing to choose from is a line in Other
 //   Equipment/Bionics/Etc, named by what was rolled ("Heavy weapon (Common)").
+// - A companion is a line there too, by the book's name ("Technical
+//   Servitor"); its own sheet follows the character's (companions.ts).
 // - Armour: the engine's AV per hit location (best piece plus extra AV),
 //   with any force field's dice after it.
+import { companionName } from "./engine/companion-name.ts";
 import { deriveStats } from "./engine/derived.ts";
 import type { Character, LocationArmour, Owned, OwnedItem } from "./engine/build.ts";
 import type { Location, Table } from "./rules/schema.ts";
@@ -144,8 +149,9 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
   const ref = (t: Owned): SheetRef => ({ kind: t.kind, id: t.id, overridden: !!t.overridden });
 
   sheet.name = ch.name;
-  // The role: the archetype's own options (not options chosen inside a talent or item).
-  sheet.tagLine = [ch.archetype.name, ch.subtype.name, ...ch.options.filter((o) => o.source === ch.archetype.id).map((o) => o.name), ch.alignment ?? ""]
+  // The role: the archetype's own options and a rule's (not options chosen inside a talent or item).
+  const role = ch.options.filter((o) => o.source === ch.archetype.id || c.rules.has(o.source));
+  sheet.tagLine = [ch.archetype.name, ch.subtype.name, ...role.map((o) => o.name), ch.alignment ?? ""]
     .filter((s, i, all) => s && all.indexOf(s) === i)
     .join(", ");
 
@@ -226,6 +232,12 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
     refs.other.push({ kind: "item", id: "", overridden: false, fixed: true });
   }
 
+  // Companions (a Technical Servitor): each has its own sheet; named here.
+  for (const m of ch.companions ?? []) {
+    sheet.other.push(companionName(c, m));
+    refs.other.push({ kind: "item", id: "", overridden: false, fixed: true });
+  }
+
   // Natural weapons (claws, horns…): rows by their profile, as items are.
   for (const w of ch.weapons ?? []) {
     const asItem = { kind: "item", id: w.source, name: w.name, group: "", source: { page: 0 }, profile: w.profile } as unknown as Item;
@@ -257,4 +269,9 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
 /** The GM's sheet for a built character (the Word and print exports use this). */
 export function toSheetCharacter(ch: Character, c: Compendium): SheetCharacter {
   return sheetParts(ch, c).sheet;
+}
+
+/** A character's sheets: its own, then each companion's (a Technical Servitor's, named by the book). */
+export function characterSheets(b: { character: Character; companions?: { result: { character: Character } }[] }, c: Compendium): SheetCharacter[] {
+  return [toSheetCharacter(b.character, c), ...(b.companions ?? []).map((m) => toSheetCharacter(m.result.character, c))];
 }

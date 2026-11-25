@@ -8,7 +8,8 @@
 // cleared; choosing explicitly leaves any new nested choice pending (pick it,
 // or fill it at random).
 import type { CharacterRecord as ApiRecord } from "../../shared/api.ts";
-import { build, RANDOM, ROLL_OPTION, type BuildResult, type PendingChoice, type RollFn } from "../../shared/engine/build.ts";
+import { RANDOM, ROLL_OPTION, type PendingChoice, type RollFn } from "../../shared/engine/build.ts";
+import { buildAll as build, type FullBuild } from "../../shared/engine/companions.ts";
 import { diff, type CharacterDiff } from "../../shared/engine/diff.ts";
 import { cloneRecord, newRecord, parseRecord, type CharacterRecord, type Override, type ThingKind } from "../../shared/engine/record.ts";
 import { reroll } from "../../shared/engine/reroll.ts";
@@ -27,14 +28,22 @@ export function engineRecord(raw: ApiRecord | unknown): CharacterRecord | null {
 /** For showing a record: nothing new is kept, so dice it lacks show at a middle face. */
 const middle: RollFn = (sides) => Math.ceil(sides / 2);
 
-export function view(c: Compendium, rec: CharacterRecord): BuildResult {
+export function view(c: Compendium, rec: CharacterRecord): FullBuild {
   const b = build(c, rec, { mode: "freeform", roll: middle });
-  // What the archetype itself asks is labelled by its section ("Repentia",
-  // "Equipment"), the book's heading, rather than the archetype's name.
-  const arch = b.character.archetype.name;
-  const relabel = <T extends { label: string; section?: string }>(x: T): T => (x.section && x.label === arch ? { ...x, label: x.section } : x);
+  // What an archetype itself asks is labelled by its section ("Repentia",
+  // "Equipment"), the book's heading, rather than the archetype's name (a
+  // companion's by its own archetype's).
+  const relabel = <T extends { key: string; label: string; section?: string }>(x: T): T => {
+    if (!x.section) return x;
+    const own = x.key.split(COMPANION_KEY).pop() ?? x.key;
+    const a = c.archetypes.get(own.slice(0, own.indexOf("/")));
+    return a && (x.label === a.name || x.label === a.characters) ? { ...x, label: x.section } : x;
+  };
   return { ...b, log: b.log.map(relabel), pending: b.pending.map(relabel) };
 }
+
+/** Splits a key after a companion's key ("…>@companion>servitors/type"). */
+const COMPANION_KEY = /@companion(?:\*\d+)?>/;
 
 /** A uniformly random answer to a pending choice (keeping what's chosen); a power is rolled on the book's table when it has one. */
 export function randomPick(p: PendingChoice, roll: RollFn = cryptoRoller()): string[] {

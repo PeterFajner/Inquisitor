@@ -1012,7 +1012,7 @@ test("powers: formula difficulties count as within maxDifficulty; access; psyker
   assert.ok(at(g.pending, (x) => x.key === "trader/up-to-two").options.some((o) => o.id === "marine-might"), "in every talent pool");
   const b = vbuild(vrec("trader", "fighter", { choices: { "curse/hand": ["Right Arm"] } }));
   assert.ok(b.character.psyker);
-  assert.deepEqual(b.character.companions, [{ archetype: "tester", subtype: "servitor", source: "trader" }]);
+  assert.deepEqual(b.character.companions, [{ archetype: "tester", subtype: "servitor", source: "trader", key: "trader/@companion" }]);
   assert.deepEqual(b.character.locations, [{ source: "curse", location: "Right Arm" }, { source: "curse", location: "Arm" }]);
   assert.deepEqual(at(b.character.mutations, (m) => m.id === "curse").variants, [["Right Arm"]]);
   assert.ok(!vbuild(vrec("tester", "servitor")).character.psyker);

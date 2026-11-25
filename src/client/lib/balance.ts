@@ -10,7 +10,7 @@
 // build's manifest (/static/client/manifest.json).
 import { label, labelText, type BalanceLabel, type Distribution } from "../../shared/engine/balance.ts";
 import type { BalanceReply, BalanceRequest } from "./balance-worker.ts";
-import type { Rules } from "./rules.ts";
+import { currentRules, loadRules, type Rules } from "./rules.ts";
 import { API } from "../../shared/api.ts";
 
 export const QUICK_N = 500;
@@ -86,6 +86,8 @@ function ask(w: Worker, q: Omit<BalanceRequest, "id">): Promise<BalanceReply> {
   });
 }
 
+/** Rules versions the server said aren't current. */
+const staleVersions = new Set<string>();
 const inflight = new Map<string, Promise<Distribution | null>>();
 
 async function simulateIn(lane: Lane, rules: Rules, archetype: string, subtype: string, n: number): Promise<Distribution | null> {
@@ -117,6 +119,12 @@ async function fromServer(rules: Rules, archetype: string, subtype: string): Pro
       const d: unknown = await res.json();
       return usable(d) ? d : null;
     }
+    if (res.status === 409) {
+      // Not the server's current rules: never asked again; the current ones are loaded.
+      staleVersions.add(rules.version);
+      void loadRules(true).catch(() => {});
+      return null;
+    }
     if (res.status !== 202) return null;
     await new Promise((done) => setTimeout(done, 3000));
   }
@@ -128,6 +136,9 @@ export function distribution(rules: Rules, archetype: string, subtype: string): 
   const key = cacheKey(rules.version, archetype, subtype);
   const have = cached(key);
   if (have) return Promise.resolve(have);
+  // The server works out the current rules' only (an older version's is a 409).
+  const current = currentRules.get().rules;
+  if (staleVersions.has(rules.version) || (current && current.version !== rules.version)) return Promise.resolve(null);
   let p = inflight.get(key);
   if (p) return p;
   p = fromServer(rules, archetype, subtype).then((d) => {

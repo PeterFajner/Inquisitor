@@ -10,7 +10,7 @@ import { duplicateShared, headVersion } from "../lib/characters.ts";
 import { navigate } from "../lib/router.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import { BalanceLabel, usePinnedRules } from "./Builder.tsx";
-import { CharacterView } from "./CharacterView.tsx";
+import { CharacterView, Companions } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L } from "./labels.ts";
 import * as ops from "./ops.ts";
@@ -37,6 +37,7 @@ function ReadOnly({ rules, character }: { rules: Rules; character: ApiCharacter 
         <BalanceLabel rules={shown} built={built} />
       </div>
       <CharacterView c={shown.compendium} record={record} built={built} />
+      <Companions c={shown.compendium} built={built} />
     </section>
   );
 }

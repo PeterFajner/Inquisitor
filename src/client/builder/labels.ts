@@ -62,3 +62,11 @@ export const T = {
   reroll: "Reroll",
   downloadDocx: "Download Docx",
 } as const;
+
+/**
+ * Archetype sections whose pick the 2023 site called "Role" (T.role): the
+ * book names the pick after the archetype itself (an Inquisitor's faction,
+ * "decided by the Inquisitor's faction"). Every other Occupation pick is
+ * labelled by its own section heading.
+ */
+export const ROLE_SECTIONS: Record<string, string> = { inquisitor: "Belief Faction" };
