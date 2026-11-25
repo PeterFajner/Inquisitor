@@ -9,7 +9,7 @@
 // (confirm(): `page.dialogAnswer`), and drives input the way a person does:
 // real mouse events (or touch taps on a phone), typed text, keys.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { stop, track } from "./procs.ts";
@@ -36,6 +36,7 @@ export class Chrome {
   private id = 0;
   private waiting = new Map<number, Waiter>();
   private listeners = new Map<string, Set<Listener>>(); // by sessionId ("" = browser)
+  private downloadsSeen: { guid: string; name: string; at: number; state: string }[] = []; // Browser.downloadWillBegin/Progress
 
   static async launch(): Promise<Chrome> {
     const bin = CHROMES.find((c) => existsSync(c));
@@ -99,8 +100,39 @@ export class Chrome {
         for (const l of c.listeners.get(m.sessionId ?? "") ?? []) l(m.method, m.params);
       }
     });
+    c.on("", (method, p) => {
+      if (method === "Browser.downloadWillBegin") c.downloadsSeen.push({ guid: p.guid, name: p.suggestedFilename, at: Date.now(), state: "inProgress" });
+      else if (method === "Browser.downloadProgress") {
+        const d = c.downloadsSeen.find((x) => x.guid === p.guid);
+        if (d) d.state = p.state;
+      }
+    });
     await c.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: c.downloads, eventsEnabled: true });
     return c;
+  }
+
+  /**
+   * The file of the first download begun at or after `since` (named `name`
+   * when given), once Chrome says it completed, no `.crdownload` is left and
+   * its size is non-zero and holds still.
+   */
+  async download(since: number, name?: string, timeout = 20_000): Promise<string> {
+    const t0 = Date.now();
+    const tick = () => new Promise((ok) => setTimeout(ok, 100));
+    let last = -1;
+    for (;;) {
+      const d = this.downloadsSeen.find((x) => x.at >= since && (!name || x.name === name));
+      if (d?.state === "canceled") throw new Error(`download ${d.name} canceled`);
+      if (d?.state === "completed") {
+        const file = join(this.downloads, d.name);
+        const busy = readdirSync(this.downloads).some((f) => f.endsWith(".crdownload"));
+        const size = existsSync(file) ? statSync(file).size : 0;
+        if (!busy && size > 0 && size === last) return file;
+        last = size;
+        if (Date.now() - t0 > timeout) throw new Error(`download ${d.name}: ${size} bytes${busy ? ", a .crdownload left" : ""}`);
+      } else if (Date.now() - t0 > timeout) throw new Error(d ? `download ${d.name}: ${d.state}` : "no download");
+      await tick();
+    }
   }
 
   send<T = any>(method: string, params: object = {}, sessionId?: string, timeoutMs = 60_000): Promise<T> {

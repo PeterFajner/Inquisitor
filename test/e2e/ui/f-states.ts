@@ -17,7 +17,6 @@
 //   option, its archetype deleted, Update with overrides, Apply then Undo and
 //   Redo, the Update button after the edit is made while on the warband,
 //   history and share pages.
-import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import * as ops from "../../../src/client/builder/ops.ts";
 import { warbandWarnings as clientWarnings } from "../../../src/client/warband/warnings.ts";
@@ -276,16 +275,6 @@ const openWarband = async (page: Page, url: string, id: string) => {
   await idle(page);
 };
 
-async function newestDownload(dir: string, since: number, name: string): Promise<string> {
-  const t0 = Date.now();
-  for (;;) {
-    const f = readdirSync(dir).filter((x) => x === `${name}.docx`).map((x) => join(dir, x)).find((x) => statSync(x).mtimeMs >= since);
-    if (f) return f;
-    if (Date.now() - t0 > 20_000) throw new Error("no download");
-    await new Promise((res) => setTimeout(res, 100));
-  }
-}
-
 /** The text of every table cell of a .docx, in order. */
 const docxCells = (zip: Uint8Array): string[] =>
   [...unzipEntry(zip, "word/document.xml").matchAll(/<w:tc>([\s\S]*?)<\/w:tc>/g)].map((m) =>
@@ -326,10 +315,10 @@ export async function warbandStatesFeature(r: Report, o: RunOptions): Promise<vo
     });
     await s.step("the Word export of a warband holds every member and the companion", { steps: [...steps, "Download Docx"] }, async () => {
       await openWarband(page, s.app.url, wb);
-      const t0 = Date.now() - 1000;
+      const t0 = Date.now();
       await page.click('.wb-tools [aria-label="Download Docx"]');
-      const file = await newestDownload(s.chrome.downloads, t0, "E2E-Mixed");
-      const cells = docxText(unzipEntry(readFileSync(file), "word/document.xml"));
+      const file = await s.chrome.download(t0, "E2E-Mixed.docx");
+      const cells = s.readDownload(file, (b) => docxText(unzipEntry(b, "word/document.xml")));
       for (const n of ["E2E Sister", "E2E Kroot", "E2E Enginseer"]) if (!cells.includes(n)) throw new Error(`${n} not in the .docx`);
       // The book's p. 15: "May be accompanied by a Technical Servitor".
       if (!/Servitor/.test(cells)) throw new Error("the Enginseer's Technical Servitor is nowhere in the .docx");
@@ -464,10 +453,10 @@ export async function docxFeature(r: Report, o: RunOptions): Promise<void> {
       await s.step("the .docx holds the sheet's cells", rep, async () => {
         const { id, rec } = await seeded(s, p.arch, p.sub, p.want, name);
         await openCharacter(page, s.app.url, id);
-        const t0 = Date.now() - 1000;
+        const t0 = Date.now();
         await page.click('.char-tools [aria-label="Download Docx"]');
-        const file = await newestDownload(s.chrome.downloads, t0, name);
-        const cells = docxCells(readFileSync(file));
+        const file = await s.chrome.download(t0, `${name}.docx`);
+        const cells = s.readDownload(file, docxCells);
         const sheet = toSheetCharacter({ ...ops.view(c, rec).character, name }, c);
         const run = (want: string[]) => cells.some((_, k) => want.every((w, j) => cells[k + j] === w));
         const starting = SHEET_STATS.map((x) => sheet.starting[x]);

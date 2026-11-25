@@ -530,6 +530,7 @@ class Pass {
   children = new Map<string, Made[]>(); // "<kind>/<id>" → what its own effects made
   repicks = new Set<string>(); // keys of pieces a trade chose for a gear result
   tradedAway = new Set<string>(); // items a trade took away (the last of them)
+  trades: string[] = []; // the trades taken (`<trade>#<n>`)
   kinds = new Map<string, PendingChoice["kind"]>(); // each choice made this pass, its kind
   fallback: Record<string, string[]> = {}; // what an earlier pass chose instead of a stored choice it refused
   gearAvail = new Set<Availability>();
@@ -1374,15 +1375,44 @@ class Pass {
     if (e.filter?.owned === true && e.into && !this.deferring && !this.presetFor(src, scope, e.id)) {
       const section = this.section;
       this.deferred.push(() => {
-        // (the thing was taken away again: a trade)
+        // (the thing was taken away again: a trade). Given up with nothing
+        // it could have been mounted on, the result that made it is rolled
+        // again all the same: it was never the character's to give.
         const kind = src.kind;
-        if (e.into === "self" && kind && kind in KIND_MAP && !this.owned[kind as ThingKind].has(src.id)) return;
+        if (e.into === "self" && kind && kind in KIND_MAP && !this.owned[kind as ThingKind].has(src.id)) {
+          if (kind === "item" && this.tradedAway.has(src.id) && e.pool && !this.forced.has(key)) this.noteUnmet(key, e, scope, this.candidates(e, scope));
+          return;
+        }
         this.section = section;
         this.pickAt(key, e, src, scope);
       });
       return;
     }
     this.pickAt(key, e, src, scope);
+  }
+
+  // What a pool pick may choose from: under a gear result, what its gear
+  // effect allows (alien, exclude).
+  candidates(e: Extract<Effect, { pick: unknown }>, scope: Scope): (Ability | Item)[] {
+    const kind = e.pool!;
+    const cands = this.poolOf(kind, e.filter, { inResult: scope.prefix !== "" });
+    if (kind !== "item" || (!scope.noAlien && !scope.exclude)) return cands;
+    return cands.filter((y) => !(scope.noAlien && (y as Item).alien) && !(scope.exclude && matches(y, scope.exclude)));
+  }
+
+  // A `required` pool pick with nothing to choose from: the result that led
+  // to it is rolled again (rerollResults). Not when a trade took away what
+  // it needs: a trade never rolls gear again. Nor does what a trade made
+  // count for gear made before the trades (a Basic weapon rolled by a trade
+  // doesn't keep a Chainblade rolled again for having nothing to mount it on).
+  noteUnmet(key: string, e: Extract<Effect, { pick: unknown }>, scope: Scope, cands: (Ability | Item)[]): void {
+    if (!e.required) return;
+    const at = scope.parent ?? key;
+    const inTrade = this.trades.some((t) => at === t || nestedIn(at, t));
+    const byTrade = (id: string) => this.owned[e.pool!].get(id)?.from.every((f) => f.key && this.trades.some((t) => nestedIn(f.key!, t)));
+    if ((inTrade ? cands : cands.filter((y) => !byTrade(y.id))).length) return;
+    const traded = this.tradedAway.size > 0 && this.poolOf(e.pool!, { ...e.filter, owned: false }, { depth: 1 }).some((y) => this.tradedAway.has(y.id));
+    if (!traded) this.unmet.push(at);
   }
 
   pickAt(key: string, e: Extract<Effect, { pick: unknown }>, src: Source, scope: Scope): void {
@@ -1490,14 +1520,8 @@ class Pass {
       return;
     }
     const kind = e.pool!;
-    let cands = this.poolOf(kind, e.filter, { inResult: scope.prefix !== "" });
-    // under a gear result: what its gear effect allows (alien, exclude)
-    if (kind === "item" && (scope.noAlien || scope.exclude)) {
-      cands = cands.filter((y) => !(scope.noAlien && (y as Item).alien) && !(scope.exclude && matches(y, scope.exclude)));
-    }
-    // (not when a trade took away what it needs: a trade never rolls gear again)
-    const traded = () => this.tradedAway.size > 0 && this.poolOf(kind, { ...e.filter, owned: false }, { depth: 1 }).some((y) => this.tradedAway.has(y.id));
-    if (e.required && !cands.length && !x.preset && !this.forced.has(key) && !traded()) this.unmet.push(scope.parent ?? key);
+    const cands = this.candidates(e, scope);
+    if (!x.preset && !this.forced.has(key)) this.noteUnmet(key, e, scope, cands);
     // A roll that led to an item with nothing to choose from (no Common heavy
     // weapon exists): the character still shows what was rolled.
     if (kind === "item" && !cands.length && !open && count > 0 && !x.preset && !this.forced.has(key)) {
@@ -2206,6 +2230,7 @@ class Pass {
         return;
       }
       if (ask().ids[0] !== "yes") return;
+      this.trades.push(k);
       const inner: Scope = { ...scope, prefix: `${k}>`, parent: k, depth: scope.depth + 1 };
       let upgrade: Scope["upgrade"];
       if (up) {

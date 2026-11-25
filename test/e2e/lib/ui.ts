@@ -4,7 +4,8 @@
 // the form or (seeded, for coverage) through the API, reading what is shown,
 // and the checks every page gets (no console errors, the no-UI-text rule,
 // labelled icon controls).
-import { join } from "node:path";
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { BuildResult } from "../../../src/shared/engine/build.ts";
 import type { FullBuild } from "../../../src/shared/engine/companions.ts";
 import type { CharacterRecord } from "../../../src/shared/engine/record.ts";
@@ -67,6 +68,19 @@ export class Session {
   async stop(): Promise<void> {
     await this.chrome?.close();
     await this.app?.stop();
+  }
+
+  /** Reads a downloaded file with `parse`; a file it can't read is kept beside the screenshots (and named in the error). */
+  readDownload<T>(file: string, parse: (bytes: Uint8Array) => T): T {
+    const bytes = readFileSync(file);
+    try {
+      return parse(bytes);
+    } catch (e) {
+      mkdirSync(this.shots, { recursive: true });
+      const kept = join(this.shots, `${String(++this.shotN).padStart(3, "0")}-bad-${basename(file)}`);
+      copyFileSync(file, kept);
+      throw new Error(`${(e as Error).message} (${bytes.length} bytes, kept as ${kept})`);
+    }
   }
 
   async screenshot(name: string, page = this.page): Promise<string> {

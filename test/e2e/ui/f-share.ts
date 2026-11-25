@@ -1,6 +1,5 @@
 /// <reference lib="dom.iterable" />
 // History, share links and warbands, each a shard.
-import { readFileSync } from "node:fs";
 import * as ops from "../../../src/client/builder/ops.ts";
 import { warbandWarnings as clientWarnings } from "../../../src/client/warband/warnings.ts";
 import { warbandWarnings } from "../../../src/shared/engine/warband.ts";
@@ -230,17 +229,11 @@ export async function warbandFeature(r: Report, o: RunOptions): Promise<void> {
       if ((await order()).join() !== o0.join()) throw new Error("not back in order");
     });
     await s.step("Word export of the warband", { ...base, steps: [...base.steps!, "Download Docx"] }, async () => {
-      const t0 = Date.now() - 1000;
+      const t0 = Date.now();
       await page.click('.wb-tools [aria-label="Download Docx"]');
-      const t1 = Date.now();
-      let file = "";
-      while (!file && Date.now() - t1 < 20000) {
-        const { readdirSync, statSync } = await import("node:fs");
-        file = readdirSync(s.chrome.downloads).filter((f) => f.endsWith(".docx")).map((f) => `${s.chrome.downloads}/${f}`).find((f) => statSync(f).mtimeMs >= t0) ?? "";
-        if (!file) await new Promise((res) => setTimeout(res, 100));
-      }
+      const file = await s.chrome.download(t0);
       if (!file.endsWith("E2E Retinue.docx")) throw new Error(`file "${file}"`);
-      const text = docxText(unzipEntry(readFileSync(file), "word/document.xml"));
+      const text = s.readDownload(file, (b) => docxText(unzipEntry(b, "word/document.xml")));
       if ((text.match(/Inquisitor, /g) ?? []).length < 2) throw new Error("the members aren't all in the .docx");
     });
     await s.step("Remove from the warband", { ...base, steps: [...base.steps!, "Remove from the warband (last)"] }, async () => {

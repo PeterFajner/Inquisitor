@@ -102,7 +102,12 @@ trade gave or raised at random this build is chosen again:
   outermost roll or gear result that led to it is rolled again (`~n`); the
   decisions that made it stay in the record, so a replay finds the same.
   Never because of a trade: a piece a trade chose, or a mount a trade gave
-  up, leaves the pick empty (a warning) rather than roll gear again.
+  up, leaves the pick empty (a warning) rather than roll gear again. Gear a
+  trade made doesn't count for gear made before the trades (a Basic weapon
+  a trade rolled doesn't keep a Chainblade with nothing else to mount it
+  on). An item a trade gives up whose pick would have had nothing is rolled
+  again all the same: it was never there to give (the give is made again;
+  a stored one isn't allowed, a warning).
 
 At most six passes. The character's `restrictions` are the archetype's
 own and those the last pass met.

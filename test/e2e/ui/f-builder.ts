@@ -3,8 +3,7 @@
 // character in place (name, stats, alignment, adding and removing things),
 // the Rolls panel, undo/redo, duplicate, both deletes, the Word and print
 // exports.
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import * as ops from "../../../src/client/builder/ops.ts";
 import type { Page } from "../lib/cdp.ts";
 import type { Report, Repro } from "../lib/report.ts";
@@ -398,17 +397,6 @@ export async function duplicateDeleteFeature(r: Report, o: RunOptions): Promise<
   });
 }
 
-/** The newest download, once Chrome has finished writing it. */
-async function download(dir: string, since: number, timeout = 20_000): Promise<string> {
-  const t0 = Date.now();
-  for (;;) {
-    const done = readdirSync(dir).filter((f) => !f.endsWith(".crdownload")).map((f) => join(dir, f)).filter((f) => statSync(f).mtimeMs >= since);
-    if (done.length) return done.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
-    if (Date.now() - t0 > timeout) throw new Error("no download");
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
-
 export async function exportFeature(r: Report, o: RunOptions): Promise<void> {
   const c = realCompendium();
   await withSession(r, o, async (s) => {
@@ -422,11 +410,11 @@ export async function exportFeature(r: Report, o: RunOptions): Promise<void> {
     const base: Repro = { archetype: "imperial-guard", subtype: "fighter", steps: ["New character Imperial Guard Fighter", "name E2E Varro"] };
     for (const [where, sel] of [["top bar", '.char-tools [aria-label="Download Docx"]'], ["card footer", ".ccard-foot .text-btn"]] as const) {
       await s.step(`Download Docx (${where}) saves the sheet`, { ...base, steps: [...base.steps!, `Download Docx (${where})`] }, async () => {
-        const t0 = Date.now() - 1000;
+        const t0 = Date.now();
         await page.click(sel);
-        const file = await download(s.chrome.downloads, t0);
+        const file = await s.chrome.download(t0);
         if (!file.endsWith("E2E Varro.docx")) throw new Error(`file ${file}`);
-        const text = docxText(unzipEntry(readFileSync(file), "word/document.xml"));
+        const text = s.readDownload(file, (b) => docxText(unzipEntry(b, "word/document.xml")));
         const ch = ops.view(c, await headRecord(page, id)).character;
         const missing = [ch.name, ...ch.items.map((x) => x.name), ...ch.talents.map((x) => x.name)].filter((n) => !text.includes(n));
         if (missing.length) throw new Error(`the .docx lacks ${missing.join(", ")}`);

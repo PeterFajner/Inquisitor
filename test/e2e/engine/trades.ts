@@ -92,7 +92,9 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
     }
   }
   if (give.downgrade) {
-    // Each result's item by the record's `:item` choice, not by `from`: a quantity given up leaves an origin no one reads (ENGINE.md).
+    // Each result's items by origin (its own `:item`, a row it rolled, or a
+    // piece an earlier trade chose again for it), counted by quantity: a
+    // quantity given up leaves an origin no one reads (ENGINE.md).
     const lostItems = new Map<string, number>();
     for (const slot of given) {
       const was = chB.rolls.find((x) => x.key === slot);
@@ -101,11 +103,10 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
       const upgraded = Object.entries(next.choices).some(([kk, v]) => kk.startsWith(`${k}>`) && v.includes(slot));
       if (was.availability === "Common") {
         r.expect(!!now?.lost || upgraded, `${what}: a Common result downgraded is lost (p. 38)`, `${slot} (${was.label}) not lost: ${JSON.stringify(now)}`, { ...rep, record: next }, norm(k));
-        const id = slotItem(rec, slot);
-        if (!upgraded && id) lostItems.set(id, (lostItems.get(id) ?? 0) + 1);
+        if (!upgraded) for (const id of slotItems(chB, slot)) lostItems.set(id, (lostItems.get(id) ?? 0) + 1);
       } else if (!upgraded) {
         r.expect(now?.availability === step(was.availability, -give.downgrade), `${what}: a downgraded result is a step lower`, `${slot}: ${was.availability} → ${now?.availability}`, { ...rep, record: next }, norm(k));
-        const its = chA.items.filter((it) => it.id === slotItem(next, slot, k));
+        const its = chosenAgain(next, chA, `${k}:give>${slot}:item`);
         for (const it of its) if (it.availability && c.items.get(it.id)?.unrestricted !== true) r.expect(it.availability === now?.availability, `${what}: the item chosen again is of the new availability`, `${it.name} ${it.availability}, result ${now?.availability}`, { ...rep, record: next }, norm(k));
       }
     }
@@ -129,14 +130,34 @@ function take(r: Report, c: Compendium, before: BuildResult, rec: CharacterRecor
     const wantAvail = step(step(was?.availability, -down), e.upgrade);
     if (was?.availability) r.expect(now?.availability === wantAvail, `${what}: an upgraded result is a step higher (p. 38)`, `${slot}: ${was.availability}${down ? ` (downgraded too)` : ""} → ${now?.availability}, wanted ${wantAvail}`, { ...rep, record: next }, norm(k));
     if (given.includes(slot)) r.note(`${k}: the upgrade chose ${slot}, a result it also downgraded (the book doesn't forbid it), e.g. ${rep.archetype}/${rep.subtype} seed ${rep.seed}`);
-    const its = chA.items.filter((it) => it.id === next.choices[`${upKey}>${slot}:item`]?.[0]);
+    const its = chosenAgain(next, chA, `${upKey}>${slot}:item`);
     for (const it of its) if (it.availability && c.items.get(it.id)?.unrestricted !== true) r.expect(it.availability === now?.availability, `${what}: the upgraded item is of the new availability`, `${it.name} ${it.availability}, result ${now?.availability}`, { ...rep, record: next }, norm(k));
   }
   return { rec: next, after };
 }
 
-/** The item a gear result holds, by the record's choice: chosen again under trade `k` if it was, else its own. */
-function slotItem(rec: CharacterRecord, slot: string, k?: string): string | undefined {
-  const again = k ? Object.keys(rec.choices).filter((x) => x.startsWith(`${k}>`) && x.endsWith(`>${slot}:item`)).pop() : undefined;
-  return rec.choices[again ?? `${slot}:item`]?.[0];
+const nestedIn = (key: string, r: string) => key === r || (key.startsWith(r) && [":", ">", "#"].includes(key[r.length]));
+
+/** Whether origin key `f` is gear result `slot`'s: its own item or a row it rolled, or a piece any trade chose again for it (`<give>><slot>:item`). */
+function ofSlot(f: string, slot: string): boolean {
+  if (nestedIn(f, slot)) return true;
+  const again = `>${slot}:item`;
+  const i = f.indexOf(again);
+  return i >= 0 && (i + again.length === f.length || f[i + again.length] === ">");
+}
+
+/** The items gear result `slot` holds, by origin. */
+function slotItems(ch: BuildResult["character"], slot: string): string[] {
+  return ch.items.filter((it) => it.from.some((f) => f.key && ofSlot(f.key, slot))).map((it) => it.id);
+}
+
+/**
+ * The items a trade chose again under `ck` (`<give>><slot>:item`), by
+ * origin. None to check when the piece is a sub-table's row (`<table>/<row>`):
+ * a row of the table for the new availability may grant an item of another
+ * (p. 38's Rare Armour table holds Common Mesh).
+ */
+function chosenAgain(rec: CharacterRecord, ch: BuildResult["character"], ck: string): BuildResult["character"]["items"] {
+  if (rec.choices[ck]?.some((id) => id.includes("/"))) return [];
+  return ch.items.filter((it) => it.from.some((f) => f.key && nestedIn(f.key, ck)));
 }
