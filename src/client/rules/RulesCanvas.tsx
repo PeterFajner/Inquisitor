@@ -648,7 +648,7 @@ export function RulesCanvas({ data }: { data: PageData }) {
 
   // Search: the shown cards by name; choosing one selects it and flies there.
   const searchable = useMemo(
-    () => cards.map((c) => ({ key: c.id, name: c.label ?? "", kind: c.item.entry.kind, mark: marks.get(c.item.pack) ?? null, book: packName.get(c.item.pack) ?? c.item.pack })),
+    () => cards.map((c) => ({ key: c.id, name: c.label ?? "", label: c.label ?? "", kind: c.item.entry.kind, mark: marks.get(c.item.pack) ?? null, book: packName.get(c.item.pack) ?? c.item.pack })),
     [cards, marks, packName],
   );
   const pick = useCallback((key: Key) => {

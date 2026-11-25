@@ -64,6 +64,35 @@ export function parseHash(hash: string, tabOf: (key: Key) => string | null, tabs
   return tabs.includes(h) ? { tab: h, key: null } : null;
 }
 
+/**
+ * The cards the page shows: of the shown books' entries, each kind and id
+ * once, the version the compendium uses (`origin`: the topmost shown book's,
+ * as packOrder stacks them). Hiding that book shows the one underneath.
+ */
+export function winners<T extends { pack: string; entry: { kind: string; id: string } }>(items: readonly [Key, T][], origin: ReadonlyMap<string, string>): [Key, T][] {
+  return items.filter(([, it]) => origin.get(`${it.entry.kind}/${it.entry.id}`) === it.pack);
+}
+
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * Names as the Table of Contents and search list them: a card's name, or,
+ * where a card of the same tab from another book has the same name (case
+ * and accents aside), the name with its book's in brackets
+ * ("Injuries (Crone World)"). Cards' own titles stay as they are.
+ */
+export function listNames(cards: readonly { key: Key; name: string; tab: string; pack: string; book: string }[]): Map<Key, string> {
+  const packs = new Map<string, Set<string>>();
+  const id = (c: { name: string; tab: string }) => `${c.tab}\u0000${fold(c.name.trim())}`;
+  for (const c of cards) {
+    const k = id(c);
+    let s = packs.get(k);
+    if (!s) packs.set(k, (s = new Set()));
+    s.add(c.pack);
+  }
+  return new Map(cards.map((c) => [c.key, packs.get(id(c))!.size > 1 ? `${c.name} (${c.book})` : c.name]));
+}
+
 /** The card a link names (a chip's reference, a table's "Rolled on by"): the topmost shown book's entry, as the compendium has it. */
 export function linkTarget(origin: ReadonlyMap<string, string>, kind: RefKind, id: string): Key | null {
   const pack = origin.get(`${kind}/${id}`);

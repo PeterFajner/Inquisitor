@@ -76,7 +76,7 @@ export function SearchBox({ cards, onPick }: { cards: readonly Searchable[]; onP
                   onPointerEnter={() => setAt(i)}
                 >
                   <Ic icon={KIND_ICON[c.kind]} label={KIND_LABEL[c.kind]} size={14} />
-                  <span class="search-name">{c.name}</span>
+                  <span class="search-name">{c.label}</span>
                 </li>
               ))}
             </ul>

@@ -178,7 +178,7 @@ test("wires stay in the gutters on a board with several stacks of shelves per re
 });
 
 test("search: names holding the query, those starting with it first, then a word starting with it, A–Z", () => {
-  const c = (name: string, book = "Loyalist") => ({ key: `${book}:${name}`, name, kind: "item" as const, mark: null, book });
+  const c = (name: string, book = "Loyalist") => ({ key: `${book}:${name}`, name, label: name, kind: "item" as const, book });
   const cards = [c("Heavy Bolter"), c("Bolt Pistol"), c("Bolter"), c("Psycannon Bolts"), c("Thunderbolt"), c("Lasgun"), c("Bolter", "Article")];
   assert.deepEqual(matches(cards, "bolt").map((x) => x.name), ["Bolt Pistol", "Bolter", "Bolter", "Heavy Bolter", "Psycannon Bolts", "Thunderbolt"]);
   assert.deepEqual(matches(cards, "  BOLTER ").map((x) => x.book), ["Article", "Loyalist", "Loyalist"]);

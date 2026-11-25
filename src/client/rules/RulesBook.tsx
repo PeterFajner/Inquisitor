@@ -7,8 +7,10 @@
 // and the reader's place is picked out. Links between cards (a chip's
 // reference, a table's "Rolled on by") switch tab if need be, scroll to the
 // card and flash it; every card has its address (#<pack>:<kind>/<id>), so
-// back, forward and shared links work. The packs menu filters the books (an
-// article's cards carry its mark); search finds a card by name. Signed in,
+// back, forward and shared links work. The packs menu filters the books; an
+// entry an article overrides shows once (the article's, as the builder has
+// it), and a name another book's card on the tab shares is listed with its
+// book's (./book.ts listNames). Search finds a card by name. Signed in,
 // cards can be edited, created and deleted; edits from others arrive live.
 //
 // Speed: cards skip layout and paint off screen (content-visibility, sized
@@ -26,7 +28,7 @@ import type { Entry } from "../../shared/rules/schema.ts";
 import { MenuToggle, SiteBar } from "../components/SiteBar.tsx";
 import { account } from "../lib/account.ts";
 import { useStore } from "../lib/store.ts";
-import { byDistance, cardAt, columnsIn, hashOf, linkTarget, masonry, parseHash } from "./book.ts";
+import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, winners } from "./book.ts";
 import { Card, type CardActions } from "./Card.tsx";
 import { cardHeight, LAYOUT } from "./card-height.tsx";
 import { KIND_ICON, KIND_LABEL } from "./chips/index.ts";
@@ -69,7 +71,8 @@ const cancelIdle = (h: number) => (typeof cancelIdleCallback === "function" ? ca
 /** A card's size, and the names it looks up in other entries (./sizes.ts), when known. */
 type Sized = { w: number; h: number; d?: string[] };
 /** `sig`: what the card shows of other entries (the names it looks up, as they are now): a card is drawn again only when this or its entry changes. */
-type BookCard = { id: Key; region: string; shelf: string; name: string; w: number; h: number; item: Item; sig: string };
+/** `label`: its name in the Table of Contents (with its book's, where another book's card on the tab has the same name). */
+type BookCard = { id: Key; region: string; shelf: string; name: string; label: string; w: number; h: number; item: Item; sig: string };
 
 function readLocal(k: string): string | null {
   try {
@@ -174,16 +177,22 @@ export function RulesBook({ data }: { data: PageData }) {
 
   const visiblePacks = useMemo(() => s.packs.filter((p) => !hidden.has(p.id)), [s.packs, hidden]);
   const packName = useMemo(() => new Map(s.packs.map((p) => [p.id, p.name])), [s.packs]);
-  const visible = useMemo(() => {
+  const inShown = useMemo(() => {
     const vis = new Set(visiblePacks.map((p) => p.id));
     return [...s.items].filter(([, it]) => vis.has(it.pack));
   }, [s.items, visiblePacks]);
   const compendium = useMemo(() => {
     const stack: PackEntries[] = visiblePacks.map((pack) => ({ pack, entries: [] }));
     const byPack = new Map(stack.map((p) => [p.pack.id, p]));
-    for (const [, it] of visible) byPack.get(it.pack)?.entries.push(it.entry);
+    for (const [, it] of inShown) byPack.get(it.pack)?.entries.push(it.entry);
     return buildCompendium(stack);
-  }, [visible, visiblePacks]);
+  }, [inShown, visiblePacks]);
+  // An entry an article overrides shows once, as the compendium has it (hide the article to see the book's).
+  const visible = useMemo(() => winners(inShown, compendium.origin), [inShown, compendium]);
+  const labels = useMemo(
+    () => listNames(visible.map(([key, it]) => ({ key, name: it.entry.name, tab: regionOf(it.entry), pack: it.pack, book: packName.get(it.pack) ?? it.pack }))),
+    [visible, packName],
+  );
   const names = useMemo(() => namesOf(compendium), [compendium]);
   const sizes = useCardSizes(visible, names, s.heights);
 
@@ -199,10 +208,11 @@ export function RulesBook({ data }: { data: PageData }) {
       const sz: Sized = sizes.get(key) ?? { w: widthOf(it.entry), h: EST_H };
       const shelf = shelfOf(it.entry, packName.get(it.pack) ?? it.pack);
       const sig = sz.d ? depsHash(sz.d.map((d) => depValue(names, d))) : "";
+      const label = labels.get(key) ?? it.entry.name;
       const old = cardCache.current.get(key);
-      const c = old && old.item === it && old.w === sz.w && old.h === sz.h && old.shelf === shelf && old.sig === sig
+      const c = old && old.item === it && old.w === sz.w && old.h === sz.h && old.shelf === shelf && old.sig === sig && old.label === label
         ? old
-        : { id: key, region: regionOf(it.entry), shelf, name: it.entry.name, w: sz.w, h: sz.h, item: it, sig };
+        : { id: key, region: regionOf(it.entry), shelf, name: it.entry.name, label, w: sz.w, h: sz.h, item: it, sig };
       next.set(key, c);
       return c;
     });
@@ -210,7 +220,7 @@ export function RulesBook({ data }: { data: PageData }) {
     const out = new Map<string, ShelfGroup<BookCard>[]>(REGIONS.map((r) => [r.id, []]));
     for (const g of groupShelves(REGIONS, cards, shelfRank)) out.get(g.region)!.push(g);
     return out;
-  }, [visible, sizes, shelfRank, packName, names]);
+  }, [visible, sizes, shelfRank, packName, names, labels]);
   const tabOfKey = useCallback((key: Key) => {
     const it = rules.get().items.get(key);
     return it ? regionOf(it.entry) : null;
@@ -403,8 +413,8 @@ export function RulesBook({ data }: { data: PageData }) {
 
   // Search: every shown card by name; choosing one shows it.
   const searchable = useMemo(
-    () => visible.map(([key, it]) => ({ key, name: it.entry.name, kind: it.entry.kind, book: packName.get(it.pack) ?? it.pack })),
-    [visible, packName],
+    () => visible.map(([key, it]) => ({ key, name: it.entry.name, label: labels.get(key) ?? it.entry.name, kind: it.entry.kind, book: packName.get(it.pack) ?? it.pack })),
+    [visible, packName, labels],
   );
   const pick = useCallback((key: Key) => goKey(key, { flash: true }), [goKey]);
   const tocPick = useCallback(
@@ -548,7 +558,7 @@ class Toc extends Component<TocProps> {
                         p.onPick(c.id);
                       }}
                     >
-                      {c.name}
+                      {c.label}
                     </a>
                   </li>
               ))}

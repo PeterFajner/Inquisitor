@@ -4,7 +4,8 @@
 import type { Entry } from "../../shared/rules/schema.ts";
 import { compareNames } from "./shelves.ts";
 
-export type Searchable = { key: string; name: string; kind: Entry["kind"]; book: string };
+/** `label`: as listed (./book.ts listNames: with its book's name where another book's card on its tab has the same name). */
+export type Searchable = { key: string; name: string; label: string; kind: Entry["kind"]; book: string };
 
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 

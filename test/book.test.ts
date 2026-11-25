@@ -3,7 +3,9 @@
 // the address, where a link goes, and where the reader is.
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { byDistance, cardAt, columnsIn, hashOf, linkTarget, masonry, parseHash } from "../src/client/rules/book.ts";
+import { buildCompendium, type PackEntries } from "../src/shared/rules/compendium.ts";
+import type { Entry, Pack } from "../src/shared/rules/schema.ts";
+import { byDistance, cardAt, columnsIn, hashOf, linkTarget, listNames, masonry, parseHash, winners } from "../src/client/rules/book.ts";
 import { REGIONS } from "../src/client/rules/regions.ts";
 import { groupShelves, layoutShelves, type ShelfCard } from "../src/client/rules/shelves.ts";
 
@@ -120,4 +122,58 @@ test("byDistance: cards in view first (in order), then the nearest", () => {
     { id: "far-below", top: 5000, h: 100 },
   ];
   assert.deepEqual(byDistance(cs, 1000, 1800), ["in", "in2", "above", "below", "far-above", "far-below"]);
+});
+
+// --- an article's overrides, and names two books share ---------------------------
+
+const pk = (id: string, ext?: string[]): Pack => ({ id, name: id, ...(ext ? { extends: ext } : {}) });
+const rule = (id: string, name = id) => ({ kind: "rule", id, name }) as Entry;
+const shown = (packs: Pack[], items: [string, Entry][]) => {
+  const all = items.map(([pack, entry]) => [`${pack}:${entry.kind}/${entry.id}`, { pack, entry }] as [string, { pack: string; entry: Entry }]);
+  const stack: PackEntries[] = packs.map((pack) => ({ pack, entries: items.filter(([p]) => p === pack.id).map(([, e]) => e) }));
+  const vis = new Set(packs.map((p) => p.id));
+  return winners(all.filter(([, it]) => vis.has(it.pack)), buildCompendium(stack).origin).map(([k]) => k);
+};
+
+test("winners: an entry an article overrides shows once, the article's (the compendium's); hiding the article shows the book's", () => {
+  const items: [string, Entry][] = [
+    ["loyalist", rule("cherubim")],
+    ["loyalist", rule("injuries")],
+    ["angels", rule("cherubim")],
+    ["angels", rule("wings")],
+  ];
+  // Listed before the book it extends, the article still wins (packOrder).
+  assert.deepEqual(shown([pk("angels", ["loyalist"]), pk("loyalist")], items), ["loyalist:rule/injuries", "angels:rule/cherubim", "angels:rule/wings"]);
+  assert.deepEqual(shown([pk("loyalist")], items), ["loyalist:rule/cherubim", "loyalist:rule/injuries"]);
+  // The same id of another kind isn't overridden.
+  assert.deepEqual(shown([pk("loyalist"), pk("angels", ["loyalist"])], [["loyalist", { kind: "table", id: "cherubim", name: "Cherubim" } as Entry], ["angels", rule("cherubim")]]), [
+    "loyalist:table/cherubim",
+    "angels:rule/cherubim",
+  ]);
+});
+
+test("listNames: a name another book's card on the same tab has gets its book's in brackets; one book's, or another tab's, stays", () => {
+  const c = (key: string, name: string, tab: string, pack: string) => ({ key, name, tab, pack, book: pack === "cw" ? "Crone World" : pack === "hq" ? "Hivequake at Newpitt" : "Loyalist" });
+  const l = listNames([
+    c("cw:rule/injuries", "Injuries", "rules", "cw"),
+    c("hq:rule/injuries", "Injuries", "rules", "hq"),
+    c("lo:rule/equipment", "Equipment", "rules", "lo"),
+    c("cw:rule/equipment", "équipment", "rules", "cw"),
+    // the same book twice (shelves tell them apart): left alone
+    c("lo:exotic/wings", "Wings", "talents", "lo"),
+    c("lo:exotic/alien-wings", "Wings", "talents", "lo"),
+    // another tab: left alone
+    c("lo:item/cherubim", "Cherubim", "equipment", "lo"),
+    c("aw:archetype/cherubim", "Cherubim", "archetypes", "aw"),
+  ]);
+  assert.deepEqual(Object.fromEntries(l), {
+    "cw:rule/injuries": "Injuries (Crone World)",
+    "hq:rule/injuries": "Injuries (Hivequake at Newpitt)",
+    "lo:rule/equipment": "Equipment (Loyalist)",
+    "cw:rule/equipment": "équipment (Crone World)",
+    "lo:exotic/wings": "Wings",
+    "lo:exotic/alien-wings": "Wings",
+    "lo:item/cherubim": "Cherubim",
+    "aw:archetype/cherubim": "Cherubim",
+  });
 });
