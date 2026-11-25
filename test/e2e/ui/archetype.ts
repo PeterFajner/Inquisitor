@@ -151,18 +151,27 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
       if (count !== undefined) s.r.expect(n === count + 3, "Boons Reroll rolls D3+3 boons", `count die ${count}, ${n} boons`, { ...base, steps, record: rec });
     }
   }
-  // Every Occupation dropdown (not Archetype/Subtype), every option.
+  // Every Occupation dropdown (not Archetype/Subtype), every option; by position (two may share a label).
   const occs = await page.eval(() =>
     [...document.querySelectorAll(".occ select")]
-      .map((x) => ({ label: x.getAttribute("aria-label") ?? "", options: [...(x as HTMLSelectElement).options].map((o) => o.value) }))
+      .map((x, i) => ({ i, label: x.getAttribute("aria-label") ?? "", options: [...(x as HTMLSelectElement).options].map((o) => o.value) }))
       .filter((x) => x.label !== "Archetype" && x.label !== "Subtype"),
   );
+  const labels = occs.map((x) => x.label);
+  const twice = labels.filter((l, i) => labels.indexOf(l) !== i);
+  s.r.expect(!twice.length, "Occupation dropdowns have distinct labels", `two dropdowns labelled ${[...new Set(twice)].map((l) => `"${l}"`).join(", ")}`, base, `${archId}: ${twice.join(",")}`);
   for (const occ of occs) {
     for (const value of occ.options.slice(0, 6)) {
-      const sel = `.occ select[aria-label=${JSON.stringify(occ.label)}]`;
-      const steps = [...(base.steps ?? []), `Occupation ${occ.label} → ${value || "–"}`];
+      const steps = [...(base.steps ?? []), `Occupation dropdown #${occ.i} (${occ.label}) → ${value || "–"}`];
       await s.step("Occupation dropdowns change the choice", { ...base, steps }, async () => {
+        // The same dropdown: by its options (the list may reorder after a change).
+        await page.eval((sig: string) => {
+          document.querySelectorAll("[data-e2e-occ]").forEach((x) => x.removeAttribute("data-e2e-occ"));
+          [...document.querySelectorAll(".occ select")].find((x) => [...(x as HTMLSelectElement).options].map((o) => o.value).join("\n") === sig)?.setAttribute("data-e2e-occ", "");
+        }, occ.options.join("\n"));
+        const sel = "select[data-e2e-occ]";
         const cur = await page.eval((q: string) => (document.querySelector(q) as HTMLSelectElement | null)?.value, sel);
+        if (cur === undefined) throw new Error(`dropdown #${occ.i} (${occ.label}) is gone`);
         if (cur === value) return;
         await page.select(sel, value);
         await idle(page);
@@ -193,6 +202,8 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
       .map((x) => x.label!),
   );
   for (const label of [...new Set(tops)].filter((l) => !/: (WS|BS|S|T|I|Wp|Sg|Nv|Ld)$/.test(l)).slice(0, 5)) {
+    // An earlier re-roll may have taken this row away.
+    if (!(await page.eval((l: string) => !!document.querySelector(`.log [aria-label="${l}"]`), label))) continue;
     const steps = [...rollSteps, label];
     const n0 = await versions(page, id);
     await s.step("Rolls panel re-roll makes a new version", { ...base, steps }, async () => {
