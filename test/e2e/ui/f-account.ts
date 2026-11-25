@@ -197,7 +197,7 @@ export async function rulesUpdateFeature(r: Report, o: RunOptions): Promise<void
       await page.reload();
       await page.waitFor(() => !!document.querySelector('[aria-label="Update to the current rules"]')?.checkVisibility(), [], { what: "the Update button", timeout: 20_000 });
     });
-    page.allow.pop();
+    // (kept for the rest: Undo goes back to a version on the older rules)
     await s.step("Update shows what changes, Apply makes it", { ...base, steps: [...base.steps!, "Update to the current rules", "Apply"] }, async () => {
       await page.clickLabel("Update to the current rules");
       await page.waitFor(() => !!document.querySelector(".rules-update"), [], { what: "the update panel" });

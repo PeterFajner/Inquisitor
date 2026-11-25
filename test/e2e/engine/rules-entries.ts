@@ -114,7 +114,7 @@ const CHANGES: Change[] = [
       if (!t) return null;
       const e = structuredClone(c.talents.get(t.id)!);
       e.effects = [...(e.effects ?? []), { stat: "WS", add: 5 } as Effect];
-      return { nc: withEntry(c, "talents", t.id, e), expect: (d, b0) => (d.stats.some((s) => s.stat === "WS" && s.to === s.from + 5) || b0.character.stats.WS.caps.length || b0.character.stats.WS.overridden ? null : `${t.id} +5 WS, diff stats ${JSON.stringify(d.stats)}`) };
+      return { nc: withEntry(c, "talents", t.id, e), expect: (d, b0) => (d.stats.some((s) => s.stat === "WS" && s.to === s.from + 5) || b0.character.stats.WS.caps.length || b0.character.stats.WS.overridden || b0.character.stats.WS.mods.some((m) => m.set !== undefined) ? null : `${t.id} +5 WS, diff stats ${JSON.stringify(d.stats)}`) };
     },
   },
   {
