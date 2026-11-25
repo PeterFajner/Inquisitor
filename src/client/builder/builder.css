@@ -72,6 +72,7 @@
 .occ { display: flex; flex-direction: column; gap: 6px; }
 .occ-row { display: grid; grid-template-columns: minmax(7em, 35%) minmax(0, 1fr); align-items: center; gap: 8px; }
 .occ-label { color: var(--ink); }
+.occ-text { margin: 0 0 4px; font-size: 0.9em; color: var(--ink-2); white-space: pre-line; }
 .occ-select { font: inherit; color: var(--accent); background: transparent; border: 1px dotted var(--accent); border-radius: 1px; padding: 2px 4px; min-height: 30px; min-width: 0; width: 100%; }
 .occ-select option { color: var(--ink); background: var(--surface); }
 

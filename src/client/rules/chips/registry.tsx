@@ -122,12 +122,13 @@ export function Effects({ effects, ctx, depth = 0 }: { effects: Effect[]; ctx: C
               const sub = { ...ctx, statName: o.name };
               return (
                 <>
-                  <div class={`on${long ? " long" : ""}`} title={o.text}>
+                  <div class={`on${long ? " long" : ""}`}>
                     {o.when && <span class="when-mark">{condText(o.when, ctx)}</span>}
                     {o.name}
                   </div>
                   <div class={`sec-body ob${long ? " long" : ""}`}>
-                    {o.effects?.length ? <Effects effects={o.effects} ctx={sub} depth={depth + 1} /> : null}
+                    {o.text && <div class="text">{o.text}</div>}
+                    {shownEffects(o).length ? <Effects effects={shownEffects(o)} ctx={sub} depth={depth + 1} /> : null}
                   </div>
                 </>
               );
@@ -146,6 +147,10 @@ export function Effects({ effects, ctx, depth = 0 }: { effects: Effect[]; ctx: C
   flush();
   return <>{out}</>;
 }
+
+// An option's gameplay prose already in its text isn't said twice (as a card's own effects, Card.tsx).
+const shownEffects = (o: { text?: string; effects?: Effect[] }): Effect[] =>
+  (o.effects ?? []).filter((x) => !(o.text && x && typeof x === "object" && "prose" in x && x.kind === "gameplay" && o.text.includes(x.prose.trim())));
 
 export function pickCount(p: unknown): ComponentChildren {
   if (p === "any") return <Ic icon={InfinityIcon} label={L.any} size={12} />;

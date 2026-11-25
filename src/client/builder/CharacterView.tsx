@@ -149,18 +149,34 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
               <span>{ch.subtype.name}</span>
             ),
           )}
-        {picks.map((p) =>
-          row(
-            p.label,
-            <select class="occ-select" aria-label={p.label} value={p.value} onChange={(e) => edit!.choose(p.key, [e.currentTarget.value])}>
-              {!p.value && <option value="">–</option>}
-              {p.options.map((o) => (
-                <option value={o.id}>{o.label || "–"}</option>
+        {picks.map((p) => (
+          <>
+            {row(
+              p.label,
+              <select class="occ-select" aria-label={p.label} value={p.value} onChange={(e) => edit!.choose(p.key, [e.currentTarget.value])}>
+                {!p.value && <option value="">–</option>}
+                {p.options.map((o) => (
+                  <option value={o.id}>{o.label || "–"}</option>
+                ))}
+              </select>,
+            )}
+            {ch.options
+              .filter((o) => o.key === p.key && o.text)
+              .map((o) => (
+                <p class="occ-text">{o.text}</p>
               ))}
-            </select>,
-          ),
-        )}
+          </>
+        ))}
         {!edit && ch.options.length > 0 && row(T.role, <span>{ch.options.map((o) => o.name).join(", ")}</span>)}
+        {!edit &&
+          ch.options
+            .filter((o) => o.text)
+            .map((o) => (
+              <p class="occ-text">
+                <b>{o.name}: </b>
+                {o.text}
+              </p>
+            ))}
       </div>
     </Section>
   );
