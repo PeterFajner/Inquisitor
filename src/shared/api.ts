@@ -129,7 +129,9 @@ export type ImportResult = { characters: Record<string, string>; warbands: Recor
 export type ApiError = { error: string; account?: "required" };
 
 // The page shell's data (<script id="data">, src/views/shell.ts), the same
-// shapes the API answers with.
+// shapes the API answers with. GET /api/v1/page?path=<path> answers the
+// same for any page (status 404 where the page would be the error page),
+// for moving to it in place (src/client/lib/router.ts).
 export type PageData = {
   account: AccountInfo;
   /** On /s/<token>. */

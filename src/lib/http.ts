@@ -34,11 +34,12 @@ export const redirectTo = (location: string): never => {
   throw new HttpError(303, "", location);
 };
 
-type Route = { method: string; re: RegExp; keys: string[]; handler: Handler };
+type Route<H> = { method: string; re: RegExp; keys: string[]; handler: H };
 
-export class Router {
-  routes: Route[] = [];
-  add(method: string, pattern: string, handler: Handler): this {
+/** Routes to handlers (`H`: what a match gives back; a request Handler unless said). */
+export class Router<H = Handler> {
+  routes: Route<H>[] = [];
+  add(method: string, pattern: string, handler: H): this {
     // "/r/:slug" -> /^\/r\/([^/]+)\/?$/
     const keys: string[] = [];
     const re = new RegExp(
@@ -47,13 +48,13 @@ export class Router {
     this.routes.push({ method, re, keys, handler });
     return this;
   }
-  get(pattern: string, handler: Handler): this {
+  get(pattern: string, handler: H): this {
     return this.add("GET", pattern, handler);
   }
-  post(pattern: string, handler: Handler): this {
+  post(pattern: string, handler: H): this {
     return this.add("POST", pattern, handler);
   }
-  match(method: string, path: string): { handler: Handler; params: Record<string, string> } | null {
+  match(method: string, path: string): { handler: H; params: Record<string, string> } | null {
     for (const r of this.routes) {
       if (r.method !== method && !(method === "HEAD" && r.method === "GET")) continue;
       const m = path.match(r.re);

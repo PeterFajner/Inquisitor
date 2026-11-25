@@ -1,6 +1,8 @@
 // The app's pages: each is the one client entry (src/client/app.tsx) in the
 // page shell, with what it shows as PageData (src/shared/api.ts). The
-// client takes it from there.
+// client takes it from there; moving to another page in place
+// (src/client/lib/router.ts) it asks GET /api/v1/page?path=<path> for that
+// page's PageData (status set for a page that would be an error page).
 //
 //   /            the builder
 //   /c/<id>      one of the viewer's characters (404 if not theirs)
@@ -10,8 +12,8 @@
 //   /rules       the rules canvas
 import { currentViewer } from "../lib/accounts.ts";
 import { getCharacter, getWarband, resolveShare } from "../lib/characters.ts";
-import { HttpError, type Ctx, type Router } from "../lib/http.ts";
-import type { PageData } from "../shared/api.ts";
+import { HttpError, Router, sendJson, type Ctx } from "../lib/http.ts";
+import { API, type PageData } from "../shared/api.ts";
 import { accountInfo } from "./account.ts";
 import { clientPage } from "./shell.ts";
 
@@ -39,24 +41,32 @@ function orNotFound<T>(fn: () => T): T {
   }
 }
 
+/** Each page's data; `index`: search engines may list it. */
+type Page = { data: (ctx: Ctx) => PageData; index?: boolean };
+const PAGES: [string, Page][] = [
+  ["/", { data: base, index: true }],
+  ["/c/:id", { data: (ctx) => ({ ...base(ctx), character: orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id)) }) }],
+  ["/c/:id/history", { data: (ctx) => ({ ...base(ctx), character: orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id)), view: "history" }) }],
+  ["/rules", { data: (ctx) => ({ ...base(ctx), view: "rules" }), index: true }],
+  ["/w/:id", { data: (ctx) => ({ ...base(ctx), warband: orNotFound(() => getWarband(currentViewer(ctx), ctx.params.id)) }) }],
+  ["/s/:token", { data: (ctx) => ({ ...base(ctx), share: orNotFound(() => resolveShare(currentViewer(ctx), ctx.params.token)) }) }],
+];
+const pages = new Router<Page>();
+for (const [pattern, page] of PAGES) pages.get(pattern, page);
+
 export function pageRoutes(router: Router): void {
-  router
-    .get("/", (ctx) => clientPage(ctx, { data: base(ctx) }))
-    .get("/c/:id", (ctx) => {
-      const character = orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id));
-      clientPage(ctx, { data: { ...base(ctx), character }, noindex: true });
-    })
-    .get("/c/:id/history", (ctx) => {
-      const character = orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id));
-      clientPage(ctx, { data: { ...base(ctx), character, view: "history" }, noindex: true });
-    })
-    .get("/rules", (ctx) => clientPage(ctx, { data: { ...base(ctx), view: "rules" } }))
-    .get("/w/:id", (ctx) => {
-      const warband = orNotFound(() => getWarband(currentViewer(ctx), ctx.params.id));
-      clientPage(ctx, { data: { ...base(ctx), warband }, noindex: true });
-    })
-    .get("/s/:token", (ctx) => {
-      const share = orNotFound(() => resolveShare(currentViewer(ctx), ctx.params.token));
-      clientPage(ctx, { data: { ...base(ctx), share }, noindex: true });
-    });
+  for (const [pattern, page] of PAGES) router.get(pattern, (ctx) => clientPage(ctx, { data: page.data(ctx), noindex: !page.index }));
+  router.get(`${API}/page`, (ctx) => {
+    const path = ctx.url.searchParams.get("path") ?? "";
+    const m = pages.match("GET", path);
+    let data: PageData;
+    try {
+      if (!m) throw new HttpError(404, "not_found");
+      data = m.handler.data({ ...ctx, params: m.params });
+    } catch (e) {
+      if (!(e instanceof HttpError) || e.status !== 404) throw e;
+      data = { ...base(ctx), status: 404 };
+    }
+    sendJson(ctx, data);
+  });
 }
