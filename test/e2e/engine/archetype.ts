@@ -463,9 +463,17 @@ export function checkCharacter(
     }
     r.expect(line.base >= lo && line.base <= hi, `${what}: base stats within the stat line`, `${s} base ${line.base} outside ${d} [${lo}..${hi}]`, rep, s);
   }
-  // Human final stats past 100: the owner hasn't ruled whether they are capped.
-  const past = arch.human !== false ? STATS.filter((s) => ch.stats[s].final > 100 && !ch.stats[s].overridden) : [];
-  if (past.length) r.note(`pending owner ruling: human final stats over 100 (${past.map((s) => `${s} ${ch.stats[s].final}`).join(", ")}), e.g. ${arch.id}/${b.record.subtype} seed ${rep.seed ?? "?"}`);
+  // The human cap of 100 (p3; owner and GM, November 2026): only gear, exotic and power adds go past it;
+  // a mutation lifts it. A stat held at 100 records what it would have been.
+  if (arch.human !== false && ch.mutations.length === 0) {
+    for (const s of STATS) {
+      const line = ch.stats[s];
+      if (line.overridden || line.mods.some((m) => m.set !== undefined || m.multiply !== undefined)) continue;
+      const past = line.mods.reduce((n, m) => n + (m.add !== undefined && ["item", "exotic", "power"].includes(m.sourceKind ?? "") ? m.add : 0), 0);
+      r.expect(line.final - past <= 100, `${what}: human stats capped at 100 before gear, exotics and powers`, `${s} ${line.final} (${past} past the cap)`, rep, s);
+      if (line.uncapped !== undefined) r.expect(line.modified === 100 && line.uncapped > 100, `${what}: a stat held at the cap is 100`, `${s} ${JSON.stringify(line)}`, rep, s);
+    }
+  }
 
   // `:count` dice: as many results as rolled.
   for (const e of b.log) {
