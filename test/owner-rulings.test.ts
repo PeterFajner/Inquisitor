@@ -170,7 +170,7 @@ test("real rules: Puppetmaster leaves a Tech-Priest Sage's Machine Empathy alone
   assert.deepEqual(b.warnings, []);
 });
 
-test("real rules: Study Thy Weapon from a boon with no weapon is rolled again; an Acolyte Lector's keeps the empty pick", { skip }, () => {
+test("real rules: Study Thy Weapon from a boon with no weapon is rolled again; an Acolyte Lector always generates a weapon for theirs", { skip }, () => {
   const b = random("cultists-and-fanatics", "psyker", 125);
   assert.deepEqual(b.warnings, []);
   assert.ok(b.log.some((l) => l.key === "creating-a-character/boons#1" && l.rerolled));
@@ -178,7 +178,8 @@ test("real rules: Study Thy Weapon from a boon with no weapon is rolled again; a
   assert.ok(!stw || stw.chosen?.length);
   const lector = random("inquisitor-acolyte", "sage", 11);
   assert.ok(lector.character.options.some((o) => o.id === "lector"));
-  assert.deepEqual(lector.warnings, ["study-thy-weapon/weapon: only 0 to choose from, 1 wanted"]);
+  assert.deepEqual(lector.warnings, []);
+  assert.ok(lector.character.talents.find((t) => t.id === "study-thy-weapon")?.chosen?.length);
 });
 
 test("real rules: a Rare Cyber creature downgraded is lost (there are no Common ones)", { skip }, () => {

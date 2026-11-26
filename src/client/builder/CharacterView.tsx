@@ -18,6 +18,7 @@ import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 import { archetypeName, byArchetypeName } from "./NewCharacter.tsx";
 import { occupationPicks } from "./occupation.ts";
+import { BOON, fromBoons, rerolls, type Rerolls } from "./rerolls.ts";
 import { view } from "./ops.ts";
 
 export type ViewEdits = SheetEdits & {
@@ -61,8 +62,15 @@ function entryName(c: Compendium, id: string): string {
   return "";
 }
 
-const BOON = /^(.*\/boons)(#\d+|:count)$/;
-const fromBoons = (t: Owned) => t.from.some((o) => !!o.key && BOON.test(o.key.split(">")[0]));
+/** A section's Reroll: its keys rolled again. */
+function Reroll({ keys, edit }: { keys: string[]; edit?: ViewEdits }) {
+  if (!edit || !keys.length) return null;
+  return (
+    <button type="button" class="text-btn" onClick={() => edit.reroll(keys)}>
+      {T.reroll}
+    </button>
+  );
+}
 
 /** A section of the card: its title (and a button), then the content. */
 function Section(p: { title?: string; action?: ComponentChildren; wide?: boolean; children: ComponentChildren; class?: string }) {
@@ -187,21 +195,13 @@ function Occupation({ c, record, built, edit }: { c: Compendium; record: Charact
 }
 
 /** Base (the roll; tap to change), Boon (everything added to it), Total. */
-function Stats({ built, edit }: { built: BuildResult; edit?: ViewEdits }) {
+function Stats({ built, edit, keys }: { built: BuildResult; edit?: ViewEdits; keys: string[] }) {
   const ch = built.character;
   const [editing, setEditing] = useState<Stat | null>(null);
-  const keys = built.log.filter((e) => e.type === "dice" && /\/@stats:/.test(e.key)).map((e) => e.key);
   return (
     <Section
       title={T.stats}
-      action={
-        edit &&
-        keys.length > 0 && (
-          <button type="button" class="text-btn" onClick={() => edit.reroll(keys)}>
-            {T.reroll}
-          </button>
-        )
-      }
+      action={<Reroll keys={keys} edit={edit} />}
     >
       <table class="cstats">
         <colgroup>
@@ -260,22 +260,15 @@ function Stats({ built, edit }: { built: BuildResult; edit?: ViewEdits }) {
 }
 
 /** The boons rolled (each with what it gave), as the 2023 site listed them. */
-function Boons({ c, built, edit }: { c: Compendium; built: BuildResult; edit?: ViewEdits }) {
+function Boons({ c, built, edit, keys }: { c: Compendium; built: BuildResult; edit?: ViewEdits; keys: string[] }) {
   const ch = built.character;
   const tops = built.log.filter((e) => BOON.test(e.key) && e.key.includes("#"));
   if (!tops.length) return null;
-  const keys = built.log.filter((e) => BOON.test(e.key.split(">")[0])).map((e) => e.key).filter((k) => !k.includes(">"));
   const things = [...ch.talents, ...ch.exotics, ...ch.mutations, ...ch.powers, ...ch.items];
   return (
     <Section
       title={T.boons}
-      action={
-        edit && (
-          <button type="button" class="text-btn" onClick={() => edit.reroll(keys)}>
-            {T.reroll}
-          </button>
-        )
-      }
+      action={<Reroll keys={keys} edit={edit} />}
     >
       <ul class="csec-list">
         {tops.map((e) => {
@@ -333,7 +326,10 @@ export function CharacterView({
   const arch = c.archetypes.get(ch.archetype.id);
   const prose = ch.notes.filter((n) => n.kind !== "gameplay");
   const talents = ch.talents.filter((t) => !fromBoons(t));
+  const exotics = ch.exotics.filter((t) => !fromBoons(t));
   const items = ch.items;
+  const again = useMemo(() => (edit ? rerolls(c, record, built) : null), [c, record, built, !!edit]);
+  const reroll = (section: keyof Rerolls) => <Reroll keys={again?.[section] ?? []} edit={edit} />;
   // A roll that came to nothing to choose from ("Heavy weapon (Common)"): shown, so the GM sees it happened.
   const empty = ch.empty ?? [];
 
@@ -353,30 +349,30 @@ export function CharacterView({
             </Section>
           )}
           <Occupation c={c} record={record} built={built} edit={edit} />
-          <Stats built={built} edit={edit} />
+          <Stats built={built} edit={edit} keys={again?.stats ?? []} />
           {talents.length > 0 && (
-            <Section title={T.talents}>
+            <Section title={T.talents} action={reroll("talents")}>
               <Things c={c} list={talents} />
             </Section>
           )}
-          <Boons c={c} built={built} edit={edit} />
-          {ch.exotics.filter((t) => !fromBoons(t)).length > 0 && (
-            <Section title={arch?.sections.find((s) => /exotic/i.test(s.name))?.name ?? "Exotic Abilities"}>
-              <Things c={c} list={ch.exotics.filter((t) => !fromBoons(t))} />
+          <Boons c={c} built={built} edit={edit} keys={again?.boons ?? []} />
+          {exotics.length > 0 && (
+            <Section title={arch?.sections.find((s) => /exotic/i.test(s.name))?.name ?? "Exotic Abilities"} action={reroll("exotics")}>
+              <Things c={c} list={exotics} />
             </Section>
           )}
           {ch.powers.length > 0 && (
-            <Section title={arch?.sections.find((s) => /psychic/i.test(s.name))?.name ?? "Psychic Abilities"}>
+            <Section title={arch?.sections.find((s) => /psychic/i.test(s.name))?.name ?? "Psychic Abilities"} action={reroll("powers")}>
               <Things c={c} list={ch.powers} />
             </Section>
           )}
           {ch.mutations.length > 0 && (
-            <Section title="Mutations">
+            <Section title="Mutations" action={reroll("mutations")}>
               <Things c={c} list={ch.mutations} />
             </Section>
           )}
           {items.length + empty.length > 0 && (
-            <Section title="Equipment">
+            <Section title="Equipment" action={reroll("items")}>
               <ul class="csec-list">
                 {items.map((t) => {
                   const v = t.variants?.flat().filter(Boolean) ?? [];

@@ -91,6 +91,5 @@ Word sheet. See PLAN.md for the design and its decisions.
 - `npm run dev` — server + client watch.
 - `npm run typecheck`, `npm test`.
 - `npm run rules:check [-- --summary]` — validate data/rules.
-- `npm run simulate` — recompute the balance distributions.
 
 Commits use the user's configured git identity; never add co-author lines.

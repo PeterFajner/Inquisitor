@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { renderSheetDocx } from "../../../src/client/export/docx.ts";
 import * as ops from "../../../src/client/builder/ops.ts";
+import { rerolls } from "../../../src/client/builder/rerolls.ts";
 import { powerScore } from "../../../src/shared/engine/balance.ts";
 import { ROLL_OPTION, type BuildResult, type Character, type RollFn } from "../../../src/shared/engine/build.ts";
 import { buildAll as build } from "../../../src/shared/engine/companions.ts";
@@ -107,18 +108,20 @@ export function gearPolicies(a: Archetype): Map<string, Effect & { gear: unknown
   return out;
 }
 
-const UI_STATS = /\/@stats:/;
-const BOON = /^(.*\/boons)(#\d+|:count)$/;
 
-/** The decision groups the builder's buttons re-roll: each top-level key, the Stats "Reroll" (all stat dice) and the Boons "Reroll". */
-function rerollGroups(b: BuildResult): { name: string; keys: string[] }[] {
-  const out: { name: string; keys: string[] }[] = [];
+/** The decision groups the builder's buttons re-roll: each top-level key (the Rolls panel's dice) and each section's "Reroll". */
+const SECTIONS = { stats: "Stats", boons: "Boons", talents: "Talents", exotics: "Exotic Abilities", powers: "Psychic Abilities", mutations: "Mutations", items: "Equipment" } as const;
+// A section's Reroll (past Stats and Boons) is there only when something in it was rolled (an optional taken, a
+// chance hit), so the characters that have it aren't a fresh sample: its re-rolls aren't compared with them.
+function rerollGroups(c: Compendium, b: BuildResult): { name: string; keys: string[]; compare: boolean }[] {
+  const out: { name: string; keys: string[]; compare: boolean }[] = [];
   const top = b.log.filter((e) => !e.parent && !e.eachGame).map((e) => e.key);
-  for (const k of [...new Set(top)]) out.push({ name: k, keys: [k] });
-  const stats = b.log.filter((e) => e.type === "dice" && UI_STATS.test(e.key)).map((e) => e.key);
-  if (stats.length) out.push({ name: "Stats: Reroll", keys: stats });
-  const boons = b.log.filter((e) => BOON.test(e.key.split(">")[0])).map((e) => e.key).filter((k) => !k.includes(">"));
-  if (boons.length) out.push({ name: "Boons: Reroll", keys: boons });
+  for (const k of [...new Set(top)]) out.push({ name: k, keys: [k], compare: true });
+  const again = rerolls(c, b.record, b);
+  for (const [k, name] of Object.entries(SECTIONS)) {
+    const keys = again[k as keyof typeof SECTIONS];
+    if (keys.length) out.push({ name: `${name}: Reroll`, keys, compare: k === "stats" || k === "boons" });
+  }
   return out;
 }
 
@@ -171,7 +174,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
     for (let i = 0; i < Math.min(o.rerollSeeds, fresh.length); i++) {
       const b = fresh[i];
       const seed = i + 1;
-      for (const g of rerollGroups(b)) {
+      for (const g of rerollGroups(c, b)) {
         let next: CharacterRecord;
         const rep: Repro = { ...base, seed, key: g.keys.join(" "), record: b.record, steps: [`random build, seededRoller(${seed})`, `rerollDecision(${JSON.stringify(g.keys)}) with seededRoller(${1_000_000 + seed})`] };
         try {
@@ -195,6 +198,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
             r.fail("re-roll keeps the other dice", `${k} changed from ${JSON.stringify(v)} to ${JSON.stringify(next.dice[k])}`, rep, `${norm(g.name)} changes ${norm(k)}`);
           }
         }
+        if (!g.compare) continue;
         const group = norm(g.name);
         const acc = byGroup.get(group) ?? { fresh: [], again: [], own: [[], []], nested: [[], []], cats: [[], []] };
         byGroup.set(group, acc);
@@ -227,7 +231,7 @@ export async function engineArchetype(r: Report, archId: string, o: EngineOption
     for (let i = 0; i < Math.min(o.rerollSeeds, 40, fresh.length); i++) {
       const b = fresh[i];
       const seed = i + 1;
-      const tops = new Set(rerollGroups(b).flatMap((g) => g.keys));
+      const tops = new Set(rerollGroups(c, b).flatMap((g) => g.keys));
       const keys = [...new Set(b.log.filter((e) => e.type === "dice" && /:(count|qty)$|\/@locations$/.test(e.key) && !tops.has(e.key)).map((e) => e.key))];
       for (const k of keys) {
         const rep: Repro = { ...base, seed, key: k, record: b.record, steps: [`random build, seededRoller(${seed})`, `rerollDecision([${JSON.stringify(k)}]) with seededRoller(${1_500_000 + seed})`] };

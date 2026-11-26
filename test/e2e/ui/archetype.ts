@@ -5,7 +5,7 @@
 // address). Every character: no open choices, everything it has and every
 // choice made shown outside the Rolls panel, the Occupation dropdowns as
 // the book's choices, the GM approval line, the no-UI-text rule. Then the
-// controls on the character made in the form: both Rerolls, every option of
+// controls on the character made in the form: every section's Reroll, every option of
 // every Occupation dropdown, re-rolls in the Rolls panel, the subtype.
 import * as ops from "../../../src/client/builder/ops.ts";
 import type { BuildResult } from "../../../src/shared/engine/build.ts";
@@ -156,16 +156,18 @@ async function controls(s: Session, archId: string, id: string, base: Repro): Pr
     const shown = await page.eval(() => !!document.querySelector(".csec-pending"));
     s.r.expect(!shown, `${what} leaves no open choices`, "the pending section is shown", { ...repro, record: rec });
   };
-  // The Stats and Boons Rerolls: a new version each, no open choices.
-  for (const section of ["Stats", "Boons"]) {
-    const has = await page.eval((t: string) => [...document.querySelectorAll(".csec-title")].some((h) => h.textContent?.startsWith(t) && h.querySelector("button")), section);
+  // Every section's Reroll (Stats, Boons, Talents, Equipment…): a new version each, no open choices.
+  const sections: string[] = await page.eval(() => [...document.querySelectorAll(".csec-title")].filter((h) => h.querySelector("button.text-btn")).map((h) => h.querySelector("span")?.textContent ?? ""));
+  for (const section of sections) {
+    const has = await page.eval((t: string) => [...document.querySelectorAll(".csec-title")].some((h) => h.querySelector("span")?.textContent === t && h.querySelector("button.text-btn")), section);
     if (!has) continue;
     const steps = [...(base.steps ?? []), `${section}: Reroll`];
     const n0 = await versions(page, id);
     await s.step(`${section} Reroll makes a new version`, { ...base, steps }, async () => {
       await page.eval((t: string) => {
-        const h = [...document.querySelectorAll(".csec-title")].find((x) => x.textContent?.startsWith(t))!;
-        h.querySelector("button")!.setAttribute("data-e2e", "reroll");
+        document.querySelectorAll('[data-e2e="reroll"]').forEach((el) => el.removeAttribute("data-e2e"));
+        const h = [...document.querySelectorAll(".csec-title")].find((x) => x.querySelector("span")?.textContent === t)!;
+        h.querySelector("button.text-btn")!.setAttribute("data-e2e", "reroll");
       }, section);
       await page.click('[data-e2e="reroll"]');
       await idle(page);

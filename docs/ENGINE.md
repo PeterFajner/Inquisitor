@@ -504,7 +504,3 @@ choices), dropped (record keys no longer used), warnings (new ones) }`.
   or bottom 5% (`BALANCE_TAIL`) is `overpowered` / `underpowered`; else
   `balanced`. `labelText` words it: "This character is in the top 1.5% of
   randomly-rolled Inquisitor Fighters."
-- `npm run simulate [-- --n=10000 --seed=1 pack…]` loads the packs in
-  `RULES_DIR` (stacked by `extends`) and writes `data/balance.json` (or
-  `BALANCE_FILE`): `{ generated, packs, n, seed, distributions: {
-  "<archetype>/<subtype>": Distribution }, failures }`.
