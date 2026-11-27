@@ -275,10 +275,21 @@ export async function warbandFeature(r: Report, o: RunOptions): Promise<void> {
         await other.close();
       }
     });
-    await s.step("Delete the warband (armed), its characters stay", { ...base, steps: [...base.steps!, "Delete", "Delete for good"] }, async () => {
-      const chars = (await api(page, "GET", "/api/v1/characters")).body.characters.length;
+    await s.step("Delete the warband asks with confirm(); Cancel keeps it", { ...base, steps: [...base.steps!, "Delete", "Cancel"] }, async () => {
+      page.dialogAnswer = false;
       await page.click('.wb-tools [aria-label="Delete"]');
-      await page.click('.wb-tools [aria-label="Delete for good"]');
+      await idle(page);
+      const d = page.dialogs[page.dialogs.length - 1];
+      if (!d || d.type !== "confirm") throw new Error("no confirm()");
+      if (!/^Delete .+\?$/.test(d.message)) throw new Error(`confirm() says ${JSON.stringify(d.message)}`);
+      const bands = (await api(page, "GET", "/api/v1/warbands")).body.warbands.length;
+      if (bands !== 2) throw new Error(`${bands} warbands though cancelled`);
+    });
+    await s.checkText("the warband's Delete confirm()", base);
+    await s.step("Delete the warband, OK: its characters stay", { ...base, steps: [...base.steps!, "Delete", "OK"] }, async () => {
+      const chars = (await api(page, "GET", "/api/v1/characters")).body.characters.length;
+      page.dialogAnswer = true;
+      await page.click('.wb-tools [aria-label="Delete"]');
       await idle(page);
       const bands = (await api(page, "GET", "/api/v1/warbands")).body.warbands.length;
       if (bands !== 1) throw new Error(`${bands} warbands`);

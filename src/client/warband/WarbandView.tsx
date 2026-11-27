@@ -153,20 +153,12 @@ export function WarbandView(p: Props) {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  // An armed delete disarms itself after a few seconds (a later stray tap mustn't delete).
-  useEffect(() => {
-    if (!confirmDelete) return;
-    const t = setTimeout(() => setConfirmDelete(false), 4000);
-    return () => clearTimeout(t);
-  }, [confirmDelete]);
   const [gone, setGone] = useState(false);
 
   // The characters' list rows change as they are edited: reload with them.
   const charSig = p.characters.map((c) => `${c.id}@${c.head.id}:${c.name}`).join(",");
   useEffect(() => {
     let live = true;
-    setConfirmDelete(false);
     p.backend.get(p.id).then(
       (w) => {
         if (!live) return;
@@ -215,8 +207,7 @@ export function WarbandView(p: Props) {
     }
   };
   const remove = async () => {
-    if (busy) return;
-    if (!confirmDelete) return setConfirmDelete(true);
+    if (busy || !confirm(`${W.remove} ${warband.name || "–"}?`)) return;
     setBusy(true);
     try {
       await p.backend.remove(warband.id);
@@ -242,8 +233,8 @@ export function WarbandView(p: Props) {
         <ExportButtons disabled={busy || !members.length} caption rows={() => members} name={warband.name} />
       </span>
       <span class="site-group wb-delete">
-        <IconButton label={confirmDelete ? W.confirmRemove : W.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
-          {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
+        <IconButton label={W.remove} disabled={busy} onClick={() => void remove()}>
+          <Trash2 size={ICON} />
         </IconButton>
       </span>
     </span>

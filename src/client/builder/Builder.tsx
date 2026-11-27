@@ -5,7 +5,7 @@
 // (a visitor's until "Create account" or "Sign in": src/client/lib/account.ts);
 // characters this browser kept itself before that go there once on load
 // (src/client/lib/legacy.ts).
-import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, TriangleAlert, Undo2 } from "lucide-preact";
+import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
@@ -211,13 +211,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
   const [wbTools, setWbTools] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [update, setUpdate] = useState<{ d: CharacterDiff; randomChoices: boolean } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  // An armed delete disarms itself after a few seconds (a later stray tap mustn't delete).
-  useEffect(() => {
-    if (!confirmDelete) return;
-    const t = setTimeout(() => setConfirmDelete(false), 4000);
-    return () => clearTimeout(t);
-  }, [confirmDelete]);
   const redoHint = useRef(new Map<string, string>());
   // Warbands (src/client/warband): the list under the characters; one shown instead of the character.
   const [warbands, setWarbands] = useState<Warband[]>([]);
@@ -404,14 +397,9 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     }
   };
 
-  /** `sure`: already confirmed (the delete under the character asks with confirm()). */
-  const remove = async (sure = false) => {
-    if (!char || busy) return;
-    if (!sure && !confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    setConfirmDelete(false);
+  /** Asks with confirm() first ("Delete <name>?"). */
+  const remove = async () => {
+    if (!char || busy || !confirm(`${L.remove} ${char.name || "–"}?`)) return;
     setBusy(true);
     try {
       await backend.remove(char.id);
@@ -422,7 +410,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
       setBusy(false);
     }
   };
-  useEffect(() => setConfirmDelete(false), [char?.id]);
 
   const openUpdate = async () => {
     if (!rules || !record || !head) return;
@@ -603,8 +590,8 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
               )}
             </span>
             <span class="site-group char-delete">
-              <IconButton label={confirmDelete ? L.confirmRemove : L.remove} class={confirmDelete ? "armed" : undefined} disabled={busy} onClick={() => void remove()}>
-                {confirmDelete ? <TriangleAlert size={ICON} /> : <Trash2 size={ICON} />}
+              <IconButton label={L.remove} disabled={busy} onClick={() => void remove()}>
+                <Trash2 size={ICON} />
               </IconButton>
             </span>
           </span>
@@ -701,13 +688,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
               />
               <Companions c={(shown ?? rules).compendium} built={built} />
               <div class="char-foot">
-                <IconButton
-                  label={L.remove}
-                  disabled={busy}
-                  onClick={() => {
-                    if (confirm(`${L.remove} ${char.name || "–"}?`)) void remove(true);
-                  }}
-                >
+                <IconButton label={L.remove} disabled={busy} onClick={() => void remove()}>
                   <Trash2 size={ICON} />
                 </IconButton>
               </div>

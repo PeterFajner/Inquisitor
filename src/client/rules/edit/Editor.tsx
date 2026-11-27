@@ -102,7 +102,6 @@ export function Editor(p: { target: EditTarget; names: Names; onClose: () => voi
   const [error, setError] = useState<string | null>(null);
   const [serverIssues, setServerIssues] = useState<RulesIssue[]>([]);
   const [conflict, setConflict] = useState<Conflict | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const s = useStore(rules);
 
   const out = useMemo(() => prepared(draft, autoId), [draft, autoId]);
@@ -157,11 +156,10 @@ export function Editor(p: { target: EditTarget; names: Names; onClose: () => voi
   };
 
   const remove = async () => {
-    if (!confirmDelete) return setConfirmDelete(true);
+    if (!confirm(`${L.remove} ${draft.name || "–"}?`)) return;
     setBusy(true);
     const r = await deleteEntry(target.pack, draft.kind, draft.id, base);
     setBusy(false);
-    setConfirmDelete(false);
     if (r.ok) return p.onClose();
     if ("conflict" in r) setConflict({ theirs: r.conflict.entry, meta: r.conflict.meta, original });
     else if ("invalid" in r) setServerIssues(r.invalid);
@@ -199,12 +197,11 @@ export function Editor(p: { target: EditTarget; names: Names; onClose: () => voi
         {!target.isNew && (
           <button
             type="button"
-            class={`icon-btn${confirmDelete ? " danger" : ""}`}
-            aria-label={confirmDelete ? L.confirmRemove : L.remove}
-            title={confirmDelete ? L.confirmRemove : L.remove}
+            class="icon-btn"
+            aria-label={L.remove}
+            title={L.remove}
             disabled={busy}
             onClick={remove}
-            onBlur={() => setConfirmDelete(false)}
           >
             <Trash2 size={18} aria-hidden="true" />
           </button>

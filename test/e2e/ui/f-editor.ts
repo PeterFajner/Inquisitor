@@ -172,17 +172,23 @@ export async function rulesEditorFeature(r: Report, o: RunOptions): Promise<void
     const b = Array.from({ length: 40 }, (_, i) => randomBuild(c, "rogue-trader", "fighter", i + 1)).find((x) => x.character.items.some((it) => it.from.some((f) => f.key?.endsWith(":item"))))!;
     const victim = b.character.items.find((it) => it.from.some((f) => f.key?.endsWith(":item")))!;
     const vKey = `${c.origin.get(`item/${victim.id}`)}:item/${victim.id}`;
-    const delSteps = [...base.steps!, `a saved Rogue Trader with ${victim.name}`, `/rules#${vKey}`, "Edit", "Delete", "Delete for good"];
+    const delSteps = [...base.steps!, `a saved Rogue Trader with ${victim.name}`, `/rules#${vKey}`, "Edit", "Delete", "OK"];
     let cid = "";
-    await s.step("Delete asks again, then deletes the entry", { steps: delSteps }, async () => {
+    await s.step("Delete asks with confirm(); Cancel keeps the entry, OK deletes it", { steps: delSteps }, async () => {
       cid = await saveRecord(s, b.record, "E2E Trader");
       await openRules(page, s.app.url, `#${vKey}`);
       await page.click(`.rb-card[data-key="${vKey}"] [aria-label="Edit"]`);
       await page.waitFor(() => !!document.querySelector('.rb-panel [aria-label="Delete"]'));
+      page.dialogAnswer = false;
       await page.click('.rb-panel [aria-label="Delete"]');
-      await page.waitFor(() => !!document.querySelector('.rb-panel [aria-label="Delete for good"]'), [], { what: "Delete for good" });
-      await s.checkText("the editor's Delete armed", { steps: delSteps });
-      await page.click('.rb-panel [aria-label="Delete for good"]');
+      await idle(page);
+      const d = page.dialogs[page.dialogs.length - 1];
+      if (!d || d.type !== "confirm") throw new Error("no confirm()");
+      if (d.message !== `Delete ${victim.name}?`) throw new Error(`confirm() says ${JSON.stringify(d.message)}`);
+      if (!(await entryNow(page, vKey.split(":")[0], "item", victim.id))) throw new Error("deleted though cancelled");
+      await s.checkText("the editor's Delete confirm()", { steps: delSteps });
+      page.dialogAnswer = true;
+      await page.click('.rb-panel [aria-label="Delete"]');
       await idle(page);
       await page.waitFor((k: string) => !document.querySelector(`.rb-card[data-key="${k}"]`), [vKey], { what: "the card gone", timeout: 15_000 });
       if (await entryNow(page, vKey.split(":")[0], "item", victim.id)) throw new Error("still in the rules");

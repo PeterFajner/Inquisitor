@@ -20,7 +20,6 @@ export const L = {
   source: "The book's text",
   stale: "Edited since the book's text",
   remove: "Delete",
-  confirmRemove: "Delete for good",
   save: "Save",
   cancel: "Cancel",
   close: "Close",

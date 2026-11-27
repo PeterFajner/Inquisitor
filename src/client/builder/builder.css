@@ -10,8 +10,6 @@
 .icon-btn.primary { background: var(--accent); color: var(--on-accent); }
 .icon-btn.primary:hover { background: var(--accent); filter: brightness(1.1); }
 .icon-btn.attention { color: var(--warn); background: var(--warn-bg); }
-.icon-btn.armed { color: var(--on-accent); background: var(--bad); }
-.icon-btn.armed:hover { background: var(--bad); filter: brightness(1.15); }
 
 .builder-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
 .builder.list-open .builder-body { grid-template-columns: 200px minmax(0, 1fr); }

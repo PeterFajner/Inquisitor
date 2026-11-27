@@ -11,7 +11,6 @@ export const L = {
   duplicate: "Duplicate",
   history: "History",
   remove: "Delete",
-  confirmRemove: "Delete for good",
   rename: "Rename",
   reroll: "Re-roll",
   change: "Change",

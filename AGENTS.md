@@ -34,8 +34,9 @@ Word sheet. See PLAN.md for the design and its decisions.
   top 1.5% of randomly-rolled Inquisitor Fighters." (or "bottom"), naming
   any archetype and subtype, the last word made plural by rule
   (balance.ts `plural()`, e.g. "Vindicare Assassin Vindicares"; owner,
-  November 2026); "Delete <name>?" (the confirm() of the delete under a
-  character, "Delete –?" when unnamed; owner, November 2026); the GM sheet's own headings (Kbk, BIV, SS,
+  November 2026); "Delete <name>?" (the confirm() of every delete: a
+  character's, a warband's, a rule entry's; "Delete –?" when unnamed;
+  owner, November 2026); the GM sheet's own headings (Kbk, BIV, SS,
   Cnc, Spd, Game Notes, Starting, Progress, Current, Location, L. Leg, R.
   Leg, Groin, L. Arm, R. Arm, Abdomen, Chest, Head, Injury Total, Armour /
   Injury Lvl, Firearm, Type, Rng, Mode, Acc, Damage, Shots, Rld, Enc, #

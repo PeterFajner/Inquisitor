@@ -12,7 +12,6 @@ export const W = {
   takeOut: "Remove from the warband",
   duplicate: "Duplicate",
   remove: "Delete",
-  confirmRemove: "Delete for good",
   share: "Share link",
   copied: "Copied",
   word: "Word (.docx)",

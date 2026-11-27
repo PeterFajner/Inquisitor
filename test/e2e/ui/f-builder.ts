@@ -363,15 +363,17 @@ export async function duplicateDeleteFeature(r: Report, o: RunOptions): Promise<
       if (strip(a) !== strip(b)) throw new Error("the copy's record differs");
       if ((await rowCount(page)) !== 2) throw new Error(`${await rowCount(page)} rows`);
     });
-    await s.step("the top bar's Delete arms, then disarms by itself", { ...base, steps: [...base.steps!, "Delete (top bar)", "wait 5 s"] }, async () => {
+    await s.step("the top bar's Delete asks; Cancel keeps it", { ...base, steps: [...base.steps!, "Delete (top bar)", "Cancel"] }, async () => {
+      page.dialogAnswer = false;
       await page.click('.char-delete [aria-label="Delete"]');
-      await page.waitFor(() => !!document.querySelector('.char-delete [aria-label="Delete for good"]'));
-      await page.waitFor(() => !!document.querySelector('.char-delete [aria-label="Delete"]'), [], { timeout: 7000, what: "the Delete button to disarm" });
-      if ((await rowCount(page)) !== 2) throw new Error("deleted without the second tap");
+      await idle(page);
+      const d = page.dialogs[page.dialogs.length - 1];
+      if (!d || d.type !== "confirm") throw new Error("no confirm()");
+      if ((await rowCount(page)) !== 2) throw new Error("deleted though cancelled");
     });
-    await s.step("the top bar's Delete, tapped twice, deletes", { ...base, steps: [...base.steps!, "Delete", "Delete for good"] }, async () => {
+    await s.step("the top bar's Delete asks; OK deletes", { ...base, steps: [...base.steps!, "Delete (top bar)", "OK"] }, async () => {
+      page.dialogAnswer = true;
       await page.click('.char-delete [aria-label="Delete"]');
-      await page.click('.char-delete [aria-label="Delete for good"]');
       await idle(page);
       const res = await api(page, "GET", `/api/v1/characters/${dup}`);
       if (res.status !== 404) throw new Error(`the copy is still there (${res.status})`);

@@ -18,7 +18,7 @@ export const APPROVED = [
   "Boons", "Reroll", "Download Docx", "lost", "Rolls", "Balance details", "* Should have GM approval before use.",
   "Tables", "Rules", "Rolled on by", "Search", "Table of Contents", "Characters",
   "Show", "Edit in this pack", // the Rule packs menu (owner, November 2026)
-  "Delete", // the confirm() of the delete under a character, "Delete <name>?" (owner, November 2026)
+  "Delete", // the confirm() of every delete, "Delete <name>?" (owner, November 2026)
 ];
 
 /** Words Intl.RelativeTimeFormat("en") prints in the history ("5 minutes ago", "yesterday"). */
