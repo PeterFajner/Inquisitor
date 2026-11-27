@@ -18,6 +18,7 @@ import {
   type SheetFirearm,
   type SheetMelee,
 } from '../../shared/sheet.ts';
+import { saveFile } from './save.ts';
 
 const createReport = createReportUntyped as typeof CreateReport;
 
@@ -115,14 +116,5 @@ export async function downloadSheetDocx(characters: SheetCharacter[], name?: str
   const res = await fetch(SHEET_TEMPLATE_URL);
   if (!res.ok) throw new Error(`${SHEET_TEMPLATE_URL}: ${res.status}`);
   const docx = await renderSheetDocx(characters, await res.arrayBuffer());
-  const names = name?.trim() || characters.map((c) => c.name.trim()).filter(Boolean).join(', ');
-  const fileName = `${(names || 'sheet').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120)}.docx`;
-  const url = URL.createObjectURL(new Blob([docx as Uint8Array<ArrayBuffer>], { type: DOCX_TYPE }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  saveFile(docx, DOCX_TYPE, 'docx', characters.map((c) => c.name), name);
 }

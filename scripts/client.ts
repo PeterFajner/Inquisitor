@@ -144,9 +144,10 @@ export function clientOptions(mode: "production" | "development", layout = "0"):
     define: { "process.env.NODE_ENV": JSON.stringify(mode), LAYOUT_BUILD: JSON.stringify(layout) },
     legalComments: prod ? "eof" : "inline",
     logLevel: "info",
-    // docx-templates' browser bundle references readable-stream but never loads it
+    // docx-templates' browser bundle references readable-stream but never loads it;
+    // jsPDF import()s html2canvas, dompurify and canvg only for html() and SVG, which the PDF export never calls
     // /static/ is served as is (src/static): CSS url()s there stay as written.
-    external: ["readable-stream", "/static/*"],
+    external: ["readable-stream", "html2canvas", "dompurify", "canvg", "/static/*"],
     plugins: [manifestPlugin, cssTextPlugin],
   };
 }

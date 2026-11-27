@@ -27,6 +27,7 @@
     "@types/node": "^24.19.2",
     "docx-templates": "4.15.0",
     "esbuild": "0.28.2",
+    "jspdf": "4.2.1",
     "lucide-preact": "1.68.0",
     "preact": "11.2.0",
     "typescript": "5.9.3"
