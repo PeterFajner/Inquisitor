@@ -46,14 +46,14 @@ test("no session: reads are empty and make no account; a save needs one", async 
   const before = accounts();
   assert.deepEqual((await b.get("/api/v1/account")).body, { signed_in: false, public_id: null, passkeys: 0 });
   assert.deepEqual((await b.get("/api/v1/characters")).body, { characters: [] });
-  assert.deepEqual((await b.get("/api/v1/warbands")).body, { warbands: [] });
+  assert.deepEqual((await b.get("/api/v1/settings")).body, { settings: { format: "docx", with: {} } });
   assert.equal((await b.get("/")).status, 200);
   assert.equal((await b.get("/rules")).status, 200);
   assert.equal(accounts(), before, "looking around makes no account");
   assert.equal(b.cookies.size, 0);
   for (const [path, body] of [
     ["/api/v1/characters", { record: RECORD }],
-    ["/api/v1/warbands", { name: "W" }],
+    ["/api/v1/settings", { format: "pdf" }],
     ["/api/v1/import", { characters: [] }],
   ] as const) {
     const r = await b.post(path, body);
@@ -120,7 +120,7 @@ test("create account as a visitor: the passkey goes on the visitor's account, an
   const b = new Browser();
   await b.post("/api/v1/account/visitor");
   const c = (await b.post("/api/v1/characters", { name: "Kept", record: RECORD })).body.character;
-  const w = (await b.post("/api/v1/warbands", { name: "Band", character_ids: [c.id] })).body.warband;
+  assert.equal((await b.post("/api/v1/settings", { format: "pdf" })).status, 200);
   const visitorId = ownerOf(c.id)!;
   const oldCookie = b.cookies.get("inquisitor_session");
   const before = accounts();
@@ -135,7 +135,7 @@ test("create account as a visitor: the passkey goes on the visitor's account, an
   assert.notEqual(b.cookies.get("inquisitor_session"), oldCookie, "a fresh session");
   assert.equal(ownerOf(c.id), visitorId);
   assert.deepEqual((await b.get("/api/v1/characters")).body.characters.map((x: { id: string }) => x.id), [c.id]);
-  assert.equal((await b.get(`/api/v1/warbands/${w.id}`)).body.warband.name, "Band");
+  assert.equal((await b.get("/api/v1/settings")).body.settings.format, "pdf");
   // Its versions' author is the account's public id (unchanged by the passkey).
   assert.equal((await b.get(`/api/v1/characters/${c.id}`)).body.character.versions[0].author, r.body.account.public_id);
   // And the passkey signs into it from elsewhere.
@@ -277,15 +277,19 @@ test("posts from another origin, or with no origin, are refused", async () => {
   assert.equal((await b.post("/api/v1/account/sign-out")).status, 403);
 });
 
-test("signing in as a visitor moves the visitor's characters and warbands into the account; the visitor goes", async () => {
+test("signing in as a visitor moves the visitor's characters and settings into the account; the visitor goes", async () => {
   const mine = new Browser();
   await signIn(mine, phone);
   const had = (await mine.post("/api/v1/characters", { name: "Already mine", record: RECORD })).body.character;
+  const had2 = (await mine.post("/api/v1/characters", { name: "Also mine", record: RECORD })).body.character;
+  // The account's own settings win over the visitor's; the visitor's picks for its own characters come along.
+  await mine.post("/api/v1/settings", { format: "docx", character_id: had.id, with: [had2.id] });
 
   const b = new Browser();
   await b.post("/api/v1/account/visitor");
   const c = (await b.post("/api/v1/characters", { name: "Made visiting", record: RECORD })).body.character;
-  const w = (await b.post("/api/v1/warbands", { name: "Visiting band", character_ids: [c.id] })).body.warband;
+  const c2 = (await b.post("/api/v1/characters", { name: "Also visiting", record: RECORD })).body.character;
+  assert.deepEqual((await b.post("/api/v1/settings", { format: "pdf", character_id: c.id, with: [c2.id] })).body.settings, { format: "pdf", with: { [c.id]: [c2.id] } });
   const shared = await b.post(`/api/v1/characters/${c.id}/share`);
   const visitorId = ownerOf(c.id)!;
   const before = accounts();
@@ -301,7 +305,7 @@ test("signing in as a visitor moves the visitor's characters and warbands into t
   const moved = (await b.get(`/api/v1/characters/${c.id}`)).body.character;
   assert.equal(moved.owner, publicId);
   assert.ok(moved.versions.every((v: { author: string }) => v.author === publicId));
-  assert.deepEqual((await b.get(`/api/v1/warbands/${w.id}`)).body.warband.character_ids, [c.id]);
+  assert.deepEqual((await b.get("/api/v1/settings")).body.settings, { format: "docx", with: { [had.id]: [had2.id], [c.id]: [c2.id] } });
   // Its share link still works, and the other device sees it too.
   assert.equal((await new Browser().get(`/api/v1/share/${shared.body.token}`)).status, 200);
   assert.ok((await mine.get("/api/v1/characters")).body.characters.some((x: { id: string }) => x.id === c.id));
@@ -325,6 +329,7 @@ test("a visitor imports a browser's kept characters (the one-time move from loca
   const b = new Browser();
   const body = {
     characters: [{ local_id: "local-1", name: "Eisenhorn", versions: [{ id: "v1", parent_id: null, record: RECORD }, { id: "v2", parent_id: "v1", record: RECORD, kind: "reroll" }] }],
+    // A browser's kept warbands (from before warbands went) are left behind.
     warbands: [{ local_id: "wb-1", name: "Retinue", characters: ["local-1"] }],
   };
   assert.equal((await b.post("/api/v1/import", body)).status, 401);
@@ -335,7 +340,7 @@ test("a visitor imports a browser's kept characters (the one-time move from loca
   const c = (await b.get(`/api/v1/characters/${id}`)).body.character;
   assert.equal(c.name, "Eisenhorn");
   assert.equal(c.versions.length, 2);
-  assert.deepEqual((await b.get(`/api/v1/warbands/${r.body.warbands["wb-1"]}`)).body.warband.character_ids, [id]);
+  assert.deepEqual(Object.keys(r.body), ["characters"]);
   // Sent again (a lost reply): the same ids.
   assert.deepEqual((await b.post("/api/v1/import", body)).body, r.body);
   // Then signing in takes them along, even when the account imported the same local ids before.
@@ -348,11 +353,12 @@ test("a visitor imports a browser's kept characters (the one-time move from loca
   assert.equal(names.length, 2, "both kept");
 });
 
-test("deleting the account takes its passkeys, sessions and characters; its share-only snapshots stay", async () => {
+test("deleting the account takes its passkeys, sessions, characters and settings; its share-only snapshots stay", async () => {
   const b = new Browser();
   await signIn(b, phone);
   const made = await b.post("/api/v1/characters", { name: "Ravenor", record: RECORD });
   assert.equal(made.status, 201);
+  await b.post("/api/v1/settings", { format: "pdf" });
   const shared = await b.post(`/api/v1/characters/${made.body.character.id}/share`);
   // An ownerless snapshot (shared before visitors existed).
   db.prepare("INSERT INTO characters (id, owner_id, name) VALUES ('loose', NULL, 'loose')").run();
@@ -364,7 +370,7 @@ test("deleting the account takes its passkeys, sessions and characters; its shar
 
   assert.deepEqual((await b.post("/api/v1/account/delete")).body, { ok: true });
   assert.equal(b.cookies.size, 0);
-  for (const table of ["account_passkeys", "account_sessions", "characters", "warbands"]) {
+  for (const table of ["account_passkeys", "account_sessions", "characters", "account_settings"]) {
     const column = table.startsWith("account_") ? "account_id" : "owner_id";
     assert.equal((db.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`).get(accountId) as { n: number }).n, 0, table);
   }

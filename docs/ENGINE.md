@@ -14,7 +14,6 @@ TypeScript (no Node APIs) and runs in the browser and on the server.
 | `diff.ts` | `diff()`: what changes for a character when the rules change |
 | `balance.ts` | `powerScore()`, `simulate()`, `summarize()`, `label()` |
 | `derived.ts` | `deriveStats()`: Kbk, BIV, SS, Cnc, Spd (docs/DERIVED-STATS.md) |
-| `warband.ts` | `warbandWarnings()`: the warband rules a set of characters breaks |
 
 ## The record
 
@@ -477,9 +476,9 @@ Profiles follow `profileWhen` for this character's final stats.
 
 ## Warbands
 
-`warbandWarnings(compendium, characters)` lists the `warband` effects (in
-rules and archetypes) a set of characters breaks: `{ source, max,
-archetype, count }`. Warnings, never blocks.
+`warband` effects are recorded and skipped: there are no saved warbands
+to check them against (owner, November 2026). A character's sheet is
+downloaded with others picked beside its Download button instead.
 
 ## diff()
 

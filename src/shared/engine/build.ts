@@ -1002,7 +1002,7 @@ class Pass {
       this.companions.push(this.from(src, { ...e.companion, source: src.id, key, ...(scope.parent ? { parent: scope.parent } : {}) }));
       return;
     }
-    if ("warband" in e) return; // checked across a warband (warbandWarnings)
+    if ("warband" in e) return; // a rule about the whole warband: kept in the rules, shown nowhere (owner, November 2026)
     if ("location" in e) {
       if ("add" in e.location) {
         this.locations.push({ source: src.id, location: e.location.add });

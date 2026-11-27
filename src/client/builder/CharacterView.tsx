@@ -1,7 +1,8 @@
 // One character, as the 2023 site showed it: a card with the name line, then
 // sections (Occupation, Stats, Talents, Boons, the rest of what the
-// character has, what built it), and below it the GM's sheet. With `edit`
-// every part is editable; without, it's the read-only view of a share link.
+// character has, what built it), or the GM's sheet: the Edit and Preview
+// tabs (ViewTabs) pick one. With `edit` every part is editable; without,
+// it's the read-only view of a share link.
 import { BookOpen, Dices, Info, TriangleAlert } from "lucide-preact";
 import { Fragment, type ComponentChildren } from "preact";
 import { useMemo, useState } from "preact/hooks";
@@ -298,6 +299,52 @@ function Boons({ c, built, edit, keys }: { c: Compendium; built: BuildResult; ed
   );
 }
 
+/** Which of a character's two views shows: the card (Edit) or the GM's sheet (Preview). */
+export type ViewTab = "edit" | "preview";
+const VIEW_TAB = "inquisitor:view-tab";
+
+/** The tab shown, remembered for this browser. */
+export function useViewTab(): [ViewTab, (t: ViewTab) => void] {
+  const [tab, setTab] = useState<ViewTab>(() => {
+    try {
+      return localStorage.getItem(VIEW_TAB) === "preview" ? "preview" : "edit";
+    } catch {
+      return "edit";
+    }
+  });
+  const pick = (t: ViewTab) => {
+    setTab(t);
+    try {
+      localStorage.setItem(VIEW_TAB, t);
+    } catch {}
+  };
+  return [tab, pick];
+}
+
+/** The Edit / Preview tabs above the character. */
+export function ViewTabs({ tab, onPick }: { tab: ViewTab; onPick: (t: ViewTab) => void }) {
+  const tabs: [ViewTab, string][] = [
+    ["edit", T.edit],
+    ["preview", T.preview],
+  ];
+  const keys = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = tab === "edit" ? "preview" : "edit";
+    onPick(next);
+    (e.currentTarget as HTMLElement).parentElement?.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
+  };
+  return (
+    <div class="view-tabs" role="tablist">
+      {tabs.map(([id, label]) => (
+        <button type="button" role="tab" data-tab={id} class="view-tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => onPick(id)} onKeyDown={keys}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function CharacterView({
   c,
   record,
@@ -306,6 +353,7 @@ export function CharacterView({
   balance,
   footer,
   companion,
+  tab = "edit",
 }: {
   c: Compendium;
   record: CharacterRecord;
@@ -317,6 +365,8 @@ export function CharacterView({
   footer?: ComponentChildren;
   /** A companion's card: its rolls are the character's (in the character's Rolls). */
   companion?: boolean;
+  /** The card (Edit) or the GM's sheet (Preview). */
+  tab?: ViewTab;
 }) {
   const ch = built.character;
   const parts = useMemo(() => sheetParts(ch, c), [ch, c]);
@@ -333,6 +383,14 @@ export function CharacterView({
   // A roll that came to nothing to choose from ("Heavy weapon (Common)"): shown, so the GM sees it happened.
   const empty = ch.empty ?? [];
 
+  if (tab === "preview")
+    return (
+      <div class="char-view">
+        <div class="char-sheet">
+          <Sheet parts={parts} character={ch} edit={edit} />
+        </div>
+      </div>
+    );
   return (
     <div class="char-view">
       <article class="ccard">
@@ -438,21 +496,17 @@ export function CharacterView({
         </div>
         {footer && <footer class="ccard-foot">{footer}</footer>}
       </article>
-
-      <div class="char-sheet">
-        <Sheet parts={parts} character={ch} edit={edit} hideName />
-      </div>
     </div>
   );
 }
 
 
 /** A character's companions (a Technical Servitor), each its own card and sheet, read-only: their rolls are re-rolled from the character's Rolls. */
-export function Companions({ c, built }: { c: Compendium; built: FullBuild }) {
+export function Companions({ c, built, tab }: { c: Compendium; built: FullBuild; tab?: ViewTab }) {
   return (
     <>
       {built.companions.map((m) => (
-        <CharacterView key={m.key} c={c} record={m.record} built={m.result} companion />
+        <CharacterView key={m.key} c={c} record={m.record} built={m.result} companion tab={tab} />
       ))}
     </>
   );

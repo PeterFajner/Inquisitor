@@ -7,7 +7,7 @@
 // (src/client/lib/legacy.ts).
 import { CircleArrowUp, CopyPlus, History, Info, Plus, Redo2, Trash2, Undo2 } from "lucide-preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { Character as ApiCharacter, EditKind, PageData, Warband } from "../../shared/api.ts";
+import type { Character as ApiCharacter, EditKind, PageData } from "../../shared/api.ts";
 import { powerScore, type Distribution } from "../../shared/engine/balance.ts";
 import { BuildError, type BuildResult } from "../../shared/engine/build.ts";
 import type { CharacterDiff } from "../../shared/engine/diff.ts";
@@ -21,20 +21,16 @@ import { migrateLegacy } from "../lib/legacy.ts";
 import { setUrl } from "../lib/router.ts";
 import { currentRules, followRules, loadRules, rulesAt, type Rules } from "../lib/rules.ts";
 import { useStore } from "../lib/store.ts";
-import { CharacterView, Companions, type ViewEdits } from "./CharacterView.tsx";
+import { CharacterView, Companions, useViewTab, ViewTabs, type ViewEdits } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L, T } from "./labels.ts";
 import { archetypeName, NewCharacter } from "./NewCharacter.tsx";
 import * as ops from "./ops.ts";
 import { Picker, type PickerOption } from "./Picker.tsx";
 import { RulesUpdate } from "./RulesUpdate.tsx";
-import { ExportButtons } from "../export/ExportButtons.tsx";
-import { exportWord } from "../export/sheets.ts";
-import { ShareButton } from "../warband/ShareButton.tsx";
-import { shareCharacter } from "../warband/share.ts";
-import { warbands as wbBackend } from "../warband/store.ts";
-import { WarbandList } from "../warband/WarbandList.tsx";
-import { WarbandView } from "../warband/WarbandView.tsx";
+import { DownloadButton } from "../export/DownloadButton.tsx";
+import { ShareButton } from "../export/ShareButton.tsx";
+import { shareCharacter } from "../export/share.ts";
 import "./builder.css";
 
 const SELECTED = "inquisitor:selected";
@@ -71,11 +67,6 @@ const remembered = (): string | null => {
 /** /c/<id> for a character, / for none (the address while the builder is shown: src/client/lib/router.ts). */
 function syncUrl(c: ApiCharacter | null) {
   setUrl("builder", c ? `/c/${encodeURIComponent(c.id)}` : "/");
-}
-
-/** /w/<id> for a warband. */
-function syncWarbandUrl(id: string) {
-  setUrl("builder", `/w/${encodeURIComponent(id)}`);
 }
 
 // Ability kinds as the book's profile rows name them.
@@ -187,7 +178,7 @@ function BalanceChip({ word, text }: { word: string; text: string }) {
   );
 }
 
-/** `seq`: goes up when the builder, kept, is sent to another character or warband (`data` names it). */
+/** `seq`: goes up when the builder, kept, is sent to another character (`data` names it). */
 export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
   const { signedIn } = useStore(account);
   const [rules, setRules] = useState<Rules | null>(null);
@@ -207,16 +198,10 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
   };
   // The bar's height (both rows): the drawer and the column start below it.
   const [barH, setBarH] = useState(93);
-  // The second row's place for a shown warband's tools (WarbandView puts them there).
-  const [wbTools, setWbTools] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [update, setUpdate] = useState<{ d: CharacterDiff; randomChoices: boolean } | null>(null);
   const redoHint = useRef(new Map<string, string>());
-  // Warbands (src/client/warband): the list under the characters; one shown instead of the character.
-  const [warbands, setWarbands] = useState<Warband[]>([]);
-  const [wb, setWb] = useState<string | null>(data.warband?.warband.id ?? null);
-  const wbRef = useRef(wb);
-  wbRef.current = wb;
+  const [tab, setTab] = useViewTab();
 
   // The current rules, following live rules edits (an outdated character then offers its update).
   useEffect(() => {
@@ -246,30 +231,19 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
       rows = await backend.list();
     } catch {}
     setList(rows);
-    let bands: Warband[] = [];
-    try {
-      bands = await wbBackend.list();
-    } catch {}
-    setWarbands(bands);
-    const shownWb = wbRef.current;
-    if (shownWb && !bands.some((w) => w.id === shownWb)) setWb(null);
-    else if (shownWb) syncWarbandUrl(shownWb);
     const want = select !== undefined ? select : remembered();
     const id = want && rows.some((r) => r.id === want) ? want : rows[0]?.id ?? null;
-    const onWarband = !!wbRef.current && bands.some((w) => w.id === wbRef.current);
     if (!id) {
       setChar(null);
-      if (!onWarband) {
-        setCreating(true);
-        syncUrl(null);
-      }
+      setCreating(true);
+      syncUrl(null);
       return;
     }
     try {
       const c = await backend.get(id);
       setChar(c);
       remember(c.id);
-      if (!onWarband) syncUrl(c);
+      syncUrl(c);
     } catch {
       setChar(null);
     }
@@ -279,7 +253,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     void refresh(data.character?.id);
   }, [signedIn]);
 
-  // Sent to a character or a warband (a link from another page, back or forward): show it, and the list as it is now.
+  // Sent to a character (a link from another page, back or forward): show it, and the list as it is now.
   const seen = useRef(seq);
   useEffect(() => {
     if (seen.current === seq) return;
@@ -287,9 +261,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     setCreating(false);
     setUpdate(null);
     setPicker(null);
-    const w = data.warband?.warband.id ?? null;
-    wbRef.current = w;
-    setWb(w);
     if (data.character) {
       setChar(data.character);
       remember(data.character.id);
@@ -355,7 +326,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     pickedFromList();
     setCreating(false);
     setUpdate(null);
-    setWb(null);
     try {
       const c = await backend.get(id);
       setChar(c);
@@ -372,7 +342,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
       const c = await backend.create({ name: "", record: rec, rules_version: rules.version, kind: mode === "random" ? "roll" : "manual" });
       setChar(c);
       setCreating(false);
-      setWb(null);
       remember(c.id);
       syncUrl(c);
       setList((l) => [{ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at }, ...(l ?? [])]);
@@ -530,38 +499,12 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
     return [name, s && s.name.toLowerCase() !== name?.toLowerCase() ? s.name : null].filter(Boolean).join(", ");
   };
 
-  // --- warbands ------------------------------------------------------------------
-
-  const showWarband = (id: string) => {
-    pickedFromList();
-    setCreating(false);
-    setUpdate(null);
-    setWb(id);
-    syncWarbandUrl(id);
-  };
-  const leaveWarband = () => {
-    setWb(null);
-    syncUrl(char);
-  };
-  const newWarband = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const w = await wbBackend.create({ name: "" });
-      setWarbands((l) => [w, ...l]);
-      showWarband(w.id);
-    } catch {
-    } finally {
-      setBusy(false);
-    }
-  };
-  const charNames = useMemo(() => new Map((list ?? []).map((r) => [r.id, r.name])), [list]);
 
   return (
     <div class={`builder${listOpen ? " list-open" : ""}`} aria-busy={busy || !rules} style={{ "--topbar-h": `${barH}px` }}>
       <SiteBar page="characters" onHeight={setBarH} onSignedOut={() => remember(null)}>
         <MenuToggle label={L.characters} open={listOpen} onToggle={() => toggleList(!listOpen)} />
-        {char && built && !wb && !creating && (
+        {char && built && !creating && (
           <span class="site-scroll char-tools">
             <span class="site-group">
               <IconButton label={L.undo} disabled={!undoTo || busy} onClick={() => char && void moveHead(undoTo, char.head_id)}>
@@ -576,7 +519,7 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
                 <CopyPlus size={ICON} />
               </IconButton>
               <ShareButton key={char.id} disabled={busy} link={() => shareCharacter(char.id)} />
-              <ExportButtons disabled={busy} caption rows={() => [{ name: char.name, head: headVersion(char) }]} />
+              <DownloadButton variant="bar" disabled={busy} self={{ id: char.id, name: char.name, head: headVersion(char) }} list={list ?? []} tagOf={archOf} />
             </span>
             <span class="site-group">
               {/* History: the history canvas at /c/<id>/history. */}
@@ -596,7 +539,6 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
             </span>
           </span>
         )}
-        {wb && <span class="site-scroll" ref={setWbTools} />}
       </SiteBar>
 
       <div class="builder-body">
@@ -605,11 +547,10 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
           <div class="char-list-head">
             <IconButton
               label={L.newCharacter}
-              pressed={creating && !wb}
+              pressed={creating}
               disabled={!rules}
               onClick={() => {
                 pickedFromList();
-                setWb(null);
                 setUpdate(null);
                 setCreating(true);
                 syncUrl(null);
@@ -622,14 +563,13 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
           <ul>
             {(list ?? []).map((r) => (
               <li>
-                <button type="button" class="char-row" aria-current={!wb && !creating && r.id === char?.id ? "true" : undefined} onClick={() => void select(r.id)}>
+                <button type="button" class="char-row" aria-current={!creating && r.id === char?.id ? "true" : undefined} onClick={() => void select(r.id)}>
                   <span class="char-row-name">{r.name || "–"}</span>
                   <span class="char-row-tag">{archOf(r)}</span>
                 </button>
               </li>
             ))}
           </ul>
-          <WarbandList warbands={warbands} current={wb} names={charNames} disabled={busy} onSelect={showWarband} onCreate={() => void newWarband()} />
         </nav>
 
         <main class="builder-main">
@@ -649,44 +589,20 @@ export function Builder({ data, seq = 0 }: { data: PageData; seq?: number }) {
             setUpdate(null);
             void commit(next, "roll");
           }} />}
-          {wb && (
-            <WarbandView
-              key={wb}
-              id={wb}
-              tools={wbTools}
-              backend={wbBackend}
-              characters={list ?? []}
-              rules={rules}
-              tagOf={archOf}
-              onOpen={(id) => void select(id)}
-              onChanged={(w) => setWarbands((l) => l.map((x) => (x.id === w.id ? w : x)))}
-              onRemoved={(id) => {
-                setWarbands((l) => l.filter((x) => x.id !== id));
-                leaveWarband();
-              }}
-              onCreated={(w) => {
-                setWarbands((l) => [w, ...l]);
-                // Its characters are copies: the list has new rows.
-                void refresh(char?.id ?? null).then(() => showWarband(w.id));
-              }}
-            />
-          )}
-          {!wb && !creating && rules && built && record && char && (
+          {!creating && rules && built && record && char && (
             <>
+              <ViewTabs tab={tab} onPick={setTab} />
               <CharacterView
                 key={char.id}
+                tab={tab}
                 c={(shown ?? rules).compendium}
                 record={record}
                 built={built}
                 edit={edits}
                 balance={<BalanceLabel rules={shown ?? rules} built={built} />}
-                footer={
-                  <button type="button" class="text-btn" disabled={busy} onClick={() => void exportWord([{ name: char.name, head: headVersion(char) }]).catch(() => {})}>
-                    {T.downloadDocx}
-                  </button>
-                }
+                footer={<DownloadButton variant="foot" disabled={busy} self={{ id: char.id, name: char.name, head: headVersion(char) }} list={list ?? []} tagOf={archOf} />}
               />
-              <Companions c={(shown ?? rules).compendium} built={built} />
+              <Companions c={(shown ?? rules).compendium} built={built} tab={tab} />
               <div class="char-foot">
                 <IconButton label={L.remove} disabled={busy} onClick={() => void remove()}>
                   <Trash2 size={ICON} />

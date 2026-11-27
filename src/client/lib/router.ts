@@ -1,7 +1,7 @@
 // Moving between the app's pages without loading the document again
 // (./routes.ts has the paths). A click on a link to one of them, and back
 // and forward, show that page in place (history.pushState, popstate); a
-// path that names a record (a character, a warband, a share link) gets its
+// path that names a record (a character, a share link) gets its
 // PageData from GET /api/v1/page first, so a bad one still shows the error
 // page. The builder and the rules are kept once shown, hidden while another
 // page is (src/client/app.tsx), each with its URL and scroll position as

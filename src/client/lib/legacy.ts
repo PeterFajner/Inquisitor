@@ -1,11 +1,11 @@
-// Characters and warbands this browser kept itself, from before they lived
-// only on the server (November 2026): localStorage "inquisitor:characters:v1"
-// and "inquisitor:warbands:v1", in the API's Character and Warband shapes. On
-// load they go once to POST /api/v1/import (as a visitor if this browser has
+// Characters this browser kept itself, from before they lived only on the
+// server (November 2026): localStorage "inquisitor:characters:v1", in the
+// API's Character shape (the warbands it kept, "inquisitor:warbands:v1", are
+// dropped with it: warbands went). On load they go once to POST /api/v1/import (as a visitor if this browser has
 // no account yet), and the keys are removed only once the server has taken
 // them. Import is idempotent (local ids), so a retry after a lost reply
 // makes no copies.
-import { API, type Character, type ImportBody, type ImportResult, type Warband } from "../../shared/api.ts";
+import { API, type Character, type ImportBody, type ImportResult } from "../../shared/api.ts";
 import { api } from "./api.ts";
 import { unwrap, withVisitor } from "./characters.ts";
 
@@ -39,12 +39,10 @@ const drop = (key: string) => {
   } catch {}
 };
 
-/** The kept characters and warbands as an import, or null when there are none. */
+/** The kept characters as an import, or null when there are none. */
 export function legacyImportBody(): ImportBody | null {
   const characters = read<Character>(CHARACTERS, "characters").filter((c) => c && typeof c.id === "string" && Array.isArray(c.versions) && c.versions.length);
-  const ids = new Set(characters.map((c) => c.id));
-  const warbands = read<Warband>(WARBANDS, "warbands").filter((w) => w && typeof w.id === "string");
-  if (!characters.length && !warbands.length) return null;
+  if (!characters.length) return null;
   return {
     characters: characters.map((c) => ({
       local_id: c.id,
@@ -58,11 +56,6 @@ export function legacyImportBody(): ImportBody | null {
         kind: v.kind,
         created_at: v.created_at,
       })),
-    })),
-    warbands: warbands.map((w) => ({
-      local_id: w.id,
-      name: w.name,
-      characters: (Array.isArray(w.character_ids) ? w.character_ids : []).filter((id) => ids.has(id)),
     })),
   };
 }

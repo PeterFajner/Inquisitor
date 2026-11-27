@@ -1,4 +1,4 @@
-// Characters, warbands, share links and import: /api/v1 (shapes in
+// Characters, settings, share links and import: /api/v1 (shapes in
 // src/shared/api.ts; the rules in src/lib/characters.ts). Writes are POSTs
 // (same-origin checked in src/server.ts). Without a session, the lists are
 // empty and the writes that make something new (create, import, copy from a
@@ -6,6 +6,7 @@
 // the browser gets a visitor (POST /api/v1/account/visitor) and tries again.
 import { currentViewer } from "../lib/accounts.ts";
 import * as chars from "../lib/characters.ts";
+import { getSettings, updateSettings } from "../lib/settings.ts";
 import { readJson, sendJson, type Ctx, type Router } from "../lib/http.ts";
 import { API } from "../shared/api.ts";
 import { IMPORT_LIMIT } from "./account.ts";
@@ -41,22 +42,9 @@ export function characterRoutes(router: Router): void {
       const { token } = chars.shareCharacter(v(ctx), ctx.params.id);
       sendJson(ctx, { token, url: shareUrl(token) });
     })
-    // Warbands
-    .get(`${API}/warbands`, (ctx) => sendJson(ctx, { warbands: chars.listWarbands(v(ctx)) }))
-    .post(`${API}/warbands`, async (ctx) => sendJson(ctx, { warband: chars.createWarband(v(ctx), await readJson(ctx)) }, 201))
-    .get(`${API}/warbands/:id`, (ctx) => sendJson(ctx, chars.getWarband(v(ctx), ctx.params.id)))
-    .post(`${API}/warbands/:id`, async (ctx) => sendJson(ctx, { warband: chars.updateWarband(v(ctx), ctx.params.id, await readJson(ctx)) }))
-    .post(`${API}/warbands/:id/duplicate`, async (ctx) =>
-      sendJson(ctx, { warband: chars.duplicateWarband(v(ctx), ctx.params.id, await optionalJson(ctx)) }, 201),
-    )
-    .post(`${API}/warbands/:id/delete`, (ctx) => {
-      chars.deleteWarband(v(ctx), ctx.params.id);
-      sendJson(ctx, { ok: true });
-    })
-    .post(`${API}/warbands/:id/share`, (ctx) => {
-      const { token } = chars.shareWarband(v(ctx), ctx.params.id);
-      sendJson(ctx, { token, url: shareUrl(token) });
-    })
+    // Settings
+    .get(`${API}/settings`, (ctx) => sendJson(ctx, { settings: getSettings(v(ctx)) }))
+    .post(`${API}/settings`, async (ctx) => sendJson(ctx, { settings: updateSettings(v(ctx), await readJson(ctx)) }))
     // Share links
     .get(`${API}/share/:token`, (ctx) => sendJson(ctx, chars.resolveShare(v(ctx), ctx.params.token)))
     .post(`${API}/share/:token/duplicate`, async (ctx) => sendJson(ctx, chars.duplicateShared(v(ctx), ctx.params.token, await optionalJson(ctx)), 201))

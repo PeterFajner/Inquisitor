@@ -6,26 +6,26 @@
 // - feature:accounts: a second browser signing in to an account that has
 //   characters (its visitor's characters merge in), one character edited in
 //   two tabs (nothing lost), a session cookie deleted or forged;
-// - feature:warband-states: GM approval, Puritan with Radical, extra
-//   models, an empty warband, a member deleted elsewhere, a character added
-//   twice, the Word export with a companion;
+// - feature:download-states: a Warband download with a companion (its own
+//   sheet), the Preview of a character with one, many characters to pick
+//   from (the list scrolls, search finds one), the dropdown at phone width,
+//   settings that follow a sign-in;
 // - feature:history-states: versions across a rules update, an old version
 //   made current again, a duplicate of a duplicate;
 // - feature:docx: the .docx's cells (stats, derived values, armour, # Rld,
-//   quantities) and a warband's (every member), a warband's print view;
+//   quantities);
 // - feature:rules-update-states: a change that removes the character's
 //   option, its archetype deleted, Update with overrides, Apply then Undo and
-//   Redo, the Update button after the edit is made while on the warband,
-//   history and share pages.
+//   Redo, the Update button after the edit is made while on the rules and
+//   history pages.
 import { join } from "node:path";
 import * as ops from "../../../src/client/builder/ops.ts";
-import { warbandWarnings as clientWarnings } from "../../../src/client/warband/warnings.ts";
 import { powerScore } from "../../../src/shared/engine/balance.ts";
 import type { CharacterRecord } from "../../../src/shared/engine/record.ts";
 import { walkEffects } from "../../../src/shared/rules/compendium.ts";
 import { toSheetCharacter } from "../../../src/shared/sheet-map.ts";
 import { SHEET_LOCATIONS, SHEET_STATS } from "../../../src/shared/sheet.ts";
-import type { Page } from "../lib/cdp.ts";
+import { PHONE, type Page } from "../lib/cdp.ts";
 import type { Report, Repro } from "../lib/report.ts";
 import { realCompendium } from "../lib/rules.ts";
 import { api, headRecord, idle, newCharacter, openBuilder, openCharacter, openList, saveRecord, Session } from "../lib/ui.ts";
@@ -250,7 +250,7 @@ export async function accountsFeature(r: Report, o: RunOptions): Promise<void> {
   });
 }
 
-// --- warbands ---------------------------------------------------------------------------------
+// --- downloads --------------------------------------------------------------------------------
 
 /** A saved character from the first seed whose character passes `want`. */
 async function seeded(s: Session, arch: string, sub: string, want: (b: ReturnType<typeof randomBuild>) => boolean, name: string): Promise<{ id: string; rec: CharacterRecord }> {
@@ -262,102 +262,86 @@ async function seeded(s: Session, arch: string, sub: string, want: (b: ReturnTyp
   throw new Error(`no ${arch}/${sub} seed fits`);
 }
 
-async function newWarband(s: Session, page: Page, name: string, ids: string[]): Promise<string> {
-  const res = await api<{ warband: { id: string } }>(page, "POST", "/api/v1/warbands", { name, character_ids: ids });
-  if (res.status !== 201 && res.status !== 200) throw new Error(`warband: ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`);
-  void s;
-  return res.body.warband.id;
-}
-
-const openWarband = async (page: Page, url: string, id: string) => {
-  await page.goto(`${url}/w/${id}`);
-  await page.waitFor(() => !!document.querySelector(".wb"), [], { what: "the warband", timeout: 20_000 });
-  await idle(page);
-};
-
 /** The text of every table cell of a .docx, in order. */
 const docxCells = (zip: Uint8Array): string[] =>
   [...unzipEntry(zip, "word/document.xml").matchAll(/<w:tc>([\s\S]*?)<\/w:tc>/g)].map((m) =>
     [...m[1].matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((x) => x[1]).join("").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim(),
   );
 
-export async function warbandStatesFeature(r: Report, o: RunOptions): Promise<void> {
+export async function downloadStatesFeature(r: Report, o: RunOptions): Promise<void> {
   const c = realCompendium();
   await withSession(r, o, async (s) => {
     const page = s.page;
     await openBuilder(page, s.app.url);
-    const puritan = await seeded(s, "adepta-sororitas", c.archetypes.get("adepta-sororitas")!.subtypes[0].id, (b) => b.character.alignment === "Puritan", "E2E Sister");
-    const radical = await seeded(s, "kroot", c.archetypes.get("kroot")!.subtypes[0].id, (b) => b.character.alignment === "Radical", "E2E Kroot");
+    const sister = await seeded(s, "adepta-sororitas", c.archetypes.get("adepta-sororitas")!.subtypes[0].id, () => true, "E2E Sister");
     const engi = await seeded(s, "enginseers", c.archetypes.get("enginseers")!.subtypes[0].id, (b) => b.character.companions.length > 0, "E2E Enginseer");
-    const check = async (wb: string, ids: string[], what: string, rep: Repro) => {
-      await openWarband(page, s.app.url, wb);
-      const recs = await Promise.all(ids.map((x) => headRecord(page, x)));
-      const want = clientWarnings(c, recs.map((rec, i) => ({ id: ids[i], character: ops.view(c, rec).character })));
-      const shown = await page.eval(() => [...document.querySelectorAll(".wb-warning")].map((x) => x.textContent ?? ""));
-      if (shown.length !== want.length) throw new Error(`${what}: ${shown.length} warnings shown, ${want.length} expected (${want.map((w) => w.kind).join(", ")})`);
-      for (const w of want) if (!shown.some((t) => t.includes(w.text.slice(0, 40)))) throw new Error(`${what}: "${w.text}" not shown`);
-      const sheets = await page.eval(() => document.querySelectorAll(".wb-sheet").length);
-      if (sheets !== new Set(ids).size) throw new Error(`${what}: ${sheets} sheets, ${new Set(ids).size} members`);
-      await s.checkText(`a warband: ${what}`, rep, page, ["E2E"]);
-      return want;
-    };
-    const steps = ["saved characters: a Puritan Battle Sister, a Radical Kroot (GM approval), an Enginseer with a Technical Servitor"];
-    let wb = "";
-    await s.step("a warband warns of GM approval, Puritan with Radical, and extra models", { steps }, async () => {
-      wb = await newWarband(s, page, "E2E-Mixed", [puritan.id, radical.id, engi.id]);
-      const want = await check(wb, [puritan.id, radical.id, engi.id], "mixed", { steps });
-      const kinds = new Set(want.map((w) => w.kind));
-      for (const k of ["gm", "alignment", "models"]) if (!kinds.has(k as never)) throw new Error(`no ${k} warning from the rules: ${[...kinds].join(", ")}`);
-    });
-    await s.step("an empty warband shows no sheet and no warning", { steps: ["New warband (no members)"] }, async () => {
-      const e = await newWarband(s, page, "E2E-Empty", []);
-      await check(e, [], "empty", { steps: ["an empty warband"] });
-    });
-    await s.step("the Word export of a warband holds every member and the companion", { steps: [...steps, "Download Docx"] }, async () => {
-      await openWarband(page, s.app.url, wb);
+    const steps = ["saved characters: E2E Sister, an Enginseer with a Technical Servitor (E2E Enginseer)"];
+    await s.step("a Warband download holds every character and the companion's own sheet", { steps: [...steps, "open E2E Enginseer", "Include other characters: E2E Sister", "Download Warband Docx"] }, async () => {
+      const set = await api(page, "POST", "/api/v1/settings", { format: "docx", character_id: engi.id, with: [sister.id] });
+      if (set.status !== 200) throw new Error(`settings ${set.status}`);
+      await openCharacter(page, s.app.url, engi.id);
+      await page.waitFor(() => [...document.querySelectorAll(".dl-main")].every((b) => (b.getAttribute("aria-label") ?? b.textContent) === "Download Warband Docx"), [], { what: "Download Warband Docx" });
       const t0 = Date.now();
-      await page.click('.wb-tools [aria-label="Download Docx"]');
-      const file = await s.chrome.download(t0, "E2E-Mixed.docx");
-      const cells = s.readDownload(file, (b) => docxText(unzipEntry(b, "word/document.xml")));
-      for (const n of ["E2E Sister", "E2E Kroot", "E2E Enginseer"]) if (!cells.includes(n)) throw new Error(`${n} not in the .docx`);
-      // The book's p. 15: "May be accompanied by a Technical Servitor".
-      if (!/Servitor/.test(cells)) throw new Error("the Enginseer's Technical Servitor is nowhere in the .docx");
+      await page.click(".char-tools .dl-main");
+      const file = await s.chrome.download(t0, "E2E Enginseer, E2E Sister.docx");
+      const cells = s.readDownload(file, (b) => docxCells(b));
+      const names = cells.filter((x) => x === "E2E Enginseer" || x === "E2E Sister" || /Servitor/.test(x));
+      // The book's p. 15: "May be accompanied by a Technical Servitor": its sheet follows the Enginseer's.
+      if (!names.some((x) => /Servitor/.test(x))) throw new Error(`no Servitor block: ${JSON.stringify(names)}`);
+      const text = s.readDownload(file, (b) => docxText(unzipEntry(b, "word/document.xml")));
+      const at = ["E2E Enginseer", "Servitor", "E2E Sister"].map((n) => text.indexOf(n));
+      if (at.some((x) => x < 0) || !(at[0] < at[1] && at[1] < at[2])) throw new Error(`order in the .docx: ${at}`);
     });
-    await s.step("the warband's print view shows every member", { steps: [...steps, "Print"] }, async () => {
-      await openWarband(page, s.app.url, wb);
-      await page.eval(() => void (window.print = () => {}));
-      await page.click('.wb-tools [aria-label="Print"]');
-      await page.waitFor(() => !!document.querySelector(".print-page"), [], { what: "the print view" });
-      const text = await page.eval(() => document.querySelector(".print-page")!.textContent ?? "");
-      for (const n of ["E2E Sister", "E2E Kroot", "E2E Enginseer"]) if (!text.includes(n)) throw new Error(`${n} not in the print view`);
-      await s.checkText("a warband's print view", { steps }, page, ["E2E"]);
-      await page.eval(() => (document.querySelector('.print-toolbar [aria-label="Close"]') as HTMLElement | null)?.click());
+    await s.step("Preview shows the character's sheet and its companion's", { steps: [...steps, "open E2E Enginseer", "Preview"] }, async () => {
+      await page.click('.view-tab[data-tab="preview"]');
+      await page.waitFor(() => document.querySelectorAll(".char-sheet .sheet").length >= 2 && !document.querySelector(".ccard"), [], { what: "two sheets" });
+      await s.checkText("a Preview with a companion", { steps }, page, ["E2E"]);
+      await page.click('.view-tab[data-tab="edit"]');
+      await page.waitFor(() => !!document.querySelector(".ccard"));
     });
-    await s.step("a character can't be in a warband twice", { steps: ["POST /api/v1/warbands/<id> with a member twice"] }, async () => {
-      page.allow.push(/400/);
-      const res = await api(page, "POST", `/api/v1/warbands/${wb}`, { character_ids: [puritan.id, puritan.id, radical.id] });
-      page.allow.pop();
-      const ids = ((await api(page, "GET", "/api/v1/warbands")).body.warbands as { id: string; character_ids: string[] }[]).find((x) => x.id === wb)!.character_ids;
-      if (res.status < 400 && ids.filter((x) => x === puritan.id).length > 1) throw new Error(`stored ${JSON.stringify(ids)}`);
-      await openWarband(page, s.app.url, wb);
-      const sheets = await page.eval(() => document.querySelectorAll(".wb-sheet").length);
-      if (sheets !== new Set(ids).size) throw new Error(`${sheets} sheets for ${new Set(ids).size} characters`);
-      // put it back
-      await api(page, "POST", `/api/v1/warbands/${wb}`, { character_ids: [puritan.id, radical.id, engi.id] });
-    });
-    await s.step("a member deleted elsewhere leaves the warband", { steps: [...steps, "another tab deletes the Kroot", "reload the warband"] }, async () => {
-      page.allow.push(/404/);
-      await openWarband(page, s.app.url, wb);
-      const res = await api(page, "POST", `/api/v1/characters/${radical.id}/delete`);
-      if (res.status !== 200 && res.status !== 204) throw new Error(`delete ${res.status}`);
-      await page.reload();
-      await page.waitFor(() => !!document.querySelector(".wb"));
+    // Many characters: the list scrolls inside the dropdown, and search finds one.
+    const many: string[] = [];
+    for (let i = 0; i < 36; i++) many.push(await seeded(s, "imperial-guard", "fighter", () => true, `E2E Trooper ${String(i + 1).padStart(2, "0")}`).then((x) => x.id));
+    await s.step("with many characters the dropdown stays in the window, its list scrolls, and search finds one", { steps: ["36 more characters", "open E2E Sister", "Include other characters", "search: 27"] }, async () => {
+      await openCharacter(page, s.app.url, sister.id);
+      await page.click(".char-tools .dl-arrow");
+      await page.waitFor(() => !!document.querySelector(".dl-drop .dl-row"));
+      const box = await page.eval(() => {
+        const d = document.querySelector(".dl-drop")!.getBoundingClientRect();
+        const l = document.querySelector(".dl-drop .dl-list")!;
+        return { top: d.top, bottom: d.bottom, h: innerHeight, rows: l.querySelectorAll(".dl-row").length, scrolls: l.scrollHeight > l.clientHeight };
+      });
+      if (box.top < 0 || box.bottom > box.h) throw new Error(`the dropdown leaves the window: ${JSON.stringify(box)}`);
+      if (box.rows !== 37) throw new Error(`${box.rows} rows, 37 others`);
+      if (!box.scrolls) throw new Error("the list doesn't scroll");
+      await page.click(".dl-drop input.dl-search");
+      await page.type("27");
+      await page.waitFor(() => [...document.querySelectorAll(".dl-drop .dl-row-name")].map((x) => x.textContent).join() === "E2E Trooper 27", [], { what: "one row" });
+      await page.click(".dl-drop .dl-row input");
       await idle(page);
-      const sheets = await page.eval(() => document.querySelectorAll(".wb-sheet").length);
-      if (sheets !== 2) throw new Error(`${sheets} sheets after a member was deleted`);
-      const text = await page.eval(() => document.querySelector(".wb")!.textContent ?? "");
-      if (text.includes("E2E Kroot")) throw new Error("the deleted member is still shown");
-      page.allow.pop();
+      const st = (await api(page, "GET", "/api/v1/settings")).body.settings;
+      if (JSON.stringify(st.with[sister.id]) !== JSON.stringify([many[26]])) throw new Error(`kept ${JSON.stringify(st.with[sister.id])}`);
+      await page.key("Escape");
+    });
+    await s.step("at phone width the dropdown fits the screen and its rows are big enough to tap", { steps: ["phone", "open E2E Sister", "Include other characters"] }, async () => {
+      const phone = await s.newPage(PHONE);
+      try {
+        await phone.goto(`${s.app.url}/c/${sister.id}`);
+        await phone.waitFor(() => !!document.querySelector(".char-tools .dl-arrow"), [], { what: "the arrow" });
+        await idle(phone);
+        await phone.click(".char-tools .dl-arrow");
+        await phone.waitFor(() => !!document.querySelector(".dl-drop .dl-row"));
+        const box = await phone.eval(() => {
+          const d = document.querySelector(".dl-drop")!.getBoundingClientRect();
+          const rows = [...document.querySelectorAll(".dl-drop .dl-row, .dl-drop .dl-format-opt")].map((x) => x.getBoundingClientRect().height);
+          return { l: d.left, r: d.right, t: d.top, b: d.bottom, w: innerWidth, h: innerHeight, small: rows.filter((x) => x < 24).length };
+        });
+        if (box.l < 0 || box.r > box.w || box.t < 0 || box.b > box.h) throw new Error(`leaves the screen: ${JSON.stringify(box)}`);
+        if (box.small) throw new Error(`${box.small} rows under 24 px`);
+        await s.screenshot("phone dropdown", phone);
+      } finally {
+        await phone.close();
+      }
     });
   });
 }
@@ -551,14 +535,16 @@ export async function rulesUpdateStatesFeature(r: Report, o: RunOptions): Promis
       if (!shown) throw new Error("a blank page");
     });
     await s.checkText("a character whose archetype is gone", { steps: ["the Kroot archetype deleted"] }, page, ["E2E Gone"]);
-    // The Update button after an edit made while on another page (the warband, the history, a share page).
-    for (const where of ["warband", "history"] as const) {
+    // The Update button after an edit made while on another page (the rules page, the history).
+    for (const where of ["rules", "history"] as const) {
       const ch = await seeded(s, "inquisitor-acolyte", "fighter", () => true, `E2E ${where}`);
       const steps = [`a saved Acolyte`, `open its ${where} page`, "rules edit: Acolytes gain Catfall (while there)", "go to the character in place"];
       await s.step(`back from the ${where} page after a rules edit, the character offers the update`, { steps }, async () => {
-        if (where === "warband") {
-          const wb = await newWarband(s, page, `E2E ${where}`, [ch.id]);
-          await openWarband(page, s.app.url, wb);
+        if (where === "rules") {
+          await openCharacter(page, s.app.url, ch.id);
+          await page.click('a.site-tab[href="/rules"]');
+          await page.waitFor(() => location.pathname === "/rules" && !!document.querySelector(".rb"), [], { what: "the rules page" });
+          await idle(page);
         } else {
           await page.goto(`${s.app.url}/c/${ch.id}/history`);
           await page.waitFor(() => document.querySelectorAll(".hv-card").length > 0);
@@ -569,7 +555,7 @@ export async function rulesUpdateStatesFeature(r: Report, o: RunOptions): Promis
           return e;
         });
         await new Promise((res) => setTimeout(res, 1500));
-        if (where === "warband") await page.click(".wb-member-open", 0);
+        if (where === "rules") await page.click('a.site-tab[href="/"]');
         else await page.click('.hv-card.is-head [aria-label="Open in the builder"]');
         await page.waitFor((x: string) => location.pathname === `/c/${x}` && !!document.querySelector(".char-view"), [ch.id], { what: "the character" });
         await idle(page);

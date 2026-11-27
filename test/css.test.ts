@@ -18,7 +18,7 @@ const FILES = [
   "print/print.css",
   "rules/rules.css",
   "sheet/sheet.css",
-  "warband/warband.css",
+  "export/download.css",
 ];
 
 // Classes a selector starts with (".chip {", ".chip.good", ".picker[open]").

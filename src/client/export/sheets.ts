@@ -1,5 +1,5 @@
 // Characters (their head versions) as the GM's sheet (src/shared/sheet.ts),
-// for the Word export and the print view, each followed by its companions. Each is built under the rules it
+// for the Word and PDF exports and the print view, each followed by its companions. Each is built under the rules it
 // was made with when this browser has them, else the current ones, like
 // the builder shows it.
 import type { Version } from "../../shared/api.ts";
@@ -44,8 +44,8 @@ export async function exportWord(rows: SheetSource[], name?: string): Promise<vo
   if (sheets.length) await docx.downloadSheetDocx(sheets, name);
 }
 
-/** Opens the print view for these characters (three per page) and the browser's print dialog. */
-export async function exportPrint(rows: SheetSource[], opts: { print?: boolean; onWord?: () => void } = {}): Promise<void> {
-  const [sheets, print] = await Promise.all([sheetsOf(rows), import("../print/open.tsx")]);
-  if (sheets.length) print.openPrintView(sheets, { print: opts.print ?? true, onWord: opts.onWord });
+/** Saves the GM's sheet for these characters as a PDF (three per page). */
+export async function exportPdf(rows: SheetSource[], name?: string): Promise<void> {
+  const [sheets, pdf] = await Promise.all([sheetsOf(rows), import("./pdf.ts")]);
+  if (sheets.length) await pdf.downloadSheetPdf(sheets, name);
 }

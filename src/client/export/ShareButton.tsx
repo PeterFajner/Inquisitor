@@ -4,7 +4,7 @@
 import { Check, Link } from "lucide-preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ICON, IconButton } from "../builder/Icon.tsx";
-import { W } from "./labels.ts";
+import { E } from "./labels.ts";
 import { copyText } from "./share.ts";
 
 export function ShareButton({ link, disabled }: { link: () => Promise<string>; disabled?: boolean }) {
@@ -39,7 +39,7 @@ export function ShareButton({ link, disabled }: { link: () => Promise<string>; d
   };
   return (
     <span class="share-btn">
-      <IconButton label={state === "copied" ? W.copied : W.share} disabled={disabled || state === "busy"} onClick={() => void go()} pressed={state === "copied" ? true : undefined}>
+      <IconButton label={state === "copied" ? E.copied : E.share} disabled={disabled || state === "busy"} onClick={() => void go()} pressed={state === "copied" ? true : undefined}>
         {state === "copied" ? <Check size={ICON} /> : <Link size={ICON} />}
       </IconButton>
       {shown && (
@@ -49,8 +49,8 @@ export function ShareButton({ link, disabled }: { link: () => Promise<string>; d
           type="url"
           readOnly
           value={shown}
-          aria-label={W.share}
-          title={W.share}
+          aria-label={E.share}
+          title={E.share}
           onBlur={() => setShown(null)}
           onFocus={(e) => e.currentTarget.select()}
         />

@@ -110,7 +110,7 @@ export async function renderSheetDocx(characters: SheetCharacter[], template: Ar
   });
 }
 
-/** Fetches the template, fills it and saves the .docx, named `name` (a warband's) or after the characters. */
+/** Fetches the template, fills it and saves the .docx, named `name`, or after the characters. */
 export async function downloadSheetDocx(characters: SheetCharacter[], name?: string): Promise<void> {
   const res = await fetch(SHEET_TEMPLATE_URL);
   if (!res.ok) throw new Error(`${SHEET_TEMPLATE_URL}: ${res.status}`);

@@ -1,4 +1,4 @@
-// A page the server couldn't show (no such character, warband or share
+// A page the server couldn't show (no such character or share
 // link, or one that isn't the viewer's): no words (AGENTS.md), only the
 // HTTP status under the bar (its tabs are the way home).
 import type { PageProps } from "../lib/router.ts";

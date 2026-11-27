@@ -16,7 +16,7 @@
 .char-list { display: none; background: rgb(18 18 18 / 0.85); border-right: 1px solid var(--line); overflow-y: auto; max-height: calc(100vh - var(--topbar-h, 93px)); position: sticky; top: var(--topbar-h, 93px); }
 .char-list.open { display: block; }
 .list-backdrop { display: none; }
-/* The list's first row: New character (as the warbands' New warband, ../warband/warband.css). */
+/* The list's first row: New character. */
 .char-list-head { display: flex; padding: 4px 6px 0; }
 .char-list ul { list-style: none; margin: 0; padding: 6px; }
 .char-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; border: 1px solid transparent; background: none; padding: 6px 8px; border-radius: var(--radius); cursor: pointer; min-height: 44px; }
@@ -52,6 +52,14 @@
 /* The character's card, as the 2023 site's: a dark card, a header band
    with the name line, sections in two columns, a footer band. */
 .char-view { display: flex; flex-direction: column; gap: 20px; }
+/* Edit / Preview (CharacterView.tsx ViewTabs): the card or the GM's sheet. */
+.view-tabs { display: flex; justify-content: center; gap: 0; }
+.builder-main > .view-tabs { width: auto; }
+.view-tab { border: 1px solid var(--line); background: var(--card); color: var(--ink-2); font: 700 15px/1 var(--font); padding: 9px 22px; min-height: 38px; cursor: pointer; }
+.view-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.view-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: 0; }
+.view-tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+@media (hover: hover) { .view-tab[aria-selected="false"]:hover { background: var(--surface-2); } }
 .ccard { color: var(--ink); background: var(--card); border-radius: 10px; overflow: hidden; }
 .ccard-head, .ccard-foot { background: var(--surface); text-align: center; padding: 14px 16px; }
 .ccard-head { box-shadow: var(--shadow); }
@@ -185,7 +193,7 @@
   .cstats-edit { min-height: 36px; }
 }
 @media print {
-  .char-list, .builder-title, .balance-line, .new-char, .ccard, .char-foot { display: none !important; }
+  .char-list, .builder-title, .balance-line, .new-char, .ccard, .char-foot, .view-tabs { display: none !important; }
   .builder-body { display: block; }
 }
 /* an ability's text keeps its own line breaks (lists of prayers, options) */

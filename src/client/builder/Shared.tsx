@@ -1,7 +1,7 @@
-// A share link (/s/<token>): the character's sheet and what built it,
-// read-only; a warband's characters one after another. The bar's second row
-// has the exports and an icon that copies a character into the viewer's own
-// (a visitor's, if need be).
+// A share link (/s/<token>): the character and what built it, or its sheet
+// (the Edit / Preview tabs), read-only. The bar's second row has the
+// Download button and an icon that copies the character into the viewer's
+// own (a visitor's, if need be).
 import { CopyPlus } from "lucide-preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Character as ApiCharacter, Shared as SharedData } from "../../shared/api.ts";
@@ -10,15 +10,14 @@ import { duplicateShared, headVersion } from "../lib/characters.ts";
 import { navigate } from "../lib/router.ts";
 import { loadRules, type Rules } from "../lib/rules.ts";
 import { BalanceLabel, usePinnedRules } from "./Builder.tsx";
-import { CharacterView, Companions } from "./CharacterView.tsx";
+import { CharacterView, Companions, useViewTab, ViewTabs, type ViewTab } from "./CharacterView.tsx";
 import { ICON, IconButton } from "./Icon.tsx";
 import { L } from "./labels.ts";
 import * as ops from "./ops.ts";
-import { ExportButtons } from "../export/ExportButtons.tsx";
-import { useBuiltMembers, useWarnings, Warnings } from "../warband/WarbandView.tsx";
+import { DownloadButton } from "../export/DownloadButton.tsx";
 import "./builder.css";
 
-function ReadOnly({ rules, character }: { rules: Rules; character: ApiCharacter }) {
+function ReadOnly({ rules, character, tab }: { rules: Rules; character: ApiCharacter; tab: ViewTab }) {
   const head = headVersion(character);
   const record = useMemo(() => ops.engineRecord(head.record), [head]);
   const shown = usePinnedRules(rules, head.rules_version) ?? rules;
@@ -36,8 +35,8 @@ function ReadOnly({ rules, character }: { rules: Rules; character: ApiCharacter 
       <div class="balance-line">
         <BalanceLabel rules={shown} built={built} />
       </div>
-      <CharacterView c={shown.compendium} record={record} built={built} />
-      <Companions c={shown.compendium} built={built} />
+      <CharacterView c={shown.compendium} record={record} built={built} tab={tab} />
+      <Companions c={shown.compendium} built={built} tab={tab} />
     </section>
   );
 }
@@ -45,23 +44,17 @@ function ReadOnly({ rules, character }: { rules: Rules; character: ApiCharacter 
 export function SharedView({ share }: { share: SharedData }) {
   const [rules, setRules] = useState<Rules | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useViewTab();
   useEffect(() => {
     void loadRules().then(setRules, () => {});
   }, []);
-  const characters = share.kind === "character" ? [share.character] : share.characters;
-  // A warband's rows, for its warnings and the exports.
-  const rows = useMemo(
-    () => characters.map((c) => ({ id: c.id, name: c.name, head: headVersion(c), updated_at: c.updated_at })),
-    [share.token],
-  );
-  const builtMembers = useBuiltMembers(share.kind === "warband" ? rules : null, rows);
-  const warnings = useWarnings(rules, builtMembers);
+  const character = share.character;
 
   const mine = async () => {
-    if (share.kind !== "character" || busy) return;
+    if (busy) return;
     setBusy(true);
     try {
-      const c = await duplicateShared(share.token, share.character.head_id);
+      const c = await duplicateShared(share.token, character.head_id);
       await navigate(`/c/${encodeURIComponent(c.id)}`);
     } catch {
       setBusy(false);
@@ -73,21 +66,18 @@ export function SharedView({ share }: { share: SharedData }) {
       <SiteBar page={null}>
         <span class="site-scroll">
           <span class="site-group">
-            <ExportButtons disabled={!rules || !rows.length} caption rows={() => rows} name={share.kind === "warband" ? share.warband.name : undefined} />
+            <DownloadButton variant="bar" disabled={!rules} self={{ name: character.name, head: headVersion(character) }} />
           </span>
-          {share.kind === "character" && (
-            <span class="site-group">
-              <IconButton label={L.mine} disabled={busy} onClick={mine}>
-                <CopyPlus size={ICON} />
-              </IconButton>
-            </span>
-          )}
+          <span class="site-group">
+            <IconButton label={L.mine} disabled={busy} onClick={mine}>
+              <CopyPlus size={ICON} />
+            </IconButton>
+          </span>
         </span>
       </SiteBar>
       <main class="builder-main">
-        {share.kind === "warband" && share.warband.name && <h2 class="wb-name">{share.warband.name}</h2>}
-        {share.kind === "warband" && <Warnings warnings={warnings} names={new Map(rows.map((r) => [r.id, r.name]))} />}
-        {rules && characters.map((c) => <ReadOnly rules={rules} character={c} />)}
+        <ViewTabs tab={tab} onPick={setTab} />
+        {rules && <ReadOnly rules={rules} character={character} tab={tab} />}
       </main>
     </div>
   );

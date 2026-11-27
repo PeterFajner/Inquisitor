@@ -25,11 +25,16 @@ step below is done.
   archetype, subtype, the dice results and choices keyed by stable decision
   keys, and overrides. No seeds: dice are stored. When the rules change, a
   character pinned to the old rules version offers "update?", showing what
-  differs; new decisions are rolled then. Characters and warbands can be
-  duplicated and shared by read-only link.
+  differs; new decisions are rolled then. Characters can be duplicated and
+  shared by read-only link.
 - **Creation modes**: random (the book's method) and freeform (set stats,
-  pick anything); any rule may be overridden, visibly. Warbands group
-  characters; the book's warband rules are warnings, not blocks.
+  pick anything); any rule may be overridden, visibly.
+- **Downloads** (owner, November 2026): a character's Download button
+  saves the GM's sheet as Docx or PDF; its arrow's dropdown picks the
+  format and "Include other characters" (searched, any number), which
+  makes it the "Warband" download. Both are kept with the account. Saved
+  warbands went with this; the book's warband rules are recorded, not
+  checked. The character shows as its card (Edit) or its sheet (Preview).
 - **Balance**: every character shows "underpowered / balanced /
   overpowered", with an (i) for "This character is in the top 1.5% of
   randomly-rolled Inquisitor Fighters.": its power score
@@ -77,12 +82,12 @@ step below is done.
   (`@passwordless-id/webauthn`), RP ID `inquisitor.pfaj.ca`; no name or
   email.
 - **Visitors** (owner, November 2026): nothing is stored in the browser;
-  every character and warband lives on the server. A browser's first save
+  every character lives on the server. A browser's first save
   makes it a visitor: an account with no passkeys, with the usual session
   cookie (`POST /api/v1/account/visitor`, per-IP limited in nginx; page
   views make none). "Create account" puts the passkey on the visitor's own
   account, so everything stays; "Sign in" moves the visitor's characters and
-  warbands into the account signed into and drops the visitor; "Sign out"
+  settings into the account signed into and drops the visitor; "Sign out"
   ends the session, and the next save makes a new visitor. "Signed in" in
   the UI means a passkey account, and only those edit the rules. The same
   per-account limits apply to visitors. Characters browsers kept in

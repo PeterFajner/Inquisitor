@@ -72,7 +72,8 @@ shard opens per subtype, 4). The exit code is 1 when any shard failed.
   Experience: its distribution, a record holding the roll, a re-roll of it
   (a note: no app path records the roll yet).
 - `engine:static`: the rules themselves and the places like the confirmed
-  bugs: the GM-approval list (p. 3), the warband warnings, pool picks with
+  bugs: the GM-approval list (p. 3), the warband rule (recorded, warning
+  no character), pool picks with
   nothing (or only one archetype's things, unless the pick is one option of
   several) to choose from, two units of an
   item that makes its own choices.
@@ -81,17 +82,21 @@ shard opens per subtype, 4). The exit code is 1 when any shard failed.
   options and results (saved through the API). Each: no open choices,
   everything owned and every choice shown outside the Rolls panel, a
   dropdown per archetype pick, the GM approval line, the no-UI-text rule.
-  Then the Stats and Boons Rerolls, every Occupation dropdown option (and
+  Then every section's Reroll, every Occupation dropdown option (and
   Choose at random on what it opens; each dropdown put back before the next,
   so a parent's own picks are there), Rolls-panel re-rolls (top rows, rows
   under a result or option, deeper ones), the subtype.
 - `feature:<area>`: `new-character`, `edits` (name, stats, alignment,
-  pickers, add/remove), `rolls`, `undo-redo`, `duplicate-delete` (both
-  deletes), `export` (Download Docx, print), `docx` (the .docx's cells:
+  the Edit / Preview tabs, pickers, add/remove), `rolls`, `undo-redo`,
+  `duplicate-delete` (both deletes), `export` (Download Docx from the top
+  bar and under the card, Download PDF), `docx` (the .docx's cells:
   stats, derived values, armour, # Rld, quantities), `history`,
-  `history-states` (across a rules update), `share`, `warbands`,
-  `warband-states` (GM approval, Puritan with Radical, extra models, empty,
-  a member twice or deleted elsewhere, the .docx with a companion, print),
+  `history-states` (across a rules update), `share` (with its Preview tab
+  and Download), `download` (the Download dropdown: the Docx / PDF toggle,
+  Include other characters, search, the captions, kept on the server per
+  character, the Warband .docx and PDF, a picked character deleted
+  elsewhere), `download-states` (a companion in a Warband download and in
+  Preview, many characters, the dropdown at phone width),
   `rules-page` (tabs, Table of Contents, search, links, Rolled on by,
   addresses, back/forward), `navigation` (Characters ↔ Rules in place,
   back/forward), `passkey` (Chrome's virtual authenticator), `accounts` (a

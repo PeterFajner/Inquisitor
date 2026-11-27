@@ -116,13 +116,24 @@ function tour(view: View): (r: Report, o: RunOptions) => Promise<void> {
           await page.click('.ccard [aria-label="Balance details"]');
           await page.waitFor(() => !document.querySelector(".ccard .balance-pop")!.hasAttribute("hidden"), [], { what: "the popover" });
         });
-        await s.step("the print view", { ...base, steps: [...base.steps!, "Print"] }, async () => {
-          await page.eval(() => void (window.print = () => {}));
-          await page.clickLabel("Print");
-          await page.waitFor(() => !!document.querySelector(".print-page"));
+        await s.step("the Download dropdown opens inside the window", { ...base, steps: [...base.steps!, "Include other characters (top bar)"] }, async () => {
+          await page.click('.char-tools [aria-label="Include other characters"]');
+          await page.waitFor(() => !!document.querySelector(".dl-drop")?.checkVisibility());
+          const box = await page.eval(() => {
+            const b = document.querySelector(".dl-drop")!.getBoundingClientRect();
+            return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: innerWidth, h: innerHeight };
+          });
+          if (box.l < 0 || box.t < 0 || box.r > box.w || box.b > box.h) throw new Error(`the dropdown leaves the window: ${JSON.stringify(box)}`);
         });
-        await check("the print view", base);
-        await page.eval(() => (document.querySelector('.print-toolbar [aria-label="Close"]') as HTMLElement)?.click());
+        await check("the Download dropdown", base);
+        await page.key("Escape");
+        await s.step("the Preview tab shows the GM's sheet", { ...base, steps: [...base.steps!, "Preview"] }, async () => {
+          await page.click('.view-tab[data-tab="preview"]');
+          await page.waitFor(() => !!document.querySelector(".char-sheet .sheet") && !document.querySelector(".ccard"));
+        });
+        await check("the Preview tab", base);
+        await page.click('.view-tab[data-tab="edit"]');
+        await page.waitFor(() => !!document.querySelector(".ccard"));
         await s.step("the history page", { ...base, steps: [...base.steps!, "History"] }, async () => {
           await page.goto(`${s.app.url}/c/${id}/history`);
           await page.waitFor(() => document.querySelectorAll(".hv-card").length > 0);
@@ -145,14 +156,6 @@ function tour(view: View): (r: Report, o: RunOptions) => Promise<void> {
           await page.waitFor(() => !!document.querySelector('.search-menu input[aria-label="Search"]'));
         });
         await check("the rules search", base);
-        await s.step("a warband", { ...base, steps: [...base.steps!, "/", "New warband"] }, async () => {
-          await page.click('a.site-tab[href="/"]');
-          await page.waitFor(() => !!document.querySelector(".char-view")?.checkVisibility());
-          await openList(page);
-          await page.clickLabel("New warband");
-          await page.waitFor(() => !!document.querySelector(".wb"));
-        });
-        await check("a warband", base);
         const bg = await page.eval(() => getComputedStyle(document.body).backgroundColor);
         r.note(`body background (${view.dark ? "dark" : "light"} scheme): ${bg}`);
       },

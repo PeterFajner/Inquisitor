@@ -1,20 +1,17 @@
 // Checks on the rules themselves and on the places most like the confirmed
 // bugs (engine:static), with no random character to reach them:
 // - p. 3: the archetypes asterisked for GM approval are the book's list;
-// - p. 3 steps 1–3: the warband warnings (two Inquisitors, GM approval,
-//   Puritan with Radical, extra models from a companion or a member's note);
+// - p. 3: the warband rule is in the rules and warns no character;
 // - every pool pick (not of owned things) has something to choose from, and
 //   not only what one archetype may take (Dead Or Alive's Legendary heavy
 //   weapon: only the Ecclesiarchy's Incinerator);
 // - a pick's count fits its options (Crone World's power picks);
 // - two of an item that makes its own choices (toxins, sides, prayers): each
 //   unit makes them (the second Executor Pistol's toxins).
-import { warbandWarnings as clientWarnings } from "../../../src/client/warband/warnings.ts";
 import { build, difficultyWithin } from "../../../src/shared/engine/build.ts";
 import * as dice from "../../../src/shared/engine/dice.ts";
 import { newRecord } from "../../../src/shared/engine/record.ts";
 import { seededRoller } from "../../../src/shared/engine/rng.ts";
-import { warbandWarnings } from "../../../src/shared/engine/warband.ts";
 import { effectLists, entryNames, walkEffects, type Compendium } from "../../../src/shared/rules/compendium.ts";
 import type { Ability, Archetype, Effect, Item, PickFilter } from "../../../src/shared/rules/schema.ts";
 import type { Report } from "../lib/report.ts";
@@ -53,30 +50,13 @@ export async function engineStatic(r: Report, _o: RunOptions): Promise<void> {
   }
   for (const id of GM_APPROVAL) r.expect(c.archetypes.has(id), "the archetypes for GM approval are the book's list (p. 3)", `no archetype ${id}`, {}, id);
 
-  // --- p. 3: the warband warnings -------------------------------------------------------
-  const member = (arch: string, sub: string, seed: number, align?: string) => {
-    for (let s = seed; s < seed + 200; s++) {
-      const b = randomBuild(c, arch, sub, s);
-      if (!align || b.character.alignment === align) return { id: `${arch}-${s}`, character: b.character, record: b.record };
-    }
-    throw new Error(`no ${align} ${arch}`);
-  };
-  const inq1 = member("inquisitor", "fighter", 1, "Puritan");
-  const inq2 = member("inquisitor", "sage", 1, "Radical");
-  const neutral = member("servitors", c.archetypes.get("servitors")!.subtypes[0].id, 1, "Neutral");
-  const kinds = (ms: { id: string; character: never }[]) => clientWarnings(c, ms as never).map((w) => w.kind);
-  r.expect(warbandWarnings(c, [inq1.record, inq2.record]).length > 0, "two Inquisitors break the warband rule (p. 3)", "no engine warning", {});
-  r.expect(kinds([inq1, inq2] as never).includes("limit"), "two Inquisitors warn (p. 3)", JSON.stringify(kinds([inq1, inq2] as never)), {});
-  r.expect(kinds([inq1, inq2] as never).includes("alignment"), "Puritan and Radical in one warband warn (p. 3, step 2)", JSON.stringify(kinds([inq1, inq2] as never)), {});
-  r.expect(!kinds([inq1, neutral] as never).length || !kinds([inq1, neutral] as never).includes("alignment"), "Puritan with Neutral doesn't warn (p. 3, step 2)", JSON.stringify(kinds([inq1, neutral] as never)), {});
-  r.expect(!kinds([inq1] as never).length, "one Inquisitor warns of nothing", JSON.stringify(clientWarnings(c, [inq1] as never)), {});
-  r.expect(kinds([inq1, member("kroot", c.archetypes.get("kroot")!.subtypes[0].id, 1)] as never).includes("gm"), "an archetype for GM approval warns (p. 3)", "no gm warning", {});
-  for (let s = 1; s < 60; s++) {
-    const e = randomBuild(c, "enginseers", c.archetypes.get("enginseers")!.subtypes[0].id, s);
-    if (!e.character.companions.length) continue;
-    r.expect(kinds([{ id: "e", character: e.character }] as never).includes("models"), "a companion is an extra model (p. 3, step 3)", "no models warning", { archetype: "enginseers", seed: s, record: e.record });
-    break;
-  }
+  // --- p. 3: the warband rule is recorded (nothing checks it: warbands went, owner, November 2026)
+  let warbandRules = 0;
+  for (const e of [...c.rules.values(), ...c.archetypes.values()])
+    for (const { effects } of effectLists(e)) walkEffects(effects, (x) => void ("warband" in x && warbandRules++));
+  r.expect(warbandRules > 0, "the book's warband rule is in the rules (p. 3: never more than one Inquisitor)", "no warband effect", {});
+  const twoInq = randomBuild(c, "inquisitor", "fighter", 1);
+  r.expect(!twoInq.warnings.some((w) => /warband/i.test(w)), "a warband rule makes no character warning", JSON.stringify(twoInq.warnings), {});
 
   // --- pool picks with nothing (or only another archetype's things) to choose from ---------
   const archetypeOnly = (x: Ability | Item) => (x.kind === "item" && x.requires ? JSON.stringify(x.requires) : null);

@@ -297,7 +297,7 @@ export async function rulesEditorFeature(r: Report, o: RunOptions): Promise<void
   });
 }
 
-/** The 2023 browser's kept characters and warbands (localStorage), as legacy.ts reads them. */
+/** The 2023 browser's kept characters and warbands (localStorage), as legacy.ts read them (it drops the warbands now). */
 function legacyStore(): { characters: unknown; warbands: unknown; ids: string[] } {
   const c = realCompendium();
   const ids = ["legacy-a", "legacy-b"];
@@ -321,7 +321,7 @@ export async function legacyImportFeature(r: Report, o: RunOptions): Promise<voi
     };
     page.allow.push(/404 \(Not Found\)/);
     const base: Repro = { steps: ["localStorage holds two 2023 characters and a warband", "open /"] };
-    await s.step("the kept characters and warband are imported on load", base, async () => {
+    await s.step("the kept characters are imported on load; the warband is left behind (warbands went)", base, async () => {
       await seed(page);
       await openBuilder(page, s.app.url);
       await page.waitFor(async () => true);
@@ -333,8 +333,6 @@ export async function legacyImportFeature(r: Report, o: RunOptions): Promise<voi
         await new Promise((res) => setTimeout(res, 200));
       }
       if (list.filter((x) => /E2E Legacy/.test(x.name)).length !== 2) throw new Error(`characters ${JSON.stringify(list.map((x) => x.name))}`);
-      const bands = ((await api(page, "GET", "/api/v1/warbands")).body.warbands ?? []) as { name: string; character_ids: string[] }[];
-      if (bands.length !== 1 || bands[0].name !== "E2E Legacy Band" || bands[0].character_ids.length !== 2) throw new Error(`warbands ${JSON.stringify(bands)}`);
       const keys = await page.eval(() => [localStorage.getItem("inquisitor:characters:v1"), localStorage.getItem("inquisitor:warbands:v1")]);
       if (keys.some((x) => x !== null)) throw new Error("the kept keys are still there");
       for (const ch of (await api(page, "GET", "/api/v1/characters")).body.characters as { id: string }[]) {
@@ -378,8 +376,6 @@ export async function legacyImportFeature(r: Report, o: RunOptions): Promise<voi
       if (!failed) throw new Error("the import was never sent");
       const n = ((await api(page, "GET", "/api/v1/characters")).body.characters as unknown[]).length;
       if (n !== 2) throw new Error(`${n} characters after a retried import`);
-      const w = ((await api(page, "GET", "/api/v1/warbands")).body.warbands as unknown[]).length;
-      if (w !== 1) throw new Error(`${w} warbands after a retried import`);
       const keys = await page.eval(() => localStorage.getItem("inquisitor:characters:v1"));
       if (keys !== null) throw new Error("the kept keys are still there after the retry");
     });

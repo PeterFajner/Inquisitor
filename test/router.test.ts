@@ -19,25 +19,23 @@ test("routeOf: each path's page, kept or not, and whether it needs the server's 
   assert.equal(r("/"), "builder kept");
   assert.equal(r("/c/abc"), "builder kept data");
   assert.equal(r("/c/abc/"), "builder kept data");
-  assert.equal(r("/w/abc"), "builder kept data");
   assert.equal(r("/rules"), "rules kept");
   assert.equal(r("/rules/"), "rules kept");
   assert.equal(r("/c/abc/history"), "history data");
   assert.equal(r("/s/tok"), "share data");
-  for (const p of ["/api/v1/rules", "/static/icon.svg", "/rules/x", "/c", "/c/", "/c/a/b", "/x", "/favicon.ico", ""]) assert.equal(r(p), null, p);
+  for (const p of ["/api/v1/rules", "/static/icon.svg", "/rules/x", "/c", "/c/", "/c/a/b", "/w/abc", "/x", "/favicon.ico", ""]) assert.equal(r(p), null, p);
 });
 
 test("instanceOf: one builder and one rules page; the others one per path (and search)", () => {
   const i = (p: string, s = "") => instanceOf(routeOf(p)!, p, s);
   assert.equal(i("/"), "builder");
   assert.equal(i("/c/a"), "builder");
-  assert.equal(i("/w/a"), "builder");
   assert.equal(i("/rules"), "rules");
   assert.equal(i("/c/a/history"), "history:/c/a/history");
   assert.notEqual(i("/c/a/history"), i("/c/b/history"));
   assert.notEqual(i("/s/t"), i("/s/t", "?print"));
   assert.ok(isRoot("/") && isRoot("/rules") && isRoot("/rules/"));
-  assert.ok(!isRoot("/c/a") && !isRoot("/w/a") && !isRoot("/s/t"));
+  assert.ok(!isRoot("/c/a") && !isRoot("/s/t"));
 });
 
 test("intercepts: plain clicks on links to the app's pages; not modified clicks, other sites, new windows, downloads, hashes", () => {
@@ -49,7 +47,8 @@ test("intercepts: plain clicks on links to the app's pages; not modified clicks,
   assert.ok(intercepts(plain, link("/"), here));
   assert.ok(intercepts(plain, link("/c/abc/history"), here));
   assert.ok(intercepts(plain, link("/s/tok?print"), here));
-  assert.ok(intercepts(plain, link("/w/w1"), here));
+  // Warbands went (November 2026): /w/ is no page of the app's.
+  assert.ok(!intercepts(plain, link("/w/w1"), here));
   // The same page without a hash would load it again: taken (the page stays as it is).
   assert.ok(intercepts(plain, link("/c/abc"), here));
   // Modifier keys, the middle button: the browser's (a new tab, a window, a download).
@@ -80,9 +79,8 @@ test("GET /api/v1/page: the PageData each page embeds; status 404 for what would
   const stranger = new Browser();
   const record = { v: 1, packs: ["loyalist"], name: "", archetype: "inquisitor", subtype: "psyker", dice: {}, choices: {}, overrides: [] };
   const c = (await gm.post("/api/v1/characters", { name: "Ravenor", record, kind: "roll" })).body.character;
-  const w = (await gm.post("/api/v1/warbands", { name: "Band", character_ids: [c.id] })).body.warband;
   const token = (await gm.post(`/api/v1/characters/${c.id}/share`)).body.token;
-  const paths = ["/", "/rules", `/c/${c.id}`, `/c/${c.id}/history`, `/w/${w.id}`, `/s/${token}`];
+  const paths = ["/", "/rules", `/c/${c.id}`, `/c/${c.id}/history`, `/s/${token}`];
   for (const path of paths) {
     const page = await gm.get(path);
     assert.equal(page.status, 200, path);
@@ -92,7 +90,7 @@ test("GET /api/v1/page: the PageData each page embeds; status 404 for what would
     assert.deepEqual(api.body, embedded(page.body), path);
   }
   // Not the viewer's, or no such thing, or no such page: the error page's data.
-  for (const [who, path] of [[stranger, `/c/${c.id}`], [stranger, `/w/${w.id}`], [gm, "/c/nope"], [gm, "/c/nope/history"], [gm, "/s/nope"], [gm, "/nope"], [gm, ""]] as const) {
+  for (const [who, path] of [[stranger, `/c/${c.id}`], [gm, "/w/nope"], [gm, "/c/nope"], [gm, "/c/nope/history"], [gm, "/s/nope"], [gm, "/nope"], [gm, ""]] as const) {
     const api = await who.get(`/api/v1/page?path=${encodeURIComponent(path)}`);
     assert.equal(api.status, 200, path);
     assert.equal(api.body.status, 404, path);

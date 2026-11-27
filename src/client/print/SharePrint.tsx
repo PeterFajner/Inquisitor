@@ -7,14 +7,13 @@ import type { SheetCharacter } from "../../shared/sheet.ts";
 import { ICON, IconButton } from "../builder/Icon.tsx";
 import { exportWord, sheetsOf, type SheetSource } from "../export/sheets.ts";
 import { headVersion } from "../lib/characters.ts";
-import { W } from "../warband/labels.ts";
+import { E } from "../export/labels.ts";
 import { PrintPage } from "./open.tsx";
 
 export const isPrintView = (): boolean => new URLSearchParams(location.search).has("print");
 
 export function SharePrint({ share }: { share: Shared }) {
-  const chars = share.kind === "character" ? [share.character] : share.characters;
-  const rows: SheetSource[] = chars.map((c) => ({ name: c.name, head: headVersion(c) }));
+  const rows: SheetSource[] = [{ name: share.character.name, head: headVersion(share.character) }];
   const [sheets, setSheets] = useState<SheetCharacter[] | null>(null);
   useEffect(() => {
     void sheetsOf(rows).then(setSheets, () => setSheets([]));
@@ -24,7 +23,7 @@ export function SharePrint({ share }: { share: Shared }) {
     <PrintPage
       sheets={sheets}
       tools={
-        <IconButton label={W.word} onClick={() => void exportWord(rows)}>
+        <IconButton label={E.word} onClick={() => void exportWord(rows)}>
           <FileDown size={ICON} />
         </IconButton>
       }

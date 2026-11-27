@@ -6,7 +6,7 @@
 //   {step: "<mode>", response}     -> {ok: true, account} | {error}
 // mode: "register" ("Create account": a new account, or a visitor's own
 // account gets its first passkey), "sign-in" (a passkey we know; a
-// visitor's characters and warbands move into that account), "add" (another
+// visitor's characters move into that account), "add" (another
 // passkey for an account that has one).
 //
 // POST /api/v1/account/visitor -> {ok: true, account}: the session's
@@ -104,7 +104,7 @@ export function accountRoutes(router: Router): void {
       signOut(ctx);
       sendJson(ctx, { ok: true });
     })
-    // Deletes the session's account (a visitor's too) with its passkeys, sessions, characters and warbands.
+    // Deletes the session's account (a visitor's too) with its passkeys, sessions, characters.
     .post(`${API}/account/delete`, (ctx) => {
       const accountId = currentViewer(ctx).accountId;
       if (accountId) deleteAccount(ctx, accountId);

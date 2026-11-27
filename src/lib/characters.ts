@@ -1,9 +1,9 @@
-// Saved characters, warbands and share links. Every read and write of them
-// goes through here, and so does the permission rule:
+// Saved characters and share links. Every read and write of them goes
+// through here, and so does the permission rule:
 //
-// - A character or warband with an owner is private to that account: only
-//   the owner reads it by id or changes it. Anyone else sees 404.
-// - A share link (/s/<token>) shows its character or warband, read-only, to
+// - A character with an owner is private to that account: only the owner
+//   reads it by id or changes it. Anyone else sees 404.
+// - A share link (/s/<token>) shows its character, read-only, to
 //   anyone (its head and its whole history).
 // - One without an owner was shared from a browser that kept its characters
 //   itself (before visitors, November 2026): read-only for everyone, through
@@ -31,11 +31,9 @@ import {
   type ImportResult,
   type Shared,
   type Version,
-  type Warband,
 } from "../shared/api.ts";
 import { isEditKind, recordShapeError } from "../shared/record-shape.ts";
 
-export const MAX_WARBAND = 100;
 export const MAX_IMPORT_CHARACTERS = 500;
 export const MAX_IMPORT_VERSIONS = 1000;
 
@@ -130,8 +128,8 @@ const versionsOf = (characterId: string): Version[] =>
 const versionRow = (characterId: string, versionId: string): VersionRow | undefined =>
   get<VersionRow>(`SELECT ${VERSION_COLUMNS} FROM character_versions v WHERE v.id = ?1 AND v.character_id = ?2`, [versionId, characterId]);
 
-const sharesOf = (column: "character_id" | "warband_id", id: string): string[] =>
-  all<{ token: string }>(`SELECT token FROM shares WHERE ${column} = ?1 ORDER BY created_at, rowid`, [id]).map((r) => r.token);
+const sharesOf = (characterId: string): string[] =>
+  all<{ token: string }>(`SELECT token FROM shares WHERE character_id = ?1 ORDER BY created_at, rowid`, [characterId]).map((r) => r.token);
 
 function characterOut(row: CharRow, viewer: Viewer): Character {
   const mine = row.owner_id !== null && row.owner_id === viewer.accountId;
@@ -144,7 +142,7 @@ function characterOut(row: CharRow, viewer: Viewer): Character {
     created_at: row.created_at,
     updated_at: row.updated_at,
     versions: versionsOf(row.id),
-    ...(mine ? { shares: sharesOf("character_id", row.id) } : {}),
+    ...(mine ? { shares: sharesOf(row.id) } : {}),
   };
 }
 
@@ -287,11 +285,7 @@ export function renameCharacter(viewer: Viewer, id: string, input: unknown): { n
 
 export function deleteCharacter(viewer: Viewer, id: string): void {
   const row = ownedCharacter(viewer, id);
-  transaction(() => {
-    // It leaves its warbands (the others keep their order).
-    run(`DELETE FROM warband_members WHERE character_id = ?1`, [row.id]);
-    run(`DELETE FROM characters WHERE id = ?1`, [row.id]);
-  });
+  run(`DELETE FROM characters WHERE id = ?1`, [row.id]);
 }
 
 // Copies one version of `source` (default its head) into a new character
@@ -326,199 +320,60 @@ export function duplicateCharacter(viewer: Viewer, id: string, input: unknown): 
 }
 
 // ---------------------------------------------------------------------------
-// Warbands
-// ---------------------------------------------------------------------------
-
-type WarbandRow = { id: string; owner_id: string | null; owner_public: string | null; name: string; created_at: string; updated_at: string };
-const WARBAND_SELECT = `SELECT w.id, w.owner_id, a.public_id AS owner_public, w.name, w.created_at, w.updated_at
-  FROM warbands w LEFT JOIN accounts a ON a.id = w.owner_id`;
-
-const membersOf = (warbandId: string): string[] =>
-  all<{ character_id: string }>(`SELECT character_id FROM warband_members WHERE warband_id = ?1 ORDER BY position`, [warbandId]).map(
-    (r) => r.character_id,
-  );
-
-function warbandOut(row: WarbandRow, viewer: Viewer): Warband {
-  const mine = row.owner_id !== null && row.owner_id === viewer.accountId;
-  return {
-    id: row.id,
-    name: row.name,
-    owner: row.owner_public,
-    mine,
-    character_ids: membersOf(row.id),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    ...(mine ? { shares: sharesOf("warband_id", row.id) } : {}),
-  };
-}
-
-function ownedWarband(viewer: Viewer, id: string): WarbandRow {
-  const row = get<WarbandRow>(`${WARBAND_SELECT} WHERE w.id = ?1`, [id]);
-  if (!row || row.owner_id === null || row.owner_id !== viewer.accountId) return fail(404, "not_found");
-  return row;
-}
-
-// The ids, each a character of `ownerId`'s, no repeats.
-function parseMembers(x: unknown, ownerId: string): string[] {
-  if (x === undefined) return [];
-  if (!Array.isArray(x) || x.length > MAX_WARBAND) return invalid("character_ids");
-  const ids = x.map((id) => parseId(id, "character_ids"));
-  if (new Set(ids).size !== ids.length) invalid("character_ids");
-  for (const id of ids) if (characterRow(id)?.owner_id !== ownerId) invalid("character_ids");
-  return ids;
-}
-
-function writeMembers(warbandId: string, ids: string[]): void {
-  run(`DELETE FROM warband_members WHERE warband_id = ?1`, [warbandId]);
-  ids.forEach((id, i) => run(`INSERT INTO warband_members (warband_id, position, character_id) VALUES (?1, ?2, ?3)`, [warbandId, i, id]));
-}
-
-function insertWarband(ownerId: string | null, name: string, ids: string[], importKey: string | null = null): string {
-  const id = newId();
-  run(`INSERT INTO warbands (id, owner_id, name, import_key) VALUES (?1, ?2, ?3, ?4)`, [id, ownerId, name, importKey]);
-  writeMembers(id, ids);
-  return id;
-}
-
-export function listWarbands(viewer: Viewer): Warband[] {
-  const accountId = viewer.accountId;
-  if (!accountId) return [];
-  return all<WarbandRow>(`${WARBAND_SELECT} WHERE w.owner_id = ?1 ORDER BY w.updated_at DESC, w.rowid DESC`, [accountId]).map((r) =>
-    warbandOut(r, viewer),
-  );
-}
-
-export function getWarband(viewer: Viewer, id: string): { warband: Warband; characters: CharacterSummary[] } {
-  const warband = warbandOut(ownedWarband(viewer, id), viewer);
-  const byId = new Map(listCharacters(viewer).map((c) => [c.id, c]));
-  return { warband, characters: warband.character_ids.map((cid) => byId.get(cid)!).filter(Boolean) };
-}
-
-export function createWarband(viewer: Viewer, input: unknown): Warband {
-  const accountId = requireAccount(viewer);
-  const b = body(input);
-  const name = parseName(b.name);
-  const ids = parseMembers(b.character_ids, accountId);
-  const id = transaction(() => insertWarband(accountId, name, ids));
-  return getWarband(viewer, id).warband;
-}
-
-// Renames and/or reorders; fields left out stay.
-export function updateWarband(viewer: Viewer, id: string, input: unknown): Warband {
-  const row = ownedWarband(viewer, id);
-  const b = body(input);
-  const name = b.name === undefined ? row.name : parseName(b.name);
-  const ids = b.character_ids === undefined ? null : parseMembers(b.character_ids, row.owner_id!);
-  transaction(() => {
-    run(`UPDATE warbands SET name = ?2, updated_at = ${NOW} WHERE id = ?1`, [row.id, name]);
-    if (ids) writeMembers(row.id, ids);
-  });
-  return getWarband(viewer, row.id).warband;
-}
-
-// A copy of the warband with a copy of each of its characters (their heads,
-// as 'duplicate' versions), so editing one doesn't change the other.
-function duplicateWarbandInto(viewer: Viewer, accountId: string, source: WarbandRow, name: string | undefined): string {
-  const copies = membersOf(source.id).map((cid) => duplicateInto(viewer, accountId, characterRow(cid)!, undefined, undefined));
-  return insertWarband(accountId, name ?? source.name, copies);
-}
-
-export function duplicateWarband(viewer: Viewer, id: string, input: unknown): Warband {
-  const source = ownedWarband(viewer, id);
-  const accountId = source.owner_id!;
-  const { name } = duplicateArgs(input);
-  const newId = transaction(() => duplicateWarbandInto(viewer, accountId, source, name));
-  return getWarband(viewer, newId).warband;
-}
-
-// Deletes the warband; its characters stay.
-export function deleteWarband(viewer: Viewer, id: string): void {
-  const row = ownedWarband(viewer, id);
-  run(`DELETE FROM warbands WHERE id = ?1`, [row.id]);
-}
-
-// ---------------------------------------------------------------------------
 // Share links
 // ---------------------------------------------------------------------------
 
 // The character's link (made the first time, the same one after).
 export function shareCharacter(viewer: Viewer, id: string): { token: string } {
   const row = ownedCharacter(viewer, id);
-  const token = sharesOf("character_id", row.id)[0] ?? newToken();
+  const token = sharesOf(row.id)[0] ?? newToken();
   run(`INSERT OR IGNORE INTO shares (token, character_id) VALUES (?1, ?2)`, [token, row.id]);
   return { token };
 }
 
-export function shareWarband(viewer: Viewer, id: string): { token: string } {
-  const row = ownedWarband(viewer, id);
-  const token = sharesOf("warband_id", row.id)[0] ?? newToken();
-  run(`INSERT OR IGNORE INTO shares (token, warband_id) VALUES (?1, ?2)`, [token, row.id]);
-  return { token };
-}
+type ShareRow = { character_id: string };
+const shareRow = (token: string): ShareRow | undefined => get<ShareRow>(`SELECT character_id FROM shares WHERE token = ?1`, [token]);
 
 // The link stops working. Only the owner of what it shows can.
 export function revokeShare(viewer: Viewer, token: string): void {
-  const share = get<{ character_id: string | null; warband_id: string | null }>(`SELECT character_id, warband_id FROM shares WHERE token = ?1`, [
-    token,
-  ]);
-  if (!share) return fail(404, "not_found");
-  if (share.character_id) ownedCharacter(viewer, share.character_id);
-  else ownedWarband(viewer, share.warband_id!);
+  const share = shareRow(token) ?? fail(404, "not_found");
+  ownedCharacter(viewer, share.character_id);
   run(`DELETE FROM shares WHERE token = ?1`, [token]);
 }
 
-type ShareRow = { character_id: string | null; warband_id: string | null };
-const shareRow = (token: string): ShareRow | undefined =>
-  get<ShareRow>(`SELECT character_id, warband_id FROM shares WHERE token = ?1`, [token]);
 
 export function resolveShare(viewer: Viewer, token: string): Shared {
   const share = shareRow(token) ?? fail(404, "not_found");
-  if (share.character_id) {
-    return { kind: "character", token, character: characterOut(characterRow(share.character_id)!, viewer) };
-  }
-  const row = get<WarbandRow>(`${WARBAND_SELECT} WHERE w.id = ?1`, [share.warband_id!])!;
-  const warband = warbandOut(row, viewer);
-  return {
-    kind: "warband",
-    token,
-    warband,
-    characters: warband.character_ids.map((cid) => characterOut(characterRow(cid)!, viewer)),
-  };
+  return { kind: "character", token, character: characterOut(characterRow(share.character_id)!, viewer) };
 }
 
-// What a share link shows, copied into the viewer's account: a character
-// (one version, default its head) or a warband with copies of its characters.
-export function duplicateShared(viewer: Viewer, token: string, input: unknown): { character: Character } | { warband: Warband } {
+// What a share link shows, copied into the viewer's account (one version,
+// default its head).
+export function duplicateShared(viewer: Viewer, token: string, input: unknown): { character: Character } {
   const accountId = requireAccount(viewer);
   const share = shareRow(token) ?? fail(404, "not_found");
   const { versionId, name } = duplicateArgs(input);
-  if (share.character_id) {
-    const source = characterRow(share.character_id)!;
-    const id = transaction(() => duplicateInto(viewer, accountId, source, versionId, name));
-    return { character: getCharacter(viewer, id) };
-  }
-  const source = get<WarbandRow>(`${WARBAND_SELECT} WHERE w.id = ?1`, [share.warband_id!])!;
-  const id = transaction(() => duplicateWarbandInto(viewer, accountId, source, name));
-  return { warband: getWarband(viewer, id).warband };
+  const source = characterRow(share.character_id)!;
+  const id = transaction(() => duplicateInto(viewer, accountId, source, versionId, name));
+  return { character: getCharacter(viewer, id) };
 }
 
 // ---------------------------------------------------------------------------
 // Import: the browser's characters move into the account
 // ---------------------------------------------------------------------------
 
-// Characters and warbands a browser kept itself (before visitors, November
+// Characters a browser kept itself (before visitors, November
 // 2026: localStorage) become the account's, with their history (ImportBody
 // in src/shared/api.ts); the browser sends them once, as a visitor or
 // signed in. It's safe to repeat: a local_id already imported into this
 // account maps to what it became. All or nothing: one bad record and
-// nothing is imported.
+// nothing is imported. The warbands it kept are left behind (warbands went,
+// November 2026).
 export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
   const accountId = requireAccount(viewer);
   const b = body(input);
   const chars = b.characters === undefined ? [] : b.characters;
-  const bands = b.warbands === undefined ? [] : b.warbands;
   if (!Array.isArray(chars) || chars.length > MAX_IMPORT_CHARACTERS) invalid("characters");
-  if (!Array.isArray(bands) || bands.length > MAX_IMPORT_CHARACTERS) invalid("warbands");
 
   // Check everything before writing anything.
   type V = { id: string; parentId: string | null; record: CharacterRecord; rulesVersion: string | null; kind: EditKind; createdAt: string | null };
@@ -552,17 +407,9 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
     if (!seen.has(head)) invalid(`${f}.head`);
     return { localId, name: parseName(c.name), versions: vs, head };
   });
-  const parsedBands = (bands as unknown[]).map((x, i) => {
-    const f = `warbands.${i}`;
-    const w = isObject(x) ? x : invalid(f);
-    const members = w.characters === undefined ? [] : w.characters;
-    if (!Array.isArray(members) || members.length > MAX_WARBAND) invalid(`${f}.characters`);
-    return { localId: parseId(w.local_id, `${f}.local_id`), name: parseName(w.name), members: (members as unknown[]).map((m) => parseId(m, `${f}.characters`)) };
-  });
-
   return transaction(() => {
     // (null-prototype maps: a local id may be "__proto__" or "constructor")
-    const out: ImportResult = { characters: Object.create(null), warbands: Object.create(null) };
+    const out: ImportResult = { characters: Object.create(null) };
     for (const c of parsedChars) {
       const existing = get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND import_key = ?2`, [accountId, c.localId]);
       if (existing) {
@@ -589,24 +436,6 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
       run(`UPDATE characters SET head_id = ?2 WHERE id = ?1`, [id, ids.get(c.head)!]);
       out.characters[c.localId] = id;
     }
-    for (const w of parsedBands) {
-      const existing = get<{ id: string }>(`SELECT id FROM warbands WHERE owner_id = ?1 AND import_key = ?2`, [accountId, w.localId]);
-      if (existing) {
-        out.warbands[w.localId] = existing.id;
-        continue;
-      }
-      // A member is a local id (from this import or an earlier one) or one
-      // of the account's characters; anything else is left out.
-      const members: string[] = [];
-      for (const m of w.members) {
-        const id =
-          (Object.hasOwn(out.characters, m) ? out.characters[m] : undefined) ??
-          get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND import_key = ?2`, [accountId, m])?.id ??
-          get<{ id: string }>(`SELECT id FROM characters WHERE owner_id = ?1 AND id = ?2`, [accountId, m])?.id;
-        if (id && !members.includes(id)) members.push(id);
-      }
-      out.warbands[w.localId] = insertWarband(accountId, w.name, members, w.localId);
-    }
     return out;
   });
 }
@@ -615,7 +444,7 @@ export function importBrowser(viewer: Viewer, input: unknown): ImportResult {
 // A visitor signing in: its things move into the account
 // ---------------------------------------------------------------------------
 
-// Every character and warband of account `from` becomes `to`'s, ids and
+// Every character of account `from` becomes `to`'s, ids and
 // share links unchanged; versions `from` wrote name `to` as their author
 // (the same person). An import key `to` already has is dropped from the
 // moved one (both came from the same browser). Run inside a transaction.
@@ -623,18 +452,15 @@ export function moveAccountData(from: string, to: string): void {
   const fromPublic = get<{ public_id: string }>(`SELECT public_id FROM accounts WHERE id = ?1`, [from])?.public_id;
   const toPublic = get<{ public_id: string }>(`SELECT public_id FROM accounts WHERE id = ?1`, [to])?.public_id;
   if (!fromPublic || !toPublic) return;
-  for (const table of ["characters", "warbands"]) {
-    run(
-      `UPDATE ${table} SET import_key = NULL
-        WHERE owner_id = ?1 AND import_key IN (SELECT import_key FROM ${table} WHERE owner_id = ?2 AND import_key IS NOT NULL)`,
-      [from, to],
-    );
-  }
+  run(
+    `UPDATE characters SET import_key = NULL
+      WHERE owner_id = ?1 AND import_key IN (SELECT import_key FROM characters WHERE owner_id = ?2 AND import_key IS NOT NULL)`,
+    [from, to],
+  );
   run(
     `UPDATE character_versions SET author = ?3
       WHERE author = ?2 AND character_id IN (SELECT id FROM characters WHERE owner_id = ?1)`,
     [from, fromPublic, toPublic],
   );
   run(`UPDATE characters SET owner_id = ?2 WHERE owner_id = ?1`, [from, to]);
-  run(`UPDATE warbands SET owner_id = ?2 WHERE owner_id = ?1`, [from, to]);
 }

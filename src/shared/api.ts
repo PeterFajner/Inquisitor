@@ -70,25 +70,17 @@ export type Character = {
 // A list row: the head version only.
 export type CharacterSummary = Omit<Character, "versions" | "shares"> & { head: Version; version_count: number };
 
-export type Warband = {
-  id: string;
-  name: string;
-  owner: string | null;
-  mine: boolean;
-  /** In order. */
-  character_ids: string[];
-  created_at: string;
-  updated_at: string;
-  shares?: string[];
-};
+// An account's export settings (GET/POST /api/v1/settings, src/lib/settings.ts):
+// the Download button's format, and per character the others downloaded with it.
+export const EXPORT_FORMATS = ["docx", "pdf"] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+export type Settings = { format: ExportFormat; with: Record<string, string[]> };
 
 /** signed_in: the session's account has a passkey (a visitor's hasn't: signed_in false, public_id null). */
 export type AccountInfo = { signed_in: boolean; public_id: string | null };
 
 // What a share link (/s/<token>, GET /api/v1/share/<token>) shows.
-export type Shared =
-  | { kind: "character"; token: string; character: Character }
-  | { kind: "warband"; token: string; warband: Warband; characters: Character[] };
+export type Shared = { kind: "character"; token: string; character: Character };
 
 // ---------------------------------------------------------------------------
 // Requests
@@ -103,15 +95,14 @@ export type NewVersion = {
   /** Move the head to the new version (default true). */
   head?: boolean;
 };
-export type NewWarband = { name?: string; character_ids?: string[] };
 
-// Characters and warbands a browser kept itself (localStorage, before
+// Characters a browser kept itself (localStorage, before
 // visitors in November 2026), moved into the session's account once (POST
 // /api/v1/import, as a visitor or signed in). local_id is the browser's own id: importing the same one
 // again returns the same character instead of a copy. Versions keep their
 // tree (ids are the browser's, remapped); head names one of them (default:
-// the last). A warband's characters are local_ids from this import or ids of
-// the account's characters.
+// the last). Warbands it kept (`warbands`) are ignored: warbands went
+// (November 2026).
 export type ImportVersion = {
   id: string;
   parent_id: string | null;
@@ -121,10 +112,9 @@ export type ImportVersion = {
   created_at?: string;
 };
 export type ImportCharacter = { local_id: string; name?: string; versions: ImportVersion[]; head?: string };
-export type ImportWarband = { local_id: string; name?: string; characters: string[] };
-export type ImportBody = { characters?: ImportCharacter[]; warbands?: ImportWarband[] };
+export type ImportBody = { characters?: ImportCharacter[] };
 /** local_id -> server id. */
-export type ImportResult = { characters: Record<string, string>; warbands: Record<string, string> };
+export type ImportResult = { characters: Record<string, string> };
 
 export type ApiError = { error: string; account?: "required" };
 
@@ -138,8 +128,6 @@ export type PageData = {
   share?: Shared;
   /** On /c/<id> (the viewer's own character). */
   character?: Character;
-  /** On /w/<id> (the viewer's own warband). */
-  warband?: { warband: Warband; characters: CharacterSummary[] };
   /** Set on an error page (404...). */
   status?: number;
   /** Which view a path shows when it isn't implied by the data above. */

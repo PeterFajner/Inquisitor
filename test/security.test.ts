@@ -10,14 +10,13 @@ after(() => {
   server.close();
 });
 
-// Import: local ids and warband members are looked up in null-prototype
-// maps, so "__proto__" keeps its mapping and "constructor" isn't Object.
+// Import: local ids are looked up in null-prototype maps, so "__proto__"
+// keeps its mapping and "constructor" isn't Object.
 test("import with prototype-named local ids", async () => {
   const a = await newAccount();
   const record = { v: 1, packs: ["loyalist"], archetype: "inquisitor", subtype: null, dice: {}, choices: {}, overrides: [] };
   const r = await a.post("/api/v1/import", {
     characters: [{ local_id: "__proto__", name: "A", versions: [{ id: "v1", parent_id: null, record }] }],
-    warbands: [{ local_id: "w1", name: "W", characters: ["__proto__", "constructor"] }],
   });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(typeof Object.getOwnPropertyDescriptor(r.body.characters, "__proto__")?.value, "string", "the __proto__ character has a mapping");

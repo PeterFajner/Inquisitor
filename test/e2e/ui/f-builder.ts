@@ -132,7 +132,19 @@ export async function editsFeature(r: Report, o: RunOptions): Promise<void> {
       });
       if (total.total !== String(31 + boonWS) || !total.ovr) throw new Error(`WS row ${JSON.stringify(total)}, wanted ${31 + boonWS} overridden`);
     });
-    await s.step("the sheet's stat cell edits and restores", { ...base, steps: [...base.steps!, "sheet BS → 12", "restore"] }, async () => {
+    // The sheet is the Preview tab's; its controls edit the character as the card's do.
+    await s.step("the Preview tab shows the sheet in place of the card; Edit brings the card back", { ...base, steps: [...base.steps!, "Preview", "Edit", "Preview"] }, async () => {
+      await page.click('.view-tab[data-tab="preview"]');
+      await page.waitFor(() => !!document.querySelector(".char-sheet .sheet") && !document.querySelector(".ccard"), [], { what: "the sheet alone" });
+      if ((await page.eval(() => document.querySelector('.view-tab[aria-selected="true"]')?.textContent)) !== "Preview") throw new Error("Preview isn't the selected tab");
+      await page.click('.view-tab[data-tab="edit"]');
+      await page.waitFor(() => !!document.querySelector(".ccard") && !document.querySelector(".char-sheet"), [], { what: "the card alone" });
+      // The arrow keys move between the tabs.
+      await page.eval(() => (document.querySelector('.view-tab[aria-selected="true"]') as HTMLElement).focus());
+      await page.key("ArrowRight");
+      await page.waitFor(() => !!document.querySelector(".char-sheet .sheet") && document.activeElement?.getAttribute("data-tab") === "preview", [], { what: "Preview by the arrow key" });
+    });
+    await s.step("the sheet's stat cell edits and restores", { ...base, steps: [...base.steps!, "Preview", "sheet BS → 12", "restore"] }, async () => {
       await page.click('.char-sheet button.cell-btn[aria-label^="BS "]');
       await page.eval(() => {
         const i = document.querySelector('.char-sheet input[aria-label="BS"]') as HTMLInputElement;
@@ -208,6 +220,15 @@ export async function editsFeature(r: Report, o: RunOptions): Promise<void> {
       if (!after.overrides.some((x) => x.op === "remove" && x.id === it.id)) throw new Error("no remove override");
     });
     await s.checkText("an edited character", base, page, ["E2E Malachai"]);
+    await s.step("the tab picked stays after a reload (this browser's)", { ...base, steps: [...base.steps!, "reload"] }, async () => {
+      await page.reload();
+      await page.waitFor(() => !!document.querySelector(".char-sheet .sheet"), [], { what: "Preview after the reload" });
+      await page.click('.view-tab[data-tab="edit"]');
+      await page.waitFor(() => !!document.querySelector(".ccard"));
+      // The added Bolt Pistol shows on the card too.
+      if (!(await shownText(page)).includes("Bolt Pistol")) throw new Error("Bolt Pistol not on the card");
+    });
+    await s.checkText("an edited character's card", base, page, ["E2E Malachai"]);
   });
 }
 
@@ -410,7 +431,7 @@ export async function exportFeature(r: Report, o: RunOptions): Promise<void> {
     await page.key("Enter");
     await idle(page);
     const base: Repro = { archetype: "imperial-guard", subtype: "fighter", steps: ["New character Imperial Guard Fighter", "name E2E Varro"] };
-    for (const [where, sel] of [["top bar", '.char-tools [aria-label="Download Docx"]'], ["card footer", ".ccard-foot .text-btn"]] as const) {
+    for (const [where, sel] of [["top bar", '.char-tools [aria-label="Download Docx"]'], ["card footer", ".ccard-foot .dl-main"]] as const) {
       await s.step(`Download Docx (${where}) saves the sheet`, { ...base, steps: [...base.steps!, `Download Docx (${where})`] }, async () => {
         const t0 = Date.now();
         await page.click(sel);
@@ -422,19 +443,21 @@ export async function exportFeature(r: Report, o: RunOptions): Promise<void> {
         if (missing.length) throw new Error(`the .docx lacks ${missing.join(", ")}`);
       });
     }
-    await s.step("Print opens the print view with the sheet, and closes", { ...base, steps: [...base.steps!, "Print", "Close"] }, async () => {
-      await page.eval(() => {
-        (window as unknown as { __printed: number }).__printed = 0;
-        window.print = () => void ((window as unknown as { __printed: number }).__printed++);
+    await s.step("Download PDF saves the sheet as a PDF", { ...base, steps: [...base.steps!, "Docx / PDF → PDF", "Download PDF"] }, async () => {
+      await page.click(".char-tools .dl-arrow");
+      await page.waitFor(() => !!document.querySelector(".dl-drop .dl-format"));
+      await page.click(".dl-format-opt", 1);
+      await idle(page);
+      await page.key("Escape");
+      await page.waitFor(() => document.querySelector(".char-tools .dl-main")?.getAttribute("aria-label") === "Download PDF", [], { what: "Download PDF" });
+      const t0 = Date.now();
+      await page.click(".char-tools .dl-main");
+      const file = await s.chrome.download(t0);
+      if (!file.endsWith("E2E Varro.pdf")) throw new Error(`file ${file}`);
+      s.readDownload(file, (b) => {
+        if (new TextDecoder().decode(b.slice(0, 5)) !== "%PDF-") throw new Error("not a PDF");
+        return null;
       });
-      await page.clickLabel("Print");
-      await page.waitFor(() => !!document.querySelector(".print-page"), [], { what: "the print view" });
-      await page.waitFor(() => (window as unknown as { __printed: number }).__printed > 0, [], { what: "window.print()" , timeout: 5000 });
-      const has = await page.eval(() => document.querySelector(".print-page")!.textContent!.includes("E2E Varro"));
-      if (!has) throw new Error("the print view lacks the character");
-      await s.checkText("the print view", base, page, ["E2E Varro"]);
-      await page.click('.print-toolbar [aria-label="Close"]');
-      await page.waitFor(() => !document.querySelector(".print-page"));
     });
     if (!existsSync(s.chrome.downloads)) r.note("no downloads directory");
   });

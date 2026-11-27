@@ -10,7 +10,6 @@ import * as dice from "../src/shared/engine/dice.ts";
 import { rollDie, seededRoller, splitmix32 } from "../src/shared/engine/rng.ts";
 import { build, BuildError, difficultyWithin, invalidateCompendium as invalidate, rollSubtype, type BuildResult } from "../src/shared/engine/build.ts";
 import { armourCell, toSheetCharacter as sheetCharacter } from "../src/shared/sheet-map.ts";
-import { warbandWarnings } from "../src/shared/engine/warband.ts";
 import { newRecord, parseRecord, type CharacterRecord } from "../src/shared/engine/record.ts";
 import { clearDecisions, isUnder, reroll } from "../src/shared/engine/reroll.ts";
 import { diff } from "../src/shared/engine/diff.ts";
@@ -1020,7 +1019,7 @@ test("powers: formula difficulties count as within maxDifficulty; access; psyker
   assert.ok(difficultyWithin("TT/2", 10) && difficultyWithin("8", 10) && !difficultyWithin("12", 10) && !difficultyWithin(undefined, 10));
 });
 
-test("subtypeDie: a rolled subtype; warband rules", () => {
+test("subtypeDie: a rolled subtype; a warband rule is recorded and builds nothing", () => {
   const arch = V.archetypes.get("bounty")!;
   const r = rollSubtype(arch, () => 5);
   assert.equal(r.subtype!.id, "tracker");
@@ -1030,10 +1029,8 @@ test("subtypeDie: a rolled subtype; warband rules", () => {
   assert.deepEqual(ok.record.dice[r.key], [5]);
   const bad = vbuild(vrec("bounty", "rookie", { dice: { [r.key]: r.faces } }), noRolls);
   assert.ok(bad.warnings.some((w) => w.includes("bounty/@subtype")));
-  assert.deepEqual(warbandWarnings(V, [{ archetype: "tester" }, { archetype: "trader" }]), []);
-  assert.deepEqual(warbandWarnings(V, [{ archetype: "tester" }, { archetype: "tester" }]), [
-    { source: "warband-rules", max: 1, archetype: ["tester"], count: 2 },
-  ]);
+  assert.ok(V.rules.has("warband-rules"));
+  assert.deepEqual(vbuild(vrec("tester", V.archetypes.get("tester")!.subtypes[0].id)).warnings.filter((w) => w.includes("warband")), []);
 });
 
 test("rolled condition: a rule after Equipment sees the armour table", () => {

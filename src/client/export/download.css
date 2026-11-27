@@ -1,0 +1,28 @@
+/* The Download button (DownloadButton.tsx): the button and its arrow as one
+   split control, and the arrow's dropdown. */
+.dl-split { display: inline-flex; align-items: stretch; flex: none; }
+.dl-foot .dl-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.dl-foot .dl-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 7px 7px; margin-left: 1px; }
+.dl-bar .dl-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.dl-bar .dl-arrow { width: 26px; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid var(--line); }
+.dl-arrow[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.dl-drop {
+  position: fixed; z-index: 60; width: min(320px, calc(100vw - 16px));
+  display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.5); font: 400 14px/1.3 var(--font);
+}
+.dl-format { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; flex: none; }
+.dl-format-opt { flex: 1; border: 0; background: transparent; color: var(--ink-2); font: 600 14px/1 var(--font); padding: 8px 0; cursor: pointer; }
+.dl-format-opt + .dl-format-opt { border-left: 1px solid var(--line); }
+.dl-format-opt[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.dl-title { font-weight: 700; color: var(--ink-2); flex: none; }
+.dl-search { flex: none; width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; }
+.dl-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; }
+.dl-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; min-height: 40px; border-radius: var(--radius); cursor: pointer; }
+@media (hover: hover) { .dl-row:hover { background: var(--surface-2); } }
+.dl-row input { accent-color: var(--accent); width: 18px; height: 18px; flex: none; margin: 0; }
+.dl-row-text { display: flex; flex-direction: column; min-width: 0; }
+.dl-row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-row-tag { color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -19,6 +19,8 @@ export const APPROVED = [
   "Tables", "Rules", "Rolled on by", "Search", "Table of Contents", "Characters",
   "Show", "Edit in this pack", // the Rule packs menu (owner, November 2026)
   "Delete", // the confirm() of every delete, "Delete <name>?" (owner, November 2026)
+  // The Download button, its dropdown, and the Edit / Preview tabs (owner, November 2026).
+  "Download Warband Docx", "Download PDF", "Download Warband PDF", "Include other characters", "Docx", "PDF", "Edit", "Preview",
 ];
 
 /** Words Intl.RelativeTimeFormat("en") prints in the history ("5 minutes ago", "yesterday"). */

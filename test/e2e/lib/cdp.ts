@@ -130,7 +130,10 @@ export class Chrome {
         if (!busy && size > 0 && size === last) return file;
         last = size;
         if (Date.now() - t0 > timeout) throw new Error(`download ${d.name}: ${size} bytes${busy ? ", a .crdownload left" : ""}`);
-      } else if (Date.now() - t0 > timeout) throw new Error(d ? `download ${d.name}: ${d.state}` : "no download");
+      } else if (Date.now() - t0 > timeout) {
+        const seen = this.downloadsSeen.filter((x) => x.at >= since).map((x) => `${x.name} (${x.state})`);
+        throw new Error(d ? `download ${d.name}: ${d.state}` : `no download${name ? ` named ${name}` : ""}${seen.length ? `; seen: ${seen.join(", ")}` : ""}`);
+      }
       await tick();
     }
   }
@@ -157,6 +160,8 @@ export class Chrome {
   /** A new tab (in its own browser context when `isolated`: separate cookies, as another browser). */
   async newPage(view: View = DESKTOP, opts: { isolated?: boolean } = {}): Promise<Page> {
     const ctx = opts.isolated ? (await this.send<{ browserContextId: string }>("Target.createBrowserContext", { disposeOnDetach: true })).browserContextId : undefined;
+    // Its downloads land with the others' (a new context starts with downloads denied).
+    if (ctx) await this.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: this.downloads, eventsEnabled: true, browserContextId: ctx });
     const { targetId } = await this.send<{ targetId: string }>("Target.createTarget", { url: "about:blank", ...(ctx ? { browserContextId: ctx } : {}) });
     const { sessionId } = await this.send<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
     const p = new Page(this, sessionId, targetId, view);
@@ -380,8 +385,8 @@ export class Page {
     await this.send("Input.insertText", { text });
   }
 
-  async key(key: "Enter" | "Escape" | "Tab" | "Backspace", modifiers = 0): Promise<void> {
-    const codes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8 };
+  async key(key: "Enter" | "Escape" | "Tab" | "Backspace" | "ArrowLeft" | "ArrowRight", modifiers = 0): Promise<void> {
+    const codes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowLeft: 37, ArrowRight: 39 };
     const base = { key, code: key, windowsVirtualKeyCode: codes[key], modifiers };
     await this.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...base, ...(key === "Enter" ? { text: "\r" } : {}) });
     await this.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });

@@ -1,5 +1,5 @@
 // Saved characters over HTTP: create, versions branching, the head,
-// duplicate, share links, warbands, import, and who may see or change what.
+// duplicate, share links, settings, import, and who may see or change what.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { Browser, db, newAccount, server } from "./support/server.ts";
@@ -253,60 +253,42 @@ test("share: an ownerless snapshot (shared before visitors) is read-only through
   assert.equal((await stranger.post("/api/v1/share", { character: { name: "Loose", record: record(3) } })).status, 404);
 });
 
-test("warbands: create, read, reorder, rename, share, duplicate, delete", async () => {
+test("settings: the Download format and each character's others, kept for the account", async () => {
   const a = (await gm.post("/api/v1/characters", { name: "A", record: record(1) })).body.character;
   const b = (await gm.post("/api/v1/characters", { name: "B", record: record(2) })).body.character;
-  const theirs = (await player.post("/api/v1/characters", { record: record(3) })).body.character;
+  const c = (await gm.post("/api/v1/characters", { name: "C", record: record(3) })).body.character;
+  const theirs = (await player.post("/api/v1/characters", { record: record(4) })).body.character;
+  const start = (await gm.get("/api/v1/settings")).body.settings;
 
-  assert.equal((await gm.post("/api/v1/warbands", { name: "W", character_ids: [a.id, theirs.id] })).body.error, "invalid:character_ids");
-  assert.equal((await gm.post("/api/v1/warbands", { name: "W", character_ids: [a.id, a.id] })).body.error, "invalid:character_ids");
-  const made = await gm.post("/api/v1/warbands", { name: "Retinue", character_ids: [a.id, b.id] });
-  assert.equal(made.status, 201);
-  const w = made.body.warband;
-  assert.deepEqual(w.character_ids, [a.id, b.id]);
-  assert.equal(w.mine, true);
-
-  const got = (await gm.get(`/api/v1/warbands/${w.id}`)).body;
-  assert.deepEqual(got.characters.map((c: { name: string }) => c.name), ["A", "B"]);
-  assert.equal((await player.get(`/api/v1/warbands/${w.id}`)).status, 404);
-  assert.equal((await player.post(`/api/v1/warbands/${w.id}`, { name: "x" })).status, 404);
-
-  const upd = (await gm.post(`/api/v1/warbands/${w.id}`, { character_ids: [b.id, a.id] })).body.warband;
-  assert.deepEqual(upd.character_ids, [b.id, a.id]);
-  assert.equal(upd.name, "Retinue");
-  assert.equal((await gm.post(`/api/v1/warbands/${w.id}`, { name: "Retinue II" })).body.warband.name, "Retinue II");
-  assert.equal((await gm.get("/api/v1/warbands")).body.warbands[0].id, w.id);
-
-  // Shared: the warband with its characters, whole.
-  const t = (await gm.post(`/api/v1/warbands/${w.id}/share`)).body.token;
-  const seen = (await stranger.get(`/api/v1/share/${t}`)).body;
-  assert.equal(seen.kind, "warband");
-  assert.deepEqual(seen.characters.map((c: { name: string }) => c.name), ["B", "A"]);
-  assert.ok(seen.characters[0].versions.length >= 1);
-
-  // Duplicate: a new warband with copies of its characters.
-  const dup = (await gm.post(`/api/v1/warbands/${w.id}/duplicate`, { name: "Copy" })).body.warband;
-  assert.equal(dup.name, "Copy");
-  assert.equal(dup.character_ids.length, 2);
-  assert.ok(dup.character_ids.every((id: string) => id !== a.id && id !== b.id));
-  const dupChars = (await gm.get(`/api/v1/warbands/${dup.id}`)).body.characters;
-  assert.deepEqual(dupChars.map((c: { name: string; head: { kind: string } }) => [c.name, c.head.kind]), [["B", "duplicate"], ["A", "duplicate"]]);
-  // From a link, into another account.
-  const theirsDup = (await player.post(`/api/v1/share/${t}/duplicate`)).body.warband;
-  assert.equal(theirsDup.owner, player.publicId);
-  assert.equal(theirsDup.character_ids.length, 2);
-
-  // Deleting a character takes it out of the warband; deleting the warband leaves its characters.
-  assert.deepEqual((await gm.post(`/api/v1/characters/${a.id}/delete`)).body, { ok: true });
-  assert.equal((await gm.get(`/api/v1/characters/${a.id}`)).status, 404);
-  assert.deepEqual((await gm.get(`/api/v1/warbands/${w.id}`)).body.warband.character_ids, [b.id]);
-  assert.deepEqual((await gm.post(`/api/v1/warbands/${w.id}/delete`)).body, { ok: true });
-  assert.equal((await gm.get(`/api/v1/warbands/${w.id}`)).status, 404);
-  assert.equal((await gm.get(`/api/v1/characters/${b.id}`)).status, 200);
-  assert.equal((await stranger.get(`/api/v1/share/${t}`)).status, 404);
+  assert.equal((await gm.post("/api/v1/settings", { format: "pdf" })).body.settings.format, "pdf");
+  assert.equal((await gm.post("/api/v1/settings", { format: "odt" })).body.error, "invalid:format");
+  // Only the account's own characters, never the character itself; repeats once.
+  assert.equal((await gm.post("/api/v1/settings", { character_id: a.id, with: [theirs.id] })).body.error, "invalid:with");
+  assert.equal((await gm.post("/api/v1/settings", { character_id: a.id, with: [a.id] })).body.error, "invalid:with");
+  assert.equal((await gm.post("/api/v1/settings", { character_id: theirs.id, with: [a.id] })).body.error, "invalid:character_id");
+  assert.equal((await gm.post("/api/v1/settings", { character_id: a.id, with: "x" })).body.error, "invalid:with");
+  const set = (await gm.post("/api/v1/settings", { character_id: a.id, with: [b.id, c.id, b.id] })).body.settings;
+  assert.deepEqual(set, { format: "pdf", with: { ...start.with, [a.id]: [b.id, c.id] } });
+  // Another account's are its own.
+  assert.deepEqual((await player.get("/api/v1/settings")).body.settings.with[a.id], undefined);
+  // A deleted character drops out of the lists it was in, and its own list goes.
+  assert.deepEqual((await gm.post(`/api/v1/characters/${c.id}/delete`)).body, { ok: true });
+  assert.deepEqual((await gm.get("/api/v1/settings")).body.settings.with[a.id], [b.id]);
+  await gm.post("/api/v1/settings", { character_id: b.id, with: [a.id] });
+  assert.deepEqual((await gm.post(`/api/v1/characters/${b.id}/delete`)).body, { ok: true });
+  const after = (await gm.get("/api/v1/settings")).body.settings;
+  assert.equal(after.with[a.id], undefined);
+  assert.equal(after.with[b.id], undefined);
+  // An empty list clears it.
+  const d = (await gm.post("/api/v1/characters", { name: "D", record: record(5) })).body.character;
+  await gm.post("/api/v1/settings", { character_id: a.id, with: [d.id] });
+  assert.equal((await gm.post("/api/v1/settings", { character_id: a.id, with: [] })).body.settings.with[a.id], undefined);
+  // Warbands are gone from the API.
+  assert.equal((await gm.get("/api/v1/warbands")).status, 404);
+  await gm.post("/api/v1/settings", { format: "docx" });
 });
 
-test("import: the browser's characters and warbands, with their history, once", async () => {
+test("import: the browser's characters, with their history, once (its warbands left behind)", async () => {
   const acct = await newAccount();
   const body = {
     characters: [
@@ -326,7 +308,8 @@ test("import: the browser's characters and warbands, with their history, once", 
   };
   const r = await acct.post("/api/v1/import", body);
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  const { characters, warbands } = r.body;
+  const { characters } = r.body;
+  assert.deepEqual(Object.keys(r.body), ["characters"]);
   const one = (await acct.get(`/api/v1/characters/${characters.L1}`)).body.character;
   assert.equal(one.name, "Local one");
   assert.equal(one.versions.length, 3);
@@ -336,14 +319,11 @@ test("import: the browser's characters and warbands, with their history, once", 
   assert.equal(byKind.import.parent_id, byKind.roll.id);
   assert.equal(one.head_id, byKind.choice.id);
   assert.ok(one.versions.every((v: { author: string }) => v.author === acct.publicId));
-  const band = (await acct.get(`/api/v1/warbands/${warbands.W1}`)).body.warband;
-  assert.deepEqual(band.character_ids, [characters.L2, characters.L1]);
 
   // Again (a retried sign-in): the same ids, no copies.
   const again = await acct.post("/api/v1/import", body);
   assert.deepEqual(again.body, r.body);
   assert.equal((await acct.get("/api/v1/characters")).body.characters.length, 2);
-  assert.equal((await acct.get("/api/v1/warbands")).body.warbands.length, 1);
   // Another account importing the same local ids gets its own.
   const other = await player.post("/api/v1/import", { characters: [body.characters[1]] });
   assert.notEqual(other.body.characters.L2, characters.L2);

@@ -1,13 +1,11 @@
-// The print view on screen: an overlay over the page (opened from the
-// print icons of the builder and the warband page) or a page of its own (a
-// share link with ?print: the sheet's online read-only format). Printing
-// switches the page to the light tokens so ink lands on white paper.
-import { FileDown, Printer, X } from "lucide-preact";
-import { render, type ComponentChildren } from "preact";
+// The print view: a share link with ?print, the sheet's online read-only
+// format. Printing switches the page to the light tokens so ink lands on white paper.
+import { Printer, X } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { SheetCharacter } from "../../shared/sheet.ts";
 import { ICON, IconButton } from "../builder/Icon.tsx";
-import { W } from "../warband/labels.ts";
+import { E } from "../export/labels.ts";
 import { PrintSheets } from "./PrintSheets.tsx";
 
 /** Prints with the light tokens (base.css honours data-theme="light"), then puts the theme back. */
@@ -74,7 +72,7 @@ export function PrintPage(p: { sheets: SheetCharacter[]; tools?: ComponentChildr
     <div class="print-page">
       <header class="print-toolbar" ref={closeRef}>
         {p.onClose ? (
-          <IconButton label={W.close} onClick={p.onClose}>
+          <IconButton label={E.close} onClick={p.onClose}>
             <X size={ICON} />
           </IconButton>
         ) : (
@@ -84,36 +82,11 @@ export function PrintPage(p: { sheets: SheetCharacter[]; tools?: ComponentChildr
         )}
         <span class="gap" />
         {p.tools}
-        <IconButton label={W.print} onClick={printLight}>
+        <IconButton label={E.print} onClick={printLight}>
           <Printer size={ICON} />
         </IconButton>
       </header>
       <Paper sheets={p.sheets} />
     </div>
   );
-}
-
-/** Opens the print view over the page; `print` also opens the browser's print dialog. */
-export function openPrintView(sheets: SheetCharacter[], opts: { print?: boolean; onWord?: () => void } = {}): () => void {
-  const host = document.createElement("div");
-  host.className = "print-root";
-  host.setAttribute("role", "dialog");
-  host.setAttribute("aria-modal", "true");
-  host.setAttribute("aria-label", W.print);
-  const back = document.activeElement as HTMLElement | null;
-  document.body.append(host);
-  document.body.classList.add("print-open");
-  const close = () => {
-    render(null, host);
-    host.remove();
-    document.body.classList.remove("print-open");
-    back?.focus?.();
-  };
-  const tools = opts.onWord ? (
-    <IconButton label={W.word} onClick={opts.onWord}>
-      <FileDown size={ICON} />
-    </IconButton>
-  ) : null;
-  render(<PrintPage sheets={sheets} onClose={close} autoPrint={opts.print} tools={tools} />, host);
-  return close;
 }

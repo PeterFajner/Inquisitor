@@ -2,7 +2,7 @@
 // session's account. A browser gets a visitor (an account without passkeys)
 // on its first save (ensureVisitor; src/client/lib/characters.ts calls it
 // when a save answers 401). "Create account" puts a passkey on that same
-// account; "Sign in" brings the visitor's characters and warbands into the
+// account; "Sign in" brings the visitor's characters and settings into the
 // account signed into. `account.signedIn` means a passkey account: a
 // visitor's page shows "Sign in" and "Create account".
 //
@@ -116,7 +116,7 @@ export async function signOut(): Promise<boolean> {
   return out.ok;
 }
 
-// Deletes the account with its characters and warbands. The caller asks
+// Deletes the account with its characters and settings. The caller asks
 // first (with an icon, not words).
 export async function deleteAccount(): Promise<boolean> {
   const out = await api(`${API}/account/delete`, { method: "POST" });

@@ -60,6 +60,16 @@ export const T = {
   boons: "Boons",
   reroll: "Reroll",
   downloadDocx: "Download Docx",
+  // The Download button's own (owner, November 2026): its other captions,
+  // its dropdown's title and Docx/PDF toggle, and the card's Edit/Preview tabs.
+  downloadWarbandDocx: "Download Warband Docx",
+  downloadPdf: "Download PDF",
+  downloadWarbandPdf: "Download Warband PDF",
+  includeOthers: "Include other characters",
+  docx: "Docx",
+  pdf: "PDF",
+  edit: "Edit",
+  preview: "Preview",
 } as const;
 
 /**

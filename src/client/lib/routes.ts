@@ -1,7 +1,7 @@
 // The app's paths, and which link clicks stay in the page (./router.ts):
 // pure, so the tests can run them without a browser.
 //
-//   /, /c/<id>, /w/<id>   the builder (one page: the character or warband it shows)
+//   /, /c/<id>            the builder (one page: the character it shows)
 //   /rules                the rules
 //   /c/<id>/history       a character's history
 //   /s/<token>            a share link
@@ -17,7 +17,6 @@ export type Route = { page: PageKind; kept: boolean; needsData: boolean };
 const ROUTES: [RegExp, PageKind, boolean][] = [
   [/^\/$/, "builder", false],
   [/^\/c\/[^/]+\/?$/, "builder", true],
-  [/^\/w\/[^/]+\/?$/, "builder", true],
   [/^\/rules\/?$/, "rules", false],
   [/^\/c\/[^/]+\/history\/?$/, "history", true],
   [/^\/s\/[^/]+\/?$/, "share", true],

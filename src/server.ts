@@ -1,5 +1,5 @@
 // Inquisitor's server: the pages (src/views/pages.ts), the JSON API
-// (/api/v1: accounts, characters, warbands, share links) and the static
+// (/api/v1: accounts, characters, settings, share links) and the static
 // files, in one Node process on one port.
 //
 //   npm run dev     reloads on change, reads .env.local, rebuilds the client

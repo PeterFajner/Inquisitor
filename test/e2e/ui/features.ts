@@ -4,9 +4,9 @@ import type { RunOptions } from "../shards.ts";
 import { balanceFeature, desktopDark, desktopLight, errorPagesFeature, phoneDark, phoneLight } from "./f-views.ts";
 import { passkeyFeature, ruleEditFeature, rulesUpdateFeature } from "./f-account.ts";
 import { navigationFeature, rulesFeature } from "./f-rules.ts";
-import { historyFeature, shareFeature, warbandFeature } from "./f-share.ts";
+import { downloadFeature, historyFeature, shareFeature } from "./f-share.ts";
 import { legacyImportFeature, rulesEditorFeature } from "./f-editor.ts";
-import { accountsFeature, docxFeature, historyStatesFeature, networkFeature, rulesUpdateStatesFeature, warbandStatesFeature } from "./f-states.ts";
+import { accountsFeature, docxFeature, downloadStatesFeature, historyStatesFeature, networkFeature, rulesUpdateStatesFeature } from "./f-states.ts";
 import { duplicateDeleteFeature, editsFeature, exportFeature, newCharacterFeature, rollsFeature, undoFeature } from "./f-builder.ts";
 
 export const FEATURES: Record<string, (r: Report, o: RunOptions) => Promise<void>> = {
@@ -18,7 +18,7 @@ export const FEATURES: Record<string, (r: Report, o: RunOptions) => Promise<void
   export: exportFeature,
   history: historyFeature,
   share: shareFeature,
-  warbands: warbandFeature,
+  download: downloadFeature,
   "rules-page": rulesFeature,
   navigation: navigationFeature,
   passkey: passkeyFeature,
@@ -34,7 +34,7 @@ export const FEATURES: Record<string, (r: Report, o: RunOptions) => Promise<void
   "legacy-import": legacyImportFeature,
   network: networkFeature,
   accounts: accountsFeature,
-  "warband-states": warbandStatesFeature,
+  "download-states": downloadStatesFeature,
   "history-states": historyStatesFeature,
   docx: docxFeature,
   "rules-update-states": rulesUpdateStatesFeature,

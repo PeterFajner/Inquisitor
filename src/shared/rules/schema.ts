@@ -472,8 +472,9 @@ export type PsykerEffect = { psyker: true };
 // Servitor").
 export type CompanionEffect = { companion: { archetype: string; subtype?: string; option?: string } };
 
-// A warband rule (a warning, never a block): at most `max` characters of
-// these archetypes.
+// A warband rule: at most `max` characters of these archetypes ("never have
+// more than one Inquisitor"). Recorded only: the app has no warbands to check
+// it against (owner, November 2026).
 export type WarbandEffect = { warband: { max: number; archetype: string[] } };
 
 // Hit locations: choose (or roll, `random: true`) one of `from` ("Choose one

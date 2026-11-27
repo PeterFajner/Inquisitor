@@ -2,7 +2,7 @@
 
 A character builder for Inquisitor 54mm, built from *Inquisitor 54mm Warrior
 Band & Character Creation Guide, Loyalist Edition 0.10* (arranged by The
-Halibut). Primarily for the GM: build characters and warbands, export to his
+Halibut). Primarily for the GM: build characters, export them (with others) to his
 Word sheet. See PLAN.md for the design and its decisions.
 
 ## Layout
@@ -35,13 +35,13 @@ Word sheet. See PLAN.md for the design and its decisions.
   any archetype and subtype, the last word made plural by rule
   (balance.ts `plural()`, e.g. "Vindicare Assassin Vindicares"; owner,
   November 2026); "Delete <name>?" (the confirm() of every delete: a
-  character's, a warband's, a rule entry's; "Delete –?" when unnamed;
+  character's, a rule entry's; "Delete –?" when unnamed;
   owner, November 2026); the GM sheet's own headings (Kbk, BIV, SS,
   Cnc, Spd, Game Notes, Starting, Progress, Current, Location, L. Leg, R.
   Leg, Groin, L. Arm, R. Arm, Abdomen, Chest, Head, Injury Total, Armour /
   Injury Lvl, Firearm, Type, Rng, Mode, Acc, Damage, Shots, Rld, Enc, #
   Rld, Special, Melee, Rch, Dam, PP, Other Equipment/Bionics/Etc,
-  Abilities); "–" for an unnamed character or warband; "×N" quantities;
+  Abilities); "–" for an unnamed character; "×N" quantities;
   brackets around chosen variants ("Bionic sense (Right eye, Average)");
   "/" in the sheet's # Rld and Injury Total cells; relative times in
   history ("5 minutes ago", "yesterday", via Intl.RelativeTimeFormat);
@@ -62,7 +62,11 @@ Word sheet. See PLAN.md for the design and its decisions.
   Contents" (the rules page's sidebar and its ☰; the book's p. 2 heading;
   owner, November 2026); the Rule packs menu's "Show: <pack>" and "Edit in
   this pack: <pack>" (owner, November 2026); "⌊100⌋", a human's stat
-  held at the book's cap of 100 (owner, November 2026); the top bar's tabs on every page, "Characters"
+  held at the book's cap of 100 (owner, November 2026); the Download
+  button's "Download Warband Docx", "Download PDF" and "Download Warband
+  PDF", its dropdown's "Include other characters" and "Docx" / "PDF"
+  toggle, and the character's "Edit" / "Preview" tabs (owner, November
+  2026); the top bar's tabs on every page, "Characters"
   (owner, November 2026) and "Rules" (the rules page's tab title, now also
   its tab in the top bar).
   The look is the 2023 site's (dark cards on a dark-red mosaic, red for
@@ -73,7 +77,7 @@ Word sheet. See PLAN.md for the design and its decisions.
   under a stable key (`<entry id>/<effect id>[#n]`); replaying a record
   against the rules reproduces the character exactly. Seeds exist only in
   tests and the balance simulation.
-- **Characters and warbands live only on the server**, in the session's
+- **Characters live only on the server**, in the session's
   account: a visitor's (an account with no passkeys, made on a browser's
   first save) or a passkey account's. localStorage holds only per-browser
   conveniences (selection, collapsed sections) and caches (rules,

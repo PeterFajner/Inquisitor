@@ -8,7 +8,7 @@
 //   merely looking around makes none.
 // - "Create account" while a visitor puts the new passkey on the visitor's
 //   account: everything it saved stays, same ids, same public id.
-// - "Sign in" while a visitor moves the visitor's characters and warbands
+// - "Sign in" while a visitor moves the visitor's characters
 //   into the account signed into, and drops the visitor.
 // - "Signed in" (the UI's account state, Viewer.passkey) means the account
 //   has a passkey. Only such accounts edit the rules (src/views/rules.ts).
@@ -20,6 +20,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { all, get, NOW, run, transaction } from "./db.ts";
 import { moveAccountData } from "./characters.ts";
+import { moveSettings } from "./settings.ts";
 import { HttpError, setCookie, type Ctx } from "./http.ts";
 import {
   newChallenge,
@@ -222,7 +223,7 @@ export function signInOptions(): SignInOptionsJSON {
 
 // Signs in; the account id, or null when the passkey isn't one we know or
 // doesn't check out. A visitor signing in brings its characters and
-// warbands into the account, and the visitor account goes.
+// settings into the account, and the visitor account goes.
 export async function signIn(ctx: Ctx, response: AuthenticationResponse): Promise<string | null> {
   const before = currentViewer(ctx);
   const stored = get<StoredPasskey & { account_id: string }>(
@@ -237,6 +238,7 @@ export async function signIn(ctx: Ctx, response: AuthenticationResponse): Promis
   if (visitor) {
     transaction(() => {
       moveAccountData(visitor, stored.account_id);
+      moveSettings(visitor, stored.account_id);
       run(`DELETE FROM accounts WHERE id = ?1`, [visitor]);
     });
   }
@@ -266,7 +268,7 @@ export async function addPasskey(accountId: string, response: RegistrationRespon
 export const passkeyCount = (accountId: string): number =>
   get<{ n: number }>(`SELECT count(*) AS n FROM account_passkeys WHERE account_id = ?1`, [accountId])?.n ?? 0;
 
-// Deletes the account with its passkeys, sessions, characters, warbands and
+// Deletes the account with its passkeys, sessions, characters, settings and
 // their share links (cascades). Ownerless share-only snapshots (from before
 // visitors) stay: they were never the account's.
 export function deleteAccount(ctx: Ctx, accountId: string): void {

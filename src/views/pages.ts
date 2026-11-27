@@ -6,12 +6,11 @@
 //
 //   /            the builder
 //   /c/<id>      one of the viewer's characters (404 if not theirs)
-//   /w/<id>      one of the viewer's warbands
 //   /s/<token>   a share link, read-only
 //   /c/<id>/history  a character's history (its version tree)
 //   /rules       the rules canvas
 import { currentViewer } from "../lib/accounts.ts";
-import { getCharacter, getWarband, resolveShare } from "../lib/characters.ts";
+import { getCharacter, resolveShare } from "../lib/characters.ts";
 import { HttpError, Router, sendJson, type Ctx } from "../lib/http.ts";
 import { API, type PageData } from "../shared/api.ts";
 import { accountInfo } from "./account.ts";
@@ -48,7 +47,6 @@ const PAGES: [string, Page][] = [
   ["/c/:id", { data: (ctx) => ({ ...base(ctx), character: orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id)) }) }],
   ["/c/:id/history", { data: (ctx) => ({ ...base(ctx), character: orNotFound(() => getCharacter(currentViewer(ctx), ctx.params.id)), view: "history" }) }],
   ["/rules", { data: (ctx) => ({ ...base(ctx), view: "rules" }), index: true }],
-  ["/w/:id", { data: (ctx) => ({ ...base(ctx), warband: orNotFound(() => getWarband(currentViewer(ctx), ctx.params.id)) }) }],
   ["/s/:token", { data: (ctx) => ({ ...base(ctx), share: orNotFound(() => resolveShare(currentViewer(ctx), ctx.params.token)) }) }],
 ];
 const pages = new Router<Page>();

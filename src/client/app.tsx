@@ -24,7 +24,7 @@ const LOAD: Record<PageId, () => Promise<Page>> = {
   rules: () => import("./pages/rules.tsx").then((m) => m.RulesPage),
   history: () => import("./pages/history.tsx").then((m) => m.HistoryPage),
   share: () => import("./pages/share.tsx").then((m) => m.SharePage),
-  builder: () => import("./pages/builder.tsx").then((m) => m.BuilderPage), // "/", /c/<id>, /w/<id>
+  builder: () => import("./pages/builder.tsx").then((m) => m.BuilderPage), // "/", /c/<id>
 };
 const loaded = new Map<PageId, Page>();
 const prepare = async (page: PageId) => {
