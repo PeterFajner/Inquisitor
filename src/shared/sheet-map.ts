@@ -57,6 +57,19 @@ export const SHEET_LOCATION_OF: Record<Location, SheetLocation> = {
 export type SheetItemKind = "firearm" | "melee" | "other";
 
 /** Where an item goes on the sheet, by its profile. */
+/**
+ * What a thing's own effects chose or rolled, and picks made into it: " (Stunning Sermon)",
+ * " (The Lidless Stare)". Each unit's own choices stay together: "Bionic Organs
+ * (Advanced, Heart; Advanced, Lungs) ×2". The sheet's and the card's.
+ */
+export function extras(it: Owned): string {
+  const units = (it.variants ?? []).map((v) => v.filter(Boolean).join(", ")).filter(Boolean);
+  const one = new Set(units).size === 1 ? [units[0]] : units;
+  const chosen = [...new Set((it.chosen ?? []).map((x) => x.name))].filter(Boolean);
+  const parts = [one.join("; "), chosen.join(", ")].filter(Boolean);
+  return parts.length ? ` (${parts.join("; ")})` : "";
+}
+
 export function sheetItemKind(item: Item | undefined): SheetItemKind {
   const p = item?.profile;
   if (!p) return "other";
@@ -167,15 +180,6 @@ export function sheetParts(ch: Character, c: Compendium): SheetParts {
     sheet.armour[col] = armourCell(a);
   }
 
-  // What a thing's own effects chose or rolled, and picks made into it: "(Stunning Sermon)".
-  // Each unit's own choices stay together: "Bionic Organs (Advanced, Heart; Advanced, Lungs) ×2".
-  const extras = (it: Owned): string => {
-    const units = (it.variants ?? []).map((v) => v.filter(Boolean).join(", ")).filter(Boolean);
-    const one = new Set(units).size === 1 ? [units[0]] : units;
-    const chosen = [...new Set((it.chosen ?? []).map((x) => x.name))].filter(Boolean);
-    const parts = [one.join("; "), chosen.join(", ")].filter(Boolean);
-    return parts.length ? ` (${parts.join("; ")})` : "";
-  };
   const abilityLists: [Owned[], Map<string, { text?: string }>][] = [
     [ch.talents, c.talents],
     [ch.exotics, c.exotics],

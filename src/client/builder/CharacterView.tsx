@@ -11,7 +11,7 @@ import type { FullBuild } from "../../shared/engine/companions.ts";
 import { cloneRecord, type CharacterRecord, type ThingKind } from "../../shared/engine/record.ts";
 import type { Compendium } from "../../shared/rules/compendium.ts";
 import { STATS, type Stat } from "../../shared/rules/schema.ts";
-import { sheetParts } from "../../shared/sheet-map.ts";
+import { extras, sheetParts } from "../../shared/sheet-map.ts";
 import { InlineInput, NameLine, Sheet, type SheetEdits } from "../sheet/Sheet.tsx";
 import { abilityText } from "./ability-text.ts";
 import { Decisions, Pending } from "./Decisions.tsx";
@@ -97,7 +97,7 @@ function Things({ c, list }: { c: Compendium; list: Owned[] }) {
         return (
           <li>
             <b>{t.name}</b>
-            {v.length > 0 && ` (${v.join(", ")})`}
+            {extras(t)}
             {text && <>: {text}</>}
           </li>
         );
@@ -433,11 +433,10 @@ export function CharacterView({
             <Section title="Equipment" action={reroll("items")}>
               <ul class="csec-list">
                 {items.map((t) => {
-                  const v = t.variants?.flat().filter(Boolean) ?? [];
                   return (
                     <li>
                       <b>{t.name}</b>
-                      {v.length > 0 && ` (${v.join(", ")})`}
+                      {extras(t)}
                       {t.qty > 1 && ` ×${t.qty}`}
                     </li>
                   );

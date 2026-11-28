@@ -17,6 +17,19 @@ node test/e2e/summary.ts [results dir] [--full]   # findings grouped by check
 node test/e2e/coverage.ts [results dir] [--full]  # table rows, things, options no shard reached
 ```
 
+On panoramix instead of this machine (the working tree and `data/` are
+copied there, it runs at low priority as user `inqe2e` in
+`/mnt/cache/inquisitor-e2e`, and the results come back to
+`.e2e/panoramix/<time>/`, summarised):
+
+```sh
+deploy/panoramix/e2e.sh                       # everything, 2 shards at a time
+deploy/panoramix/e2e.sh --shard 'ui:*' --jobs 3
+```
+
+The suite is a bug hunt run now and then (before a large deploy, after a
+change that touches many flows), not after every change.
+
 Options: `--results <dir>` (default `.e2e/results`), `--seeds N` (random
 characters per subtype in an engine shard, 300), `--reroll-seeds N` (those
 re-rolled, filled or updated, 150), `--few N` (the slower checks: legal

@@ -283,7 +283,7 @@ export async function downloadStatesFeature(r: Report, o: RunOptions): Promise<v
       await page.waitFor(() => [...document.querySelectorAll(".dl-main")].every((b) => (b.getAttribute("aria-label") ?? b.textContent) === "Download Warband Docx"), [], { what: "Download Warband Docx" });
       const t0 = Date.now();
       await page.click(".char-tools .dl-main");
-      const file = await s.chrome.download(t0, "E2E Enginseer, E2E Sister.docx");
+      const file = await s.chrome.download(t0, "E2E Enginseer, Technical Servitor, E2E Sister.docx");
       const cells = s.readDownload(file, (b) => docxCells(b));
       const names = cells.filter((x) => x === "E2E Enginseer" || x === "E2E Sister" || /Servitor/.test(x));
       // The book's p. 15: "May be accompanied by a Technical Servitor": its sheet follows the Enginseer's.

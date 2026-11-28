@@ -115,7 +115,8 @@ export async function editsFeature(r: Report, o: RunOptions): Promise<void> {
     // Stats: the card's Base, then the sheet's Starting cell, then restore.
     const rec0 = await headRecord(page, id);
     const v0 = ops.view(c, rec0).character;
-    const boonWS = v0.stats.WS.modified - v0.stats.WS.base;
+    // (before the human cap: a WS held at 100 has more Boon than 100 − Base)
+    const boonWS = (v0.stats.WS.uncapped ?? v0.stats.WS.modified) - v0.stats.WS.base;
     await s.step("a stat's Base edited sets the Total (overridden)", { ...base, steps: [...base.steps!, "Base WS → 31"] }, async () => {
       await page.click('button.cstats-edit[aria-label^="Base WS "]');
       await page.eval(() => {
